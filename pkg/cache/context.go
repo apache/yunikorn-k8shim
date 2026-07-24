@@ -64,8 +64,9 @@ import (
 const registerNodeContextHandler = "RegisterNodeContextHandler"
 
 var (
-	ErrorPodNotFound  = errors.New("predicates were not run because pod was not found in cache")
-	ErrorNodeNotFound = errors.New("predicates were not run because node was not found in cache")
+	ErrorPodNotFound        = errors.New("predicates were not run because pod was not found in cache")
+	ErrorNodeNotFound       = errors.New("predicates were not run because node was not found in cache")
+	ErrorCycleStateNotFound = errors.New("predicates were not run because pod's cycle state was not found in cache")
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
@@ -692,6 +693,38 @@ func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.Cl
 	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
+// PreFilter evaluates given prefilter based predicates based on current context
+func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicatesResponse {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
+		log.Log(log.ShimContext).Error("failed running PreFilter plugin",
+			zap.String("pod", name),
+			zap.Error(ErrorPodNotFound))
+		return &si.PreFilterPredicatesResponse{
+			FeasibleNodes: make(map[string]*si.Empty),
+			Success:       false,
+		}
+	}
+	// if pod exists in cache, try to run predicates
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForWrites()
+	feasibleNodes, cycleState, err := ctx.predManager.PreFilter(pod, allocate)
+	ctx.schedulerCache.UpdateCycleState(pod, cycleState)
+	ctx.schedulerCache.UnlockForWrites()
+	if err == nil {
+		return &si.PreFilterPredicatesResponse{
+			FeasibleNodes: feasibleNodes,
+			Success:       true,
+		}
+	}
+	return &si.PreFilterPredicatesResponse{
+		FeasibleNodes: make(map[string]*si.Empty),
+		Success:       false,
+	}
+}
+
 // IsPodFitNode evaluates given predicates based on current context
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
@@ -708,7 +741,11 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
-	plugin, err := ctx.predManager.Predicates(pod, targetNode, allocate)
+	cycleState := ctx.schedulerCache.GetCycleState(pod)
+	if cycleState == nil {
+		return ErrorCycleStateNotFound
+	}
+	plugin, err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
 	if err != nil {
 		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
 	}
@@ -724,17 +761,18 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 			// need to lock cache here as predicates need a stable view into the cache
 			ctx.schedulerCache.LockForReads()
 			defer ctx.schedulerCache.UnlockForReads()
+			if cycleState := ctx.schedulerCache.GetCycleState(pod); cycleState != nil {
+				// look up each victim in the scheduler cache
+				victims := make([]*v1.Pod, len(allocations))
+				for index, uid := range allocations {
+					victim := ctx.schedulerCache.GetPodNoLock(uid)
+					victims[index] = victim
+				}
 
-			// look up each victim in the scheduler cache
-			victims := make([]*v1.Pod, len(allocations))
-			for index, uid := range allocations {
-				victim := ctx.schedulerCache.GetPodNoLock(uid)
-				victims[index] = victim
-			}
-
-			// check predicates for a match
-			if index := ctx.predManager.PreemptionPredicates(pod, targetNode, victims, startIndex); index != -1 {
-				return index, true
+				// check predicates for a match
+				if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+					return index, true
+				}
 			}
 		}
 	}
