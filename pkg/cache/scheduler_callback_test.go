@@ -94,6 +94,18 @@ func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
 	binder.SetAssumePodVolumesError(errMsg)
 	setVolumeBinder(context, binder)
 
+	var rollbackSent atomic.Bool
+	context.apiProvider.(*client.MockedAPIProvider).MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
 	err := callback.UpdateAllocation(&si.AllocationResponse{
 		New: []*si.Allocation{
 			{
@@ -103,13 +115,54 @@ func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
 			},
 		},
 	})
-	assert.Error(t, err, errMsg)
+	assert.NilError(t, err, "error updating allocation")
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
+	assert.Assert(t, rollbackSent.Load(), "rollback release was not sent to scheduler")
+	task := context.getTask(appID, taskUID1)
+	assert.Equal(t, "", task.GetAllocationKey(), "allocation key should be cleared after rollback")
+	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should remain in Scheduling state")
+}
+
+func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
+	callback, context := initCallbackTest(t, false, true)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	binder := test.NewVolumeBinderMock()
+	const errMsg = "error assuming pod volumes"
+	binder.SetAssumePodVolumesError(errMsg)
+	setVolumeBinder(context, binder)
+	NewPlaceholderManager(context.apiProvider.GetAPIs())
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+				NodeID:        fakeNodeName,
+			},
+		},
+	})
+	assert.ErrorContains(t, err, "placeholder task does not have volume bindings, AssumePod failed", "error should contain placeholder context")
+	assert.ErrorContains(t, err, errMsg, "error should wrap the original AssumePod error")
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
 	task := context.getTask(appID, taskUID1)
 	err = utils.WaitForCondition(func() bool {
 		return task.GetTaskState() == TaskStates().Failed
 	}, 10*time.Millisecond, time.Second)
-	assert.NilError(t, err, "task has not transitioned to Failed state")
+	assert.NilError(t, err, "placeholder task has not transitioned to Failed state")
+	// FailWithEvent emits a Warning/"AssumePodError" event; beforeTaskFail emits a Normal/"TaskFailed" event.
+	assert.Equal(t, 2, len(recorder.Events), "expected two K8s events to be recorded")
+	assumePodErrorFound := false
+	for i := 0; i < 2; i++ {
+		event := <-recorder.Events
+		if strings.Contains(event, "AssumePodError") {
+			assumePodErrorFound = true
+		}
+	}
+	assert.Assert(t, assumePodErrorFound, "no event with reason 'AssumePodError' was recorded")
 }
 
 func TestUpdateAllocation_NewTask_PodAlreadyAssigned(t *testing.T) {

@@ -620,6 +620,58 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 	dispatcher.Dispatch(NewFailTaskEvent(task.applicationID, task.taskID, errorMessage))
 }
 
+// rollbackOnAssumePodFailure is called when AssumePod fails after all retries.
+// It resets task state and notifies the core to move the allocation back to a
+// pending ask so it can be re-scheduled on a different node.
+// Must be called without holding the task lock.
+func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
+	// Read fields needed for event posting and release request under read lock.
+	task.lock.RLock()
+	podCopy := task.pod.DeepCopy()
+	alias := task.alias
+	appID := task.applicationID
+	partition := task.application.partition
+	task.lock.RUnlock()
+
+	// Post a warning event so operators can see the retry via kubectl describe pod.
+	events.GetRecorder().Eventf(podCopy, nil,
+		v1.EventTypeWarning, "AssumePodFailed", "AssumePodFailed",
+		"Node assignment failed for %s on node %s, it will be retried", alias, nodeID)
+
+	// Clear stale node assignment under write lock so the task is clean for the next allocation.
+	task.lock.Lock()
+	task.allocationKey = ""
+	task.nodeName = ""
+	task.lock.Unlock()
+
+	// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
+	// even if AssumePodVolumes was never reached or already cleaned up internally.
+	task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
+
+	// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
+	task.context.ForgetPod(allocationKey)
+
+	// Notify the core to roll back the allocation to a pending ask.
+	if schedulerAPI := task.context.apiProvider.GetAPIs().SchedulerAPI; schedulerAPI != nil {
+		releaseRequest := common.CreateReleaseRequestForTask(
+			appID,
+			allocationKey,
+			partition,
+			si.TerminationType_SCHEDULING_FAILED_ON_RM,
+		)
+		if err := schedulerAPI.UpdateAllocation(releaseRequest); err != nil {
+			log.Log(log.ShimCacheTask).Error("failed to send rollback request to scheduler",
+				zap.String("appID", appID),
+				zap.String("allocationKey", allocationKey),
+				zap.Error(err))
+		}
+	}
+
+	log.Log(log.ShimCacheTask).Info("task allocation rolled back, will retry on a different node",
+		zap.String("appID", appID),
+		zap.String("allocationKey", allocationKey))
+}
+
 func (task *Task) SetTaskPod(pod *v1.Pod) {
 	task.lock.Lock()
 	defer task.lock.Unlock()
