@@ -79,6 +79,22 @@ You can run following command to retrieve the meta info for a docker image build
 docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-amd64-latest
 ```
 
+## Optional components
+
+The shim ships two additional components that are **not** required for the
+scheduler to run but can be enabled on top of a working YuniKorn install:
+
+| Component            | Build target       | Image target      | Notes                                                                                                     |
+| -------------------- | ------------------ | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| Admission controller | `make admission`   | `make adm_image`  | Included in the default `make image` target.                                                              |
+| Queue operator       | `make queue_operator` | `make qop_image` | **Opt-in** ([YUNIKORN-3192](https://issues.apache.org/jira/browse/YUNIKORN-3192)). Not part of `make image`. |
+
+The queue operator watches `queue.yunikorn.k8s.io/v1alpha1` `Queue` CRs and
+materialises them into the `yunikorn-configs` ConfigMap so tenants can
+manage queues declaratively without editing the monolithic `queues.yaml`.
+Install manifests and configuration are in
+[`deployments/queue-operator`](./deployments/queue-operator/README.md).
+
 ## Design documents
 All design documents are located in our [website](http://yunikorn.apache.org/docs/next/design/architecture). 
 The core component design documents also contains the design documents for cross component designs.
