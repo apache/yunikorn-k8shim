@@ -601,6 +601,13 @@ func (cache *SchedulerCache) UpdateCycleState(pod *v1.Pod, cycleState *framework
 	cache.podsCycleState[string(pod.UID)] = cycleState
 }
 
+func (cache *SchedulerCache) DeleteCycleState(pod *v1.Pod) {
+	if pod == nil {
+		return
+	}
+	delete(cache.podsCycleState, string(pod.UID))
+}
+
 func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()

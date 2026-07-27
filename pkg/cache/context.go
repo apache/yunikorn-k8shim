@@ -710,10 +710,10 @@ func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicate
 	// if pod exists in cache, try to run predicates
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForWrites()
+	defer ctx.schedulerCache.UnlockForWrites()
 	feasibleNodes, cycleState, err := ctx.predManager.PreFilter(pod, allocate)
-	ctx.schedulerCache.UpdateCycleState(pod, cycleState)
-	ctx.schedulerCache.UnlockForWrites()
 	if err == nil {
+		ctx.schedulerCache.UpdateCycleState(pod, cycleState)
 		return &si.PreFilterPredicatesResponse{
 			FeasibleNodes: feasibleNodes,
 			Success:       true,
@@ -739,13 +739,14 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 		return ErrorNodeNotFound
 	}
 	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
-	defer ctx.schedulerCache.UnlockForReads()
+	ctx.schedulerCache.LockForWrites()
+	defer ctx.schedulerCache.UnlockForWrites()
 	cycleState := ctx.schedulerCache.GetCycleState(pod)
 	if cycleState == nil {
 		return ErrorCycleStateNotFound
 	}
 	plugin, err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
+	ctx.schedulerCache.DeleteCycleState(pod)
 	if err != nil {
 		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
 	}
