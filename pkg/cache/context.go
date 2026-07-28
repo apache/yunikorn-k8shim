@@ -746,8 +746,9 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 		return ErrorCycleStateNotFound
 	}
 	plugin, err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
-	ctx.schedulerCache.DeleteCycleState(pod)
-	if err != nil {
+	if err == nil {
+		ctx.schedulerCache.DeleteCycleState(pod)
+	} else {
 		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
 	}
 	return err
