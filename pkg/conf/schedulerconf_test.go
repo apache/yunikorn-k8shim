@@ -74,7 +74,6 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
-	assert.Equal(t, conf.UserLabelKey, constants.DefaultUserLabel)
 }
 
 func TestDecompress(t *testing.T) {

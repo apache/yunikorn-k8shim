@@ -318,7 +318,7 @@ func MergeMaps(first, second map[string]string) map[string]string {
 	return result
 }
 
-// GetUserFromPod find username from pod annotation or label
+// GetUserFromPod find username from pod annotation
 func GetUserFromPod(pod *v1.Pod) (string, []string) {
 	if pod.Annotations[userInfoKey] != "" {
 		userInfoJSON := pod.Annotations[userInfoKey]
@@ -339,28 +339,7 @@ func GetUserFromPod(pod *v1.Pod) (string, []string) {
 		return user, groups
 	}
 
-	// Label is processed for backwards compatibility
-	userLabelKey := conf.GetSchedulerConf().UserLabelKey
-	if userLabelKey != "" {
-		log.Log(log.Deprecation).Warn("'userLabelKey' config is deprecated, use 'user.info' annotation")
-	}
-	// UserLabelKey should not be empty
-	if userLabelKey == "" {
-		userLabelKey = constants.DefaultUserLabel
-	}
-	// Username to be defined in labels
-	if username := GetPodLabelValue(pod, userLabelKey); username != "" && len(username) > 0 {
-		log.Log(log.Deprecation).Warn("Found user name from pod label",
-			zap.String("userLabel", userLabelKey),
-			zap.String("user", username))
-		return username, nil
-	}
-	value := constants.DefaultUser
-
-	log.Log(log.ShimUtils).Debug("Unable to retrieve user name from pod labels. Empty user label",
-		zap.String("userLabel", userLabelKey))
-
-	return value, nil
+	return constants.DefaultUser, nil
 }
 
 // GetCoreSchedulerConfigFromConfigMap resolves a yunikorn configmap into a core scheduler config.
