@@ -1231,34 +1231,6 @@ func (k *KubeCtl) GetEvents(namespace string) (*v1.EventList, error) {
 	return k.clientSet.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
 }
 
-// SetFaultInject enables or disables AssumePod fault injection by creating or deleting
-// the FaultInjectConfigMapName ConfigMap in ykNamespace.
-// No kubectl exec is required — the ConfigMap is read directly by the scheduler via the k8s API.
-func (k *KubeCtl) SetFaultInject(ykNamespace string, enabled bool) error {
-	if enabled {
-		cm := &v1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      constants.FaultInjectConfigMapName,
-				Namespace: ykNamespace,
-			},
-			Data: map[string]string{"assumePodError": "true"},
-		}
-		_, err := k.clientSet.CoreV1().ConfigMaps(ykNamespace).Create(context.TODO(), cm, metav1.CreateOptions{})
-		if k8serrors.IsAlreadyExists(err) {
-			_, err = k.clientSet.CoreV1().ConfigMaps(ykNamespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
-		}
-		if err != nil {
-			return fmt.Errorf("SetFaultInject(enabled=true): failed to create/update ConfigMap: %w", err)
-		}
-		return nil
-	}
-	err := k.clientSet.CoreV1().ConfigMaps(ykNamespace).Delete(context.TODO(), constants.FaultInjectConfigMapName, metav1.DeleteOptions{})
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("SetFaultInject(enabled=false): failed to delete ConfigMap: %w", err)
-	}
-	return nil
-}
-
 // CreateTestPodAction returns a closure that creates a pause pod upon invocation.
 func (k *KubeCtl) CreateTestPodAction(pod *v1.Pod, namespace string) Action {
 	return func() error {

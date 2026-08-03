@@ -33,7 +33,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/util/feature"
@@ -871,9 +870,6 @@ func (ctx *Context) AssumePod(name, node string) error {
 					zap.Error(err))
 				return err
 			}
-			if ctx.assumePodShouldInjectError() {
-				return fmt.Errorf("fault injection: AssumePodVolumes error injected")
-			}
 			allBound, err = ctx.apiProvider.GetAPIs().VolumeBinder.AssumePodVolumes(ctx.klogger, pod, node, volumes)
 			if err != nil {
 				return err
@@ -886,13 +882,6 @@ func (ctx *Context) AssumePod(name, node string) error {
 		}
 	}
 	return nil
-}
-
-func (ctx *Context) assumePodShouldInjectError() bool {
-	clientSet := ctx.apiProvider.GetAPIs().KubeClient.GetClientSet()
-	_, err := clientSet.CoreV1().ConfigMaps(ctx.namespace).Get(
-		context.TODO(), constants.FaultInjectConfigMapName, metav1.GetOptions{})
-	return err == nil
 }
 
 // forget pod must be called when a pod is assumed to be running on a node,

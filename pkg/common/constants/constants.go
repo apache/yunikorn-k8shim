@@ -63,9 +63,6 @@ const DefaultUser = "nobody"
 // Spark
 const SparkLabelAppID = "spark-app-selector"
 
-// Fault Injection
-const FaultInjectConfigMapName = "yunikorn-fault-inject"
-
 // Configuration
 const ConfigMapName = "yunikorn-configs"
 const DefaultConfigMapName = "yunikorn-defaults"
