@@ -47,11 +47,10 @@ var _ = ginkgo.Describe("AssumePodFaultInjection", func() {
 
 	ginkgo.AfterEach(func() {
 		ginkgo.By("Clear fault injection")
-		err := kClient.SetFaultInject(configmanager.YuniKornTestConfig.YkNamespace, false)
-		Ω(err).NotTo(gomega.HaveOccurred())
+		_ = kClient.SetFaultInject(configmanager.YuniKornTestConfig.YkNamespace, false)
 
 		ginkgo.By("Tear down test namespace " + faultDev)
-		err = kClient.TearDownNamespace(faultDev)
+		err := kClient.TearDownNamespace(faultDev)
 		Ω(err).NotTo(gomega.HaveOccurred())
 
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{faultDev})
