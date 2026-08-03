@@ -95,6 +95,7 @@ func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {
 	setVolumeBinder(context, binder)
 
 	var rollbackSent atomic.Bool
+	//nolint:errcheck
 	context.apiProvider.(*client.MockedAPIProvider).MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
 		if request.Releases != nil {
 			for _, rel := range request.Releases.AllocationsToRelease {
