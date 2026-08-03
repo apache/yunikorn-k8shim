@@ -875,57 +875,6 @@ func TestMergeMaps(t *testing.T) {
 	}
 }
 
-func TestGetUserFromPodLabel(t *testing.T) {
-	userInLabel := "testuser"
-	userNotInLabel := constants.DefaultUser
-	customUserKeyLabel := "test"
-	testCases := []struct {
-		name         string
-		userLabelKey string
-		pod          *v1.Pod
-		expectedUser string
-	}{
-		{"User defined in label with default key", constants.DefaultUserLabel, &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{constants.DefaultUserLabel: userInLabel},
-			},
-		}, userInLabel},
-		{"The length of UserKeyLabel value is 0", constants.DefaultUserLabel, &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{customUserKeyLabel: ""},
-			},
-		}, userNotInLabel},
-		{"User not defined in label", constants.DefaultUserLabel, &v1.Pod{}, userNotInLabel},
-		{"UserKeyLabel is empty and the user definded in the pod labels with default key", "", &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{constants.DefaultUserLabel: userInLabel},
-			},
-		}, userInLabel},
-		{"UserKeyLabel is empty and the user isn't defined in the pod labels", "", &v1.Pod{}, userNotInLabel},
-		{"UserKeyLabel is changed and the user definded in the pod labels", customUserKeyLabel, &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{customUserKeyLabel: userInLabel},
-			},
-		}, userInLabel},
-		{"UserKeyLabel is changed and the user isn't defined in the pod labels", customUserKeyLabel, &v1.Pod{}, userNotInLabel},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			conf := conf.GetSchedulerConf()
-			// The default UserLabelKey could be set with the custom UserLabelKey.
-			if tc.userLabelKey != constants.DefaultUserLabel {
-				conf.UserLabelKey = tc.userLabelKey
-			}
-
-			userID, _ := GetUserFromPod(tc.pod)
-			assert.Equal(t, userID, tc.expectedUser)
-			// The order of test cases is allowed to impact other test case.
-			conf.UserLabelKey = constants.DefaultUserLabel
-		})
-	}
-}
-
 func TestGetUserFromPodAnnotation(t *testing.T) {
 	const userAndGroups = "{\"user\":\"test\",\"groups\":[\"devops\",\"test\"]}"
 	const emptyUserAndGroups = "{\"user\":\"\",\"groups\":[\"devops\",\"test\"]}"
@@ -954,6 +903,7 @@ func TestGetUserFromPodAnnotation(t *testing.T) {
 					userInfoKey: "xyzxyz"},
 			},
 		}, "nobody", nil},
+		{"No annotation", &v1.Pod{}, "nobody", nil},
 	}
 
 	for _, tc := range testCases {

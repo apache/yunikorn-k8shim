@@ -125,7 +125,6 @@ type SchedulerConf struct {
 	KubeBurst                int                `json:"kubeBurst"`
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
-	UserLabelKey             string             `json:"userLabelKey"`
 	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
 	InstanceTypeNodeLabelKey string             `json:"instanceTypeNodeLabelKey"`
 	Namespace                string             `json:"namespace"`
@@ -159,7 +158,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		KubeBurst:                conf.KubeBurst,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
-		UserLabelKey:             conf.UserLabelKey,
 		PlaceHolderConfig:        conf.PlaceHolderConfig,
 		InstanceTypeNodeLabelKey: conf.InstanceTypeNodeLabelKey,
 		Namespace:                conf.Namespace,
@@ -332,7 +330,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		KubeBurst:                DefaultKubeBurst,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
-		UserLabelKey:             constants.DefaultUserLabel,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
 		GenerateUniqueAppIds:     DefaultAMFilteringGenerateUniqueAppIds,
 		PlaceHolderConfig: &PlaceHolderConfig{

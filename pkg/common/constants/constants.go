@@ -57,7 +57,6 @@ const AppTagNamespace = "namespace"
 const AppTagNamespaceParentQueue = "namespace.parentqueue"
 const AppTagImagePullSecrets = "imagePullSecrets"
 const DefaultAppNamespace = "default"
-const DefaultUserLabel = DomainYuniKorn + "username"
 const DefaultUser = "nobody"
 
 // Spark

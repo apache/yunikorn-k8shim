@@ -102,7 +102,7 @@ func getAppMetadata(pod *v1.Pod) (ApplicationMetadata, bool) {
 		tags[constants.AppTagImagePullSecrets] = strings.Join(arr, ",")
 	}
 
-	// get the user from Pod Labels
+	// get the user from pod annotation
 	user, groups := utils.GetUserFromPod(pod)
 
 	var taskGroups []TaskGroup = nil
