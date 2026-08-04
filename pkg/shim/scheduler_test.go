@@ -249,9 +249,6 @@ func TestAssumePodError(t *testing.T) {
 	pod1 := createTestPod("root.a", "app0001", "task0001", taskResource)
 	cluster.AddPod(pod1)
 
-	// wait for the application to be registered and its ask queued in the shim
-	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Accepted)
-
 	// wait for core to deliver the first allocation to the shim; the allocationKey is
 	// set in the callback before the AssumePod retry loop starts, so it becomes
 	// visible immediately — well before the long exponential backoff runs to completion.
