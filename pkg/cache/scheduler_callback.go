@@ -65,18 +65,72 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 		}
 
 		task.setAllocationKey(alloc.AllocationKey)
+		task.setNodeName(alloc.NodeID)
 		backOff := wait.Backoff{
 			Steps:    30,
 			Duration: time.Second,
 			Cap:      30 * time.Second,
 		}
 		err := retry.OnError(backOff, func(err error) bool {
-			log.Log(log.ShimRMCallback).Error("AssumePod failed, retrying", zap.Error(err))
+			decision := ClassifyBindFailure(err)
+			if decision.Action != BindFailureActionRetrySameNode {
+				log.Log(log.ShimRMCallback).Warn("AssumePod failed with non-retryable error",
+					zap.String("allocationKey", alloc.AllocationKey),
+					zap.String("applicationID", alloc.ApplicationID),
+					zap.String("nodeID", alloc.NodeID),
+					zap.String("failureScope", string(decision.Scope)),
+					zap.String("failureDurability", string(decision.Durability)),
+					zap.String("shadowAction", string(decision.Action)),
+					zap.String("decisionReason", decision.Reason),
+					zap.Error(err))
+				return false
+			}
+
+			log.Log(log.ShimRMCallback).Warn("AssumePod failed with transient error, retrying",
+				zap.String("allocationKey", alloc.AllocationKey),
+				zap.String("applicationID", alloc.ApplicationID),
+				zap.String("nodeID", alloc.NodeID),
+				zap.String("failureScope", string(decision.Scope)),
+				zap.String("failureDurability", string(decision.Durability)),
+				zap.String("shadowAction", string(decision.Action)),
+				zap.String("decisionReason", decision.Reason),
+				zap.Error(err))
 			return true
 		}, func() error {
 			return callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID)
 		})
 		if err != nil {
+			decision := ClassifyBindFailure(err)
+			if task.rollbackNodeScopedBindFailureWithLock(err) {
+				callback.context.ForgetPod(alloc.AllocationKey)
+				log.Log(log.ShimRMCallback).Info("AssumePod failed with node-scoped error; rolling back allocation and retrying on a different node",
+					zap.String("allocationKey", alloc.AllocationKey),
+					zap.String("applicationID", alloc.ApplicationID),
+					zap.String("failedNodeID", alloc.NodeID),
+					zap.String("failureScope", string(decision.Scope)),
+					zap.String("failureDurability", string(decision.Durability)),
+					zap.String("shadowAction", string(decision.Action)),
+					zap.String("decisionReason", decision.Reason),
+					zap.Error(err))
+				continue
+			}
+
+			fields := []zap.Field{
+				zap.String("allocationKey", alloc.AllocationKey),
+				zap.String("applicationID", alloc.ApplicationID),
+				zap.String("nodeID", alloc.NodeID),
+				zap.String("failureScope", string(decision.Scope)),
+				zap.String("failureDurability", string(decision.Durability)),
+				zap.String("shadowAction", string(decision.Action)),
+				zap.String("decisionReason", decision.Reason),
+			}
+			if details, ok := GetBindFailureDetails(err); ok {
+				fields = append(fields,
+					zap.String("bindStage", string(details.Stage)),
+					zap.String("bindOperation", string(details.Operation)),
+				)
+			}
+			log.Log(log.ShimRMCallback).Warn("AssumePod failed after retries (classification in shadow mode)", fields...)
 			task.FailWithEvent(err.Error(), "AssumePodError")
 			return err
 		}
