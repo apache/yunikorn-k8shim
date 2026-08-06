@@ -41,6 +41,7 @@ import (
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
@@ -128,7 +129,12 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		}
 		sharedDRAManager = dynamicresources.NewDRAManager(context.TODO(), resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
-	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, csiManager, sharedDRAManager))
+
+	config, err := predicates.DefaultConfig()
+	if err != nil {
+		log.Log(log.ShimClient).Error("unable to create the predicates config", zap.Error(err))
+	}
+	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, csiManager, sharedDRAManager), plugins.NewInTreeRegistry(), config)
 	return ctx
 }
 
@@ -773,6 +779,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 
 				// check predicates for a match
 				if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+					ctx.schedulerCache.DeleteCycleState(pod)
 					return index, true
 				}
 			}

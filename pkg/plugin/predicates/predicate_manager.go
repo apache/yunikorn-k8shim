@@ -37,7 +37,6 @@ import (
 	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	fwruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
@@ -203,19 +202,20 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 		nodes, status := pl.PreFilter(ctx, cycleState, pod, allNodes)
 		if status.IsSkip() {
 			skipPlugins.Insert(plugin)
-		} else if !status.IsSuccess() {
-			if status.IsRejected() {
-				return status, map[string]*si.Empty{}
-			}
+			continue
+		}
+		if status.IsRejected() {
+			return status, map[string]*si.Empty{}
+		}
+		if !status.IsSuccess() {
 			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running PreFilter plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
 			return fwk.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), map[string]*si.Empty{}
-		} else {
-			mergedPreFilterResults = mergedPreFilterResults.Merge(nodes)
 		}
+		mergedPreFilterResults = mergedPreFilterResults.Merge(nodes)
 	}
 	if mergedPreFilterResults != nil {
 		for n := range mergedPreFilterResults.NodeNames {
@@ -288,7 +288,7 @@ func EnableOptionalKubernetesFeatureGates() {
 	}
 }
 
-func NewPredicateManager(handle fwk.Handle) PredicateManager {
+func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config *apiConfig.KubeSchedulerConfiguration) PredicateManager {
 	/*
 		Default K8S plugins as of 1.32 that implement PreFilter:
 			NodeAffinity
@@ -357,11 +357,13 @@ func NewPredicateManager(handle fwk.Handle) PredicateManager {
 		"*": true,
 	}
 
-	return newPredicateManagerInternal(handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
+	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
 }
 
 func newPredicateManagerInternal(
 	handle fwk.Handle,
+	registry fwruntime.Registry,
+	config *apiConfig.KubeSchedulerConfiguration,
 	reservationPreFilters map[string]bool,
 	allocationPreFilters map[string]bool,
 	reservationFilters map[string]bool,
@@ -370,21 +372,13 @@ func newPredicateManagerInternal(
 	if metrics.Goroutines == nil {
 		metrics.InitMetrics()
 	}
-
-	pluginRegistry := plugins.NewInTreeRegistry()
-
-	cfg, err := defaultConfig() // latest.Default()
-	if err != nil {
-		log.Log(log.ShimPredicates).Fatal("Unable to get default predicate config", zap.Error(err))
-	}
-
-	profile := cfg.Profiles[0] // first profile is default
+	profile := config.Profiles[0] // first profile is default
 	registeredPlugins := profile.Plugins
 	createdPlugins := make([]fwk.Plugin, 0)
 
 	// As of SchedulerConfiguration v1, all plugins implement MultiPoint, therefore we need to instantiate each one and
 	// check to see what interfaces it implements dynamically
-	createPlugins(handle, pluginRegistry, &registeredPlugins.MultiPoint, &createdPlugins)
+	createPlugins(handle, registry, &registeredPlugins.MultiPoint, &createdPlugins)
 
 	resPre := make([]fwk.Plugin, 0)
 	allocPre := make([]fwk.Plugin, 0)
@@ -430,7 +424,7 @@ func filterPlugins(plugins []fwk.Plugin) *[]fwk.FilterPlugin {
 	return &result
 }
 
-func defaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
+func DefaultConfig() (*apiConfig.KubeSchedulerConfiguration, error) {
 	versionedCfg := schedConfig.KubeSchedulerConfiguration{}
 	versionedCfg.DebuggingConfiguration = *v1alpha1.NewRecommendedDebuggingConfiguration()
 

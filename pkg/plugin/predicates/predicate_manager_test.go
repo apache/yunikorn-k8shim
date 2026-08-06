@@ -19,6 +19,8 @@
 package predicates
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,12 +30,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime2 "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
+	apiConfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
@@ -42,6 +48,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeunschedulable"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodevolumelimits"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
+	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	"k8s.io/kubernetes/pkg/util/taints"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -55,10 +62,57 @@ var (
 	hugePageResourceA = v1helper.HugePageResourceName(resource.MustParse("2Mi"))
 )
 
-func TestPreemptionPredicates(t *testing.T) {
+const (
+	mockPreFilterPlugin = "mock-prefilter-plugin"
+	mockFilterPlugin    = "mock-filter-plugin"
+	injectReason        = "injected status"
+	injectFilterReason  = "injected filter status"
+)
+
+type injectedResult struct {
+	PreFilterResult *fwk.PreFilterResult `json:"preFilterResult,omitempty"`
+	PreFilterStatus int                  `json:"preFilterStatus,omitempty"`
+	FilterStatus    int                  `json:"filterStatus,omitempty"`
+}
+
+// MockPreFilterPlugin implements PreFilter interface.
+type MockPreFilterPlugin struct {
+	name string
+	inj  injectedResult
+}
+
+func (pl *MockPreFilterPlugin) PreFilterExtensions() fwk.PreFilterExtensions {
+	return nil
+}
+
+func (pl *MockPreFilterPlugin) Name() string {
+	return pl.name
+}
+
+func (pl *MockPreFilterPlugin) PreFilter(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodes []fwk.NodeInfo) (*fwk.PreFilterResult, *fwk.Status) {
+	return pl.inj.PreFilterResult, fwk.NewStatus(fwk.Code(pl.inj.PreFilterStatus), injectReason)
+}
+
+// MockFilterPlugin implements Filter interface.
+type MockFilterPlugin struct {
+	name string
+	inj  injectedResult
+}
+
+func (pl *MockFilterPlugin) Filter(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
+	return fwk.NewStatus(fwk.Code(pl.inj.FilterStatus), injectFilterReason)
+}
+
+func (pl *MockFilterPlugin) Name() string {
+	return pl.name
+}
+
+func TestPreemptionFilterWithVictims(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	emptyNode := framework.NewNodeInfo()
 	emptyNode.SetNode(&v1.Node{})
@@ -123,7 +177,9 @@ func TestPreemptionPredicates(t *testing.T) {
 func TestEventsToRegister(t *testing.T) {
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	var queueingHintFn fwk.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (fwk.QueueingHint, error) {
 		// illegal sentinel to ensure we called the correct function
@@ -145,7 +201,9 @@ func TestEventsToRegister(t *testing.T) {
 func TestPodFitsHost(t *testing.T) {
 	ep := enabledPlugins(nodename.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -228,7 +286,9 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 func TestPodFitsHostPorts(t *testing.T) {
 	ep := enabledPlugins(nodeports.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -345,7 +405,9 @@ func TestPodFitsHostPorts(t *testing.T) {
 func TestPodFitsSelector(t *testing.T) {
 	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -1104,7 +1166,9 @@ func TestEnableOptionalKubernetesFeatureGates(t *testing.T) {
 func TestRunGeneralPredicates(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	resourceTests := []struct {
 		pod      *v1.Pod
@@ -1183,7 +1247,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 func TestInterPodAffinity(t *testing.T) {
 	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
 	handle, lister := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
@@ -2145,13 +2211,15 @@ func TestReserveAlloc(t *testing.T) {
 	// no predicates configured that are run by reservations
 	ep := enabledPlugins()
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
-	_, err := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
-	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager = newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
@@ -2186,7 +2254,9 @@ func TestReserveNodeSelector(t *testing.T) {
 
 	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
 	testCases := []struct {
 		name          string
@@ -2215,6 +2285,336 @@ func TestReserveNodeSelector(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPreFilter(t *testing.T) {
+	node1 := "node1"
+	node2 := "node2"
+	node3 := "node3"
+	nodes, nodes1, nodes2, nodes3 := make(sets.Set[string]), make(sets.Set[string]), make(sets.Set[string]), make(sets.Set[string])
+	nodes.Insert(node1)
+	nodes1.Insert(node1)
+	nodes1.Insert(node2)
+	nodes2.Insert(node1)
+	nodes2.Insert(node3)
+	nodes3.Insert(node2)
+
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		plugins        []*MockPreFilterPlugin
+		feasibleNodes  []string
+		skippedPlugins []string
+		errorExpected  error
+	}{
+		{"success", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-skip", inj: injectedResult{PreFilterStatus: int(fwk.Skip)}},
+			},
+			[]string{node1},
+			[]string{"mock-prefilter-plugin-skip"}, nil,
+		},
+		{"intersection of nodes", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin + "-1", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes1}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-2", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes2}, PreFilterStatus: int(fwk.Success)}},
+			},
+			[]string{node1},
+			nil, nil,
+		},
+
+		{"disjoint set of nodes", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin + "-1", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-2", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes3}, PreFilterStatus: int(fwk.Success)}},
+			},
+			[]string{},
+			nil, nil,
+		},
+
+		{"rejected - unschedulable and unresolvable", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+			},
+			[]string{},
+			nil, errors.New("UnschedulableAndUnresolvable"),
+		},
+		{"rejected - unschedulable", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable)}},
+			},
+			[]string{},
+			nil, errors.New("unschedulable"),
+		},
+		{"error", pod,
+			[]*MockPreFilterPlugin{
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error)}},
+			},
+			[]string{},
+			nil, errors.New("error"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := make(runtime.Registry)
+			enabled := make([]apiConfig.Plugin, len(tc.plugins))
+			var eps []string
+			for i, p := range tc.plugins {
+				enabled[i].Name = p.name
+				eps = append(eps, p.name)
+				if err := r.Register(p.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return p, nil
+				}); err != nil {
+					t.Fatalf("fail to register PreFilter plugin (%s)", p.Name())
+				}
+			}
+			for _, allocate := range []bool{true, false} {
+				ep := enabledPlugins(eps...)
+				handle, _ := getFrameworkHandle()
+				config, err := prepareConfig(eps)
+				assert.NilError(t, err)
+				var resPreFilters map[string]bool
+				var allocPreFilters map[string]bool
+				if allocate {
+					allocPreFilters = ep
+				} else {
+					resPreFilters = ep
+				}
+				p := newPredicateManagerInternal(handle, r, config, resPreFilters, allocPreFilters, nil, nil)
+				feasibleNodes, cycleState, filterErr := p.PreFilter(tc.pod, allocate)
+				if tc.skippedPlugins != nil {
+					for _, sp := range tc.skippedPlugins {
+						assert.Assert(t, cycleState.GetSkipFilterPlugins().Has(sp) == true, nil)
+					}
+				}
+				if tc.feasibleNodes != nil {
+					assert.Equal(t, len(tc.feasibleNodes), len(feasibleNodes))
+					for _, fn := range tc.feasibleNodes {
+						assert.Assert(t, feasibleNodes[fn] != nil, nil)
+					}
+				}
+				if tc.errorExpected != nil {
+					assert.Assert(t, filterErr != nil, "error should not be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestFilter(t *testing.T) {
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		}}
+	skip := make(sets.Set[string])
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		filterPlugins  []*MockFilterPlugin
+		skippedPlugins sets.Set[string]
+		errorExpected  error
+	}{
+		{"success", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Success)}},
+			},
+			nil, nil,
+		},
+		{
+			"skip", pod,
+			[]*MockFilterPlugin{
+				// Inject error code so that if not skipped error would be thrown
+				{name: mockFilterPlugin + "-skip", inj: injectedResult{FilterStatus: int(fwk.Error)}},
+			},
+			skip.Insert("mock-filter-plugin-skip"), nil,
+		},
+		{"rejected - unschedulable and unresolvable", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+			},
+			nil, errors.New("UnschedulableAndUnresolvable"),
+		},
+		{"rejected - unschedulable", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable)}},
+			},
+			nil, errors.New("unschedulable"),
+		},
+		{"error", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error)}},
+			},
+			nil, errors.New("error"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := make(runtime.Registry)
+			enabled := make([]apiConfig.Plugin, len(tc.filterPlugins))
+			var eps []string
+			for i, p := range tc.filterPlugins {
+				enabled[i].Name = p.name
+				eps = append(eps, p.name)
+				if err := r.Register(p.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return p, nil
+				}); err != nil {
+					t.Fatalf("fail to register PreFilter plugin (%s)", p.Name())
+				}
+			}
+			for _, allocate := range []bool{true, false} {
+				ep := enabledPlugins(eps...)
+				handle, _ := getFrameworkHandle()
+				config, err := prepareConfig(eps)
+				assert.NilError(t, err)
+				var resFilters map[string]bool
+				var allocFilters map[string]bool
+				if allocate {
+					allocFilters = ep
+				} else {
+					resFilters = ep
+				}
+				p := newPredicateManagerInternal(handle, r, config, nil, nil, resFilters, allocFilters)
+				cycleState := framework.NewCycleState()
+				if tc.skippedPlugins != nil {
+					cycleState.SetSkipFilterPlugins(tc.skippedPlugins)
+				}
+				nodeInfo := framework.NewNodeInfo()
+				nodeInfo.SetNode(node)
+				filter, err := p.Filter(tc.pod, nodeInfo, cycleState, allocate)
+				if tc.errorExpected != nil {
+					assert.Assert(t, err != nil, "error should not be nil")
+					assert.Equal(t, filter, tc.filterPlugins[0].Name())
+				} else {
+					assert.Equal(t, filter, "")
+				}
+			}
+		})
+	}
+}
+
+func TestPreemptionFilter(t *testing.T) {
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		}}
+	skip := make(sets.Set[string])
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		filterPlugins  []*MockFilterPlugin
+		skippedPlugins sets.Set[string]
+		errorExpected  error
+	}{
+		{"success", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Success)}},
+			},
+			nil, nil,
+		},
+		{
+			"skip", pod,
+			[]*MockFilterPlugin{
+				// Inject error code so that if not skipped error would be thrown
+				{name: mockFilterPlugin + "-skip", inj: injectedResult{FilterStatus: int(fwk.Error)}},
+			},
+			skip.Insert("mock-filter-plugin-skip"), nil,
+		},
+		{"rejected - unschedulable and unresolvable", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+			},
+			nil, errors.New("UnschedulableAndUnresolvable"),
+		},
+		{"rejected - unschedulable", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable)}},
+			},
+			nil, errors.New("unschedulable"),
+		},
+		{"error", pod,
+			[]*MockFilterPlugin{
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error)}},
+			},
+			nil, errors.New("error"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := make(runtime.Registry)
+			enabled := make([]apiConfig.Plugin, len(tc.filterPlugins))
+			var eps []string
+			for i, p := range tc.filterPlugins {
+				enabled[i].Name = p.name
+				eps = append(eps, p.name)
+				if err := r.Register(p.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return p, nil
+				}); err != nil {
+					t.Fatalf("fail to register PreFilter plugin (%s)", p.Name())
+				}
+			}
+			ep := enabledPlugins(eps...)
+			handle, _ := getFrameworkHandle()
+			config, err := prepareConfig(eps)
+			assert.NilError(t, err)
+			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, ep)
+			cycleState := framework.NewCycleState()
+			if tc.skippedPlugins != nil {
+				cycleState.SetSkipFilterPlugins(tc.skippedPlugins)
+			}
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+
+			victims := []*v1.Pod{
+				newResourcePod(framework.Resource{MilliCPU: 100, Memory: 1000000}),
+			}
+			victims[0].Name = "pod0"
+			idx := p.PreemptionFilter(tc.pod, nodeInfo, cycleState, victims, 0)
+			if tc.errorExpected != nil {
+				assert.Equal(t, idx, -1)
+			} else {
+				assert.Equal(t, idx, 0)
+			}
+		})
+	}
+}
+
+func prepareConfig(plugins []string) (*apiConfig.KubeSchedulerConfiguration, error) {
+	var ep []apiConfig.Plugin
+	cfg := apiConfig.KubeSchedulerConfiguration{}
+	if len(plugins) > 0 {
+		for _, pl := range plugins {
+			ep = append(ep, apiConfig.Plugin{Name: pl})
+		}
+		cfg.Profiles = []apiConfig.KubeSchedulerProfile{
+			{
+				SchedulerName: "default-scheduler",
+				Plugins: &apiConfig.Plugins{
+					MultiPoint: apiConfig.PluginSet{
+						Enabled: ep,
+					},
+				},
+			},
+		}
+	}
+	return &cfg, nil
 }
 
 func enabledPlugins(name ...string) map[string]bool {
