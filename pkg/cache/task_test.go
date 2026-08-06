@@ -946,10 +946,8 @@ func newRollbackTask(ctx *Context, allocationKey, nodeID string) *Task {
 	}
 	task := NewTask(allocationKey, app, ctx, pod)
 	task.sm.SetState(TaskStates().Scheduling)
-	task.lock.Lock()
 	task.allocationKey = allocationKey
 	task.nodeName = nodeID
-	task.lock.Unlock()
 	return task
 }
 

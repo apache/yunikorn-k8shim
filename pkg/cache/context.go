@@ -913,18 +913,18 @@ func (ctx *Context) RevertPodVolumeAssumptions(podName, nodeID string) {
 	}
 	podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
 	if err != nil {
-		log.Log(log.ShimContext).Debug("RevertPodVolumeAssumptions: failed to get pod volume claims",
+		log.Log(log.ShimContext).Error("RevertPodVolumeAssumptions: failed to get pod volume claims",
 			zap.String("pod", podName), zap.Error(err))
 		return
 	}
 	podVolumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, node.Node())
 	if err != nil || podVolumes == nil {
-		log.Log(log.ShimContext).Debug("RevertPodVolumeAssumptions: failed to find pod volumes",
+		log.Log(log.ShimContext).Error("RevertPodVolumeAssumptions: failed to find pod volumes",
 			zap.String("pod", podName), zap.Error(err))
 		return
 	}
 	ctx.apiProvider.GetAPIs().VolumeBinder.RevertAssumedPodVolumes(podVolumes)
-	log.Log(log.ShimContext).Debug("reverted assumed pod volumes",
+	log.Log(log.ShimContext).Info("reverted assumed pod volumes",
 		zap.String("pod", podName), zap.String("node", nodeID))
 }
 
