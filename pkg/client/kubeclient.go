@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/clock"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -40,32 +41,116 @@ type SchedulerKubeClient struct {
 	configs   *rest.Config
 }
 
-func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
+// Every client identifies the concern it serves in its user agent so that traffic can be
+// attributed on the API server side. The concern comes first to allow prefix matching, the
+// build version is appended by UserAgent().
+const (
+	UserAgentAdmissionController = "yunikorn-admission-controller"
+
+	userAgentBootstrap = "yunikorn-bootstrap"
+	userAgentWrites    = "yunikorn-scheduler/writes"
+	userAgentInformers = "yunikorn-scheduler/informers"
+	userAgentEvents    = "yunikorn-scheduler/events"
+)
+
+// UserAgent appends the build version to the concern, e.g. "yunikorn-scheduler/writes
+// (1.7.0)". The version is only set in release builds, it is left out when empty.
+func UserAgent(concern string) string {
+	return userAgentWithVersion(concern, conf.GetBuildInfoMap()["buildVersion"])
+}
+
+func userAgentWithVersion(concern, version string) string {
+	if version == "" {
+		return concern
+	}
+	return fmt.Sprintf("%s (%s)", concern, version)
+}
+
+// rateLimitPolicy turns the configured qps and burst into the values to set on a REST config
+// and a description of the resulting limit for logging.
+// A qps <= 0 disables client side rate limiting: this is expressed as a negative QPS, which
+// client-go treats as "create no rate limiter", while a QPS of 0 silently falls back to its
+// own defaults of 5 QPS / 10 burst (see RESTClientFor and NewForConfigAndClient in
+// client-go). A QPS set without a burst is rejected by client-go, so the burst defaults to
+// the configured qps.
+func rateLimitPolicy(concern string, qps, burst int) (effectiveQPS float32, effectiveBurst int, description string) {
+	if qps <= 0 {
+		if burst > 0 {
+			log.Log(log.ShimClient).Warn("ignoring configured burst, client side rate limiting is disabled unless qps is set to a positive value",
+				zap.String("concern", concern),
+				zap.Int("qps", qps),
+				zap.Int("burst", burst))
+		}
+		return -1, 0, "unlimited"
+	}
+	if burst <= 0 {
+		log.Log(log.ShimClient).Warn("no burst configured, defaulting burst to the configured qps",
+			zap.String("concern", concern),
+			zap.Int("qps", qps))
+		burst = qps
+	}
+	return float32(qps), burst, fmt.Sprintf("%d qps / %d burst", qps, burst)
+}
+
+// newRestConfig creates a REST config for a single purpose client, see rateLimitPolicy for
+// the way the configured qps and burst are applied.
+func newRestConfig(kc string, qps, burst int, concern string) *rest.Config {
 	config := CreateRestConfigOrDie(kc)
+	config.UserAgent = UserAgent(concern)
+
+	var rateLimit string
+	config.QPS, config.Burst, rateLimit = rateLimitPolicy(concern, qps, burst)
+
+	log.Log(log.ShimClient).Info("creating Kubernetes client",
+		zap.String("concern", concern),
+		zap.String("rateLimit", rateLimit),
+		zap.String("userAgent", config.UserAgent))
+	return config
+}
+
+func newClientSetOrDie(config *rest.Config) *kubernetes.Clientset {
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
 	}
+	return configuredClient
+}
+
+// newSchedulerKubeClient creates the client used for all writes to the API server. Beside
+// the pod writes it also backs the volume binder and the predicate framework handle, so the
+// configured QPS and burst are an opt-in policy cap on those paths as well.
+// The QPS and burst are read from the configuration singleton, like all other configuration
+// access. In the shim this means the client must be created after UpdateConfigMaps has run
+// for the values set by the operator to take effect. The admission controller never
+// populates the scheduler configuration, so its clients always run on the defaults: that is
+// intended, its traffic is low volume and it previously ran on a 1000/1000 limiter which was
+// never engaged either.
+func newSchedulerKubeClient(kc string, concern string) SchedulerKubeClient {
+	schedulerConf := conf.GetSchedulerConf()
+
+	config := newRestConfig(kc, schedulerConf.KubeQPS, schedulerConf.KubeBurst, concern)
 	return SchedulerKubeClient{
-		clientSet: configuredClient,
+		clientSet: newClientSetOrDie(config),
 		configs:   config,
 	}
 }
 
-func newSchedulerKubeClient(kc string) SchedulerKubeClient {
-	schedulerConf := conf.GetSchedulerConf()
+// NewInformerClientSet creates the client backing the informer factories. Informer traffic
+// is never rate limited on the client side: watches are long lived and a relist must not be
+// throttled behind the write path.
+func NewInformerClientSet(kc string) kubernetes.Interface {
+	return newClientSetOrDie(newRestConfig(kc, 0, 0, userAgentInformers))
+}
 
-	config := CreateRestConfigOrDie(kc)
-	config.QPS = float32(schedulerConf.KubeQPS)
-	config.Burst = schedulerConf.KubeBurst
-	configuredClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
-	}
-	return SchedulerKubeClient{
-		clientSet: configuredClient,
-		configs:   config,
-	}
+// NewEventsClientSet creates the client backing the event broadcaster sink. It is never rate
+// limited: the configured event rate is enforced by the sink, which sheds the events above
+// it, see NewRateLimitedEventSink. A limiter here as well would delay the events which are
+// kept for as long as a storm lasts.
+// This client retries a server side rejection like every other client. Only the client built
+// by NewEventSink fails fast on it, that behaviour only makes sense paired with the sink
+// which mutes the events for the window the server asked for.
+func NewEventsClientSet(kc string) kubernetes.Interface {
+	return newEventsClientSet(kc, nil, clock.RealClock{})
 }
 
 func CreateRestConfigOrDie(kc string) *rest.Config {

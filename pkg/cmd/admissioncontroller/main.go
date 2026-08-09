@@ -60,7 +60,7 @@ func main() {
 	}
 
 	amConf := conf.NewAdmissionControllerConf(configMaps)
-	kubeClient := client.NewKubeClient(amConf.GetKubeConfig())
+	kubeClient := client.NewKubeClientWithUserAgent(amConf.GetKubeConfig(), client.UserAgentAdmissionController)
 
 	informers := admission.NewInformers(kubeClient, amConf.GetNamespace())
 

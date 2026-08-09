@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
@@ -89,9 +90,12 @@ type APIFactory struct {
 	lock     *locking.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
+// NewAPIFactory creates the clients shared by the shim. The clientset backing informerFactory
+// is passed in so that the namespaced factory created here shares it: both only run informers
+// so they need the same unlimited client and the same attribution.
+func NewAPIFactory(scheduler api.SchedulerAPI, informerClientSet kubernetes.Interface, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
 	kubeClient := NewKubeClient(configs.KubeConfig)
-	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(configs.Namespace))
+	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(informerClientSet, 0, informers.WithNamespace(configs.Namespace))
 	// init informers
 	// volume informers are also used to get the Listers for the predicates
 	podInformer := informerFactory.Core().V1().Pods()

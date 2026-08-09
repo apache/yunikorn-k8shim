@@ -52,9 +52,13 @@ type KubeClient interface {
 }
 
 func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+	return NewKubeClientWithUserAgent(kc, userAgentWrites)
 }
 
-func NewBootstrapKubeClient(kc string) KubeClient {
-	return newBootstrapSchedulerKubeClient(kc)
+// NewKubeClientWithUserAgent creates a KubeClient which identifies itself with the given
+// user agent concern, the build version is appended to it. The client uses the
+// kubernetes.qps and kubernetes.burst policy from the scheduler configuration, which is
+// unlimited by default.
+func NewKubeClientWithUserAgent(kc string, userAgent string) KubeClient {
+	return newSchedulerKubeClient(kc, userAgent)
 }

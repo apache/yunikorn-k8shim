@@ -74,6 +74,16 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.DispatchTimeout, DefaultDispatchTimeout)
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
+	assert.Equal(t, conf.KubeEventQPS, DefaultKubeEventQPS)
+	assert.Equal(t, conf.KubeEventBurst, DefaultKubeEventBurst)
+}
+
+// the write path is unlimited by default, events are limited: a value <= 0 means no limiter
+func TestKubeRateLimitDefaults(t *testing.T) {
+	assert.Equal(t, 0, DefaultKubeQPS)
+	assert.Equal(t, 0, DefaultKubeBurst)
+	assert.Equal(t, 200, DefaultKubeEventQPS)
+	assert.Equal(t, 400, DefaultKubeEventBurst)
 }
 
 func TestDecompress(t *testing.T) {
@@ -145,6 +155,8 @@ func TestParseConfigMap(t *testing.T) {
 		{CMSvcNodeInstanceTypeNodeLabelKey, "InstanceTypeNodeLabelKey", "node.kubernetes.io/instance-type"},
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
+		{CMKubeEventQPS, "KubeEventQPS", 4567},
+		{CMKubeEventBurst, "KubeEventBurst", 5678},
 	}
 
 	for _, tc := range testCases {
@@ -179,6 +191,8 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMSvcPlaceholderFSGroup, "PlaceHolderConfig.FSGroup", int64(1003), false},
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
+		{CMKubeEventQPS, "KubeEventQPS", 4567, false},
+		{CMKubeEventBurst, "KubeEventBurst", 5678, false},
 	}
 
 	for _, tc := range testCases {

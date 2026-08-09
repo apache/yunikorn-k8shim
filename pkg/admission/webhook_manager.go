@@ -91,6 +91,11 @@ func NewWebhookManager(conf *conf.AdmissionControllerConf) (WebhookManager, erro
 		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes config", zap.Error(err))
 		return nil, err
 	}
+	// the webhook and secret writes must be attributed to the admission controller
+	kubeconfig.UserAgent = client.UserAgent(client.UserAgentAdmissionController)
+	// no client side rate limiting: leaving the QPS at 0 would mean the client-go defaults
+	// of 5 QPS / 10 burst
+	kubeconfig.QPS = -1
 	clientset, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes clientset", zap.Error(err))

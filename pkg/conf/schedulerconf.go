@@ -73,8 +73,10 @@ const (
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 
 	// kubernetes
-	CMKubeQPS   = PrefixKubernetes + "qps"
-	CMKubeBurst = PrefixKubernetes + "burst"
+	CMKubeQPS        = PrefixKubernetes + "qps"
+	CMKubeBurst      = PrefixKubernetes + "burst"
+	CMKubeEventQPS   = PrefixKubernetes + "eventQPS"
+	CMKubeEventBurst = PrefixKubernetes + "eventBurst"
 
 	// admissioncontroller
 	PrefixAMFiltering               = PrefixAdmissionController + "filtering."
@@ -91,8 +93,10 @@ const (
 	DefaultOperatorPlugins                 = "general"
 	DefaultDisableGangScheduling           = false
 	DefaultEnableConfigHotRefresh          = true
-	DefaultKubeQPS                         = 1000
-	DefaultKubeBurst                       = 1000
+	DefaultKubeQPS                         = 0 // client side write limiting is opt-in: <= 0 means no limiter
+	DefaultKubeBurst                       = 0
+	DefaultKubeEventQPS                    = 200 // events are discardable and limited by default: <= 0 means no limiter
+	DefaultKubeEventBurst                  = 400
 	DefaultAMFilteringGenerateUniqueAppIds = false
 )
 
@@ -123,6 +127,8 @@ type SchedulerConf struct {
 	DispatchTimeout          time.Duration      `json:"dispatchTimeout"`
 	KubeQPS                  int                `json:"kubeQPS"`
 	KubeBurst                int                `json:"kubeBurst"`
+	KubeEventQPS             int                `json:"kubeEventQPS"`
+	KubeEventBurst           int                `json:"kubeEventBurst"`
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
 	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
@@ -156,6 +162,8 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		DispatchTimeout:          conf.DispatchTimeout,
 		KubeQPS:                  conf.KubeQPS,
 		KubeBurst:                conf.KubeBurst,
+		KubeEventQPS:             conf.KubeEventQPS,
+		KubeEventBurst:           conf.KubeEventBurst,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		PlaceHolderConfig:        conf.PlaceHolderConfig,
@@ -215,6 +223,8 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableDuration(CMSvcDispatchTimeout, &old.DispatchTimeout, &new.DispatchTimeout)
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
+	checkNonReloadableInt(CMKubeEventQPS, &old.KubeEventQPS, &new.KubeEventQPS)
+	checkNonReloadableInt(CMKubeEventBurst, &old.KubeEventBurst, &new.KubeEventBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
@@ -328,6 +338,8 @@ func CreateDefaultConfig() *SchedulerConf {
 		DispatchTimeout:          DefaultDispatchTimeout,
 		KubeQPS:                  DefaultKubeQPS,
 		KubeBurst:                DefaultKubeBurst,
+		KubeEventQPS:             DefaultKubeEventQPS,
+		KubeEventBurst:           DefaultKubeEventBurst,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
@@ -367,6 +379,8 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	// kubernetes
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
 	parser.intVar(&conf.KubeBurst, CMKubeBurst)
+	parser.intVar(&conf.KubeEventQPS, CMKubeEventQPS)
+	parser.intVar(&conf.KubeEventBurst, CMKubeEventBurst)
 
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
