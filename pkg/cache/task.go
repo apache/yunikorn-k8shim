@@ -625,24 +625,21 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 // pending ask so it can be re-scheduled on a different node.
 // Must be called without holding the task lock.
 func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
-	// Read fields needed for event posting and release request under read lock.
-	task.lock.RLock()
+	// Read fields needed for event posting and release request.
+	// Clear stale node assignment under write lock so the task is clean for the next allocation.
+	task.lock.Lock()
 	podCopy := task.pod.DeepCopy()
 	alias := task.alias
 	appID := task.applicationID
 	partition := task.application.partition
-	task.lock.RUnlock()
+	task.allocationKey = ""
+	task.nodeName = ""
+	task.lock.Unlock()
 
 	// Post a warning event so operators can see the retry via kubectl describe pod.
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, "AssumePodFailed", "AssumePodFailed",
 		"Node assignment failed for %s on node %s, it will be retried", alias, nodeID)
-
-	// Clear stale node assignment under write lock so the task is clean for the next allocation.
-	task.lock.Lock()
-	task.allocationKey = ""
-	task.nodeName = ""
-	task.lock.Unlock()
 
 	// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
 	// even if AssumePodVolumes was never reached or already cleaned up internally.
