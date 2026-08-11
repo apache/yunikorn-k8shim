@@ -30,6 +30,7 @@ require (
 	github.com/onsi/gomega v1.40.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sasha-s/go-deadlock v0.3.9
+	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.1
 	go.yaml.in/yaml/v3 v3.0.4
 	gotest.tools/v3 v3.5.2
