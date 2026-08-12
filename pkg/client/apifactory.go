@@ -23,7 +23,6 @@ import (
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
@@ -90,11 +89,17 @@ type APIFactory struct {
 	lock     *locking.RWMutex
 }
 
-// NewAPIFactory creates the clients shared by the shim. The clientset backing informerFactory
-// is passed in so that the namespaced factory created here shares it: both only run informers
-// so they need the same unlimited client and the same attribution.
-func NewAPIFactory(scheduler api.SchedulerAPI, informerClientSet kubernetes.Interface, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
+// NewAPIFactory creates the clients shared by the shim.
+func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
 	kubeClient := NewKubeClient(configs.KubeConfig)
+
+	// all informers, cluster wide and namespaced, share one clientset: both only run
+	// informers so they need the same unlimited client and the same attribution.
+	// resync is disabled (period 0): the shim relies on the watch stream for updates; a
+	// periodic resync only replays the local cache into the handlers, which at scale is
+	// pure no-op churn
+	informerClientSet := NewInformerClientSet(configs.KubeConfig)
+	informerFactory := informers.NewSharedInformerFactory(informerClientSet, 0)
 	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(informerClientSet, 0, informers.WithNamespace(configs.Namespace))
 	// init informers
 	// volume informers are also used to get the Listers for the predicates

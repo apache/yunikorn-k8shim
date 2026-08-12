@@ -25,7 +25,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/scheme"
 	k8events "k8s.io/client-go/tools/events"
 
@@ -64,12 +63,7 @@ var (
 )
 
 func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
-	// all informers, cluster wide and namespaced, share one client
-	informerClientSet := client.NewInformerClientSet(configs.KubeConfig)
-	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(informerClientSet, 0)
-
-	apiFactory, err := client.NewAPIFactory(scheduler, informerClientSet, informerFactory, configs, false)
+	apiFactory, err := client.NewAPIFactory(scheduler, configs, false)
 	if err != nil {
 		log.Log(log.Shim).Fatal("problem in creating the api factory")
 		return nil

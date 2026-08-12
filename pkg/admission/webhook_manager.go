@@ -86,22 +86,11 @@ type webhookManagerImpl struct {
 
 // NewWebhookManager is used to create a new webhook manager
 func NewWebhookManager(conf *conf.AdmissionControllerConf) (WebhookManager, error) {
-	kubeconfig, err := client.CreateRestConfig(conf.GetKubeConfig())
-	if err != nil {
-		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes config", zap.Error(err))
-		return nil, err
-	}
-	// the webhook and secret writes must be attributed to the admission controller
-	kubeconfig.UserAgent = client.UserAgent(client.UserAgentAdmissionController)
-	// no client side rate limiting: leaving the QPS at 0 would mean the client-go defaults
-	// of 5 QPS / 10 burst
-	kubeconfig.QPS = -1
-	clientset, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		log.Log(log.AdmissionWebhook).Error("Unable to create kubernetes clientset", zap.Error(err))
-		return nil, err
-	}
-	return newWebhookManagerImpl(conf, clientset), nil
+	// the webhook and secret writes must be attributed to the admission controller; the
+	// admission controller never populates the scheduler configuration, so the client runs
+	// on the defaults: no client side rate limiting
+	kubeClient := client.NewKubeClientWithUserAgent(conf.GetKubeConfig(), client.UserAgentAdmissionController)
+	return newWebhookManagerImpl(conf, kubeClient.GetClientSet()), nil
 }
 
 func newWebhookManagerImpl(conf *conf.AdmissionControllerConf, clientset kubernetes.Interface) *webhookManagerImpl {

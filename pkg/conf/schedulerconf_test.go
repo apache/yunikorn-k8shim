@@ -80,8 +80,8 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 
 // the write path is unlimited by default, events are limited: a value <= 0 means no limiter
 func TestKubeRateLimitDefaults(t *testing.T) {
-	assert.Equal(t, 0, DefaultKubeQPS)
-	assert.Equal(t, 0, DefaultKubeBurst)
+	assert.Equal(t, -1, DefaultKubeQPS)
+	assert.Equal(t, -1, DefaultKubeBurst)
 	assert.Equal(t, 200, DefaultKubeEventQPS)
 	assert.Equal(t, 400, DefaultKubeEventBurst)
 }

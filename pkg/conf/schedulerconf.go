@@ -93,8 +93,8 @@ const (
 	DefaultOperatorPlugins                 = "general"
 	DefaultDisableGangScheduling           = false
 	DefaultEnableConfigHotRefresh          = true
-	DefaultKubeQPS                         = 0 // client side write limiting is opt-in: <= 0 means no limiter
-	DefaultKubeBurst                       = 0
+	DefaultKubeQPS                         = -1 // client side write limiting is opt-in: <= 0 means no limiter
+	DefaultKubeBurst                       = -1
 	DefaultKubeEventQPS                    = 200 // events are discardable and limited by default: <= 0 means no limiter
 	DefaultKubeEventBurst                  = 400
 	DefaultAMFilteringGenerateUniqueAppIds = false
