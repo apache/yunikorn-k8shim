@@ -21,7 +21,7 @@ module github.com/apache/yunikorn-k8shim
 go 1.26.0
 
 require (
-	github.com/apache/yunikorn-core v0.0.0-20260728123950-900bd603df82
+	github.com/apache/yunikorn-core v0.0.0-20260810093905-7dc1287c839f
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20260727092410-674338955bdf
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -92,6 +92,7 @@ require (
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/tidwall/btree v1.8.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect

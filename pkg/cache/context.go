@@ -42,7 +42,6 @@ import (
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 
 	schedulercache "github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -797,14 +796,6 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 					zap.String("nodeName", assumedPod.Spec.NodeName),
 					zap.Error(err))
 				return err
-			}
-			if volumes.StaticBindings == nil {
-				// convert nil to empty array
-				volumes.StaticBindings = make([]*volumebinding.BindingInfo, 0)
-			}
-			if volumes.DynamicProvisions == nil {
-				// convert nil to empty array
-				volumes.DynamicProvisions = make([]*volumebinding.DynamicProvision, 0)
 			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {

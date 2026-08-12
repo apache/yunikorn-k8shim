@@ -105,6 +105,10 @@ func (v *VolumeBinderMock) EnableFindPodVolumesError(message string) {
 	v.findPodVolumesError = errors.New(message)
 }
 
+func (v *VolumeBinderMock) EnableBindPodVolumesError(message string) {
+	v.bindError = errors.New(message)
+}
+
 func (v *VolumeBinderMock) SetConflictReasons(reasons ...string) {
 	var conflicts []volumebinding.ConflictReason
 	for _, r := range reasons {

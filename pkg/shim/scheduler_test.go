@@ -20,6 +20,7 @@ package shim
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -184,10 +185,13 @@ func TestTaskFailures(t *testing.T) {
 	assert.NilError(t, cluster.start(), "failed to start cluster")
 	defer cluster.stop()
 
-	// mock pod bind failures
+	// mock a transient pod bind failure: task0001 fails its first two bind attempts and
+	// then succeeds. With the bind retry mechanism the task must recover and bind rather
+	// than failing.
+	var task1BindAttempts atomic.Int32
 	cluster.apiProvider.MockBindFn(func(pod *v1.Pod, hostID string) error {
-		if pod.Name == "task0001" {
-			return fmt.Errorf("mocked error when binding the pod")
+		if pod.Name == "task0001" && task1BindAttempts.Add(1) <= 2 {
+			return fmt.Errorf("mocked transient error when binding the pod")
 		}
 		return nil
 	})
@@ -216,15 +220,16 @@ func TestTaskFailures(t *testing.T) {
 	cluster.AddPod(task2)
 
 	// wait for scheduling app and tasks
-	// verify app state
+	// both tasks must end up bound: task0002 directly, task0001 after its bind is retried
 	cluster.waitAndAssertApplicationState(t, "app0001", cache.ApplicationStates().Running)
-	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Failed)
+	cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
 	cluster.waitAndAssertTaskState(t, "app0001", "task0002", cache.TaskStates().Bound)
 
-	// one task get bound, one ask failed, so we are expecting only 1 allocation in the scheduler
+	// both tasks get bound, so we are expecting 2 allocations in the scheduler
 	err = cluster.waitAndVerifySchedulerAllocations("root.a",
-		"[mycluster]default", "app0001", 1)
+		"[mycluster]default", "app0001", 2)
 	assert.NilError(t, err, "number of allocations is not expected, error")
+	assert.Assert(t, task1BindAttempts.Load() >= 3, "task0001 bind should have been retried before succeeding")
 }
 
 // simulate PVC error during Context.AssumePod() call

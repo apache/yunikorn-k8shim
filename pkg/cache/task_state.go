@@ -47,10 +47,11 @@ const (
 	TaskFail
 	KillTask
 	TaskKilled
+	TaskRescheduling
 )
 
 func (ae TaskEventType) String() string {
-	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled"}[ae]
+	return [...]string{"InitTask", "SubmitTask", "TaskAllocated", "TaskRejected", "TaskBound", "CompleteTask", "TaskFail", "KillTask", "TaskKilled", "TaskRescheduling"}[ae]
 }
 
 // ------------------------
@@ -101,6 +102,12 @@ func NewSubmitTaskEvent(appID string, taskID string) SubmitTaskEvent {
 		taskID:        taskID,
 		event:         SubmitTask,
 	}
+}
+
+// NewRescheduleTaskEvent moves a task from Allocated back to Scheduling so the core
+// can re-schedule it on a different node after a bind failure.
+func NewRescheduleTaskEvent(appID string, taskID string) SimpleTaskEvent {
+	return NewSimpleTaskEvent(appID, taskID, TaskRescheduling)
 }
 
 func (st SubmitTaskEvent) GetEvent() string {
@@ -345,6 +352,11 @@ func eventDesc(states *TStates) fsm.Events {
 			Name: TaskBound.String(),
 			Src:  []string{states.Allocated},
 			Dst:  states.Bound,
+		},
+		{
+			Name: TaskRescheduling.String(),
+			Src:  []string{states.Allocated},
+			Dst:  states.Scheduling,
 		},
 		{
 			Name: CompleteTask.String(),
