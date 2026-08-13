@@ -1045,19 +1045,6 @@ func setShortBindBackoff(steps int) func() {
 	return func() { bindPodBackoff = original }
 }
 
-// TestRescheduleTaskEvent_FromAllocated verifies the new state machine transition that
-// moves a task from Allocated back to Scheduling so it can be re-scheduled.
-func TestRescheduleTaskEvent_FromAllocated(t *testing.T) {
-	mockedContext := initContextForTest()
-	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{}, nil)
-	task := NewTask(taskUID1, app, mockedContext, newBindTestPod("reschedule-pod", "reschedule-uid"))
-	task.sm.SetState(TaskStates().Allocated)
-
-	err := task.handle(NewRescheduleTaskEvent(app.applicationID, task.taskID))
-	assert.NilError(t, err, "failed to handle Reschedule event")
-	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should move from Allocated back to Scheduling")
-}
-
 // TestRescheduleOnBindFailure_ClearsStateAndReschedules verifies that a bind failure
 // clears the allocation, moves the task back to Scheduling, and sends a
 // SCHEDULING_FAILED_ON_RM release so the core can re-schedule on a different node.

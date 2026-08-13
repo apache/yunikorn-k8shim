@@ -46,6 +46,7 @@ import (
 var bindPodBackoff = wait.Backoff{
 	Steps:    30,
 	Duration: time.Second,
+	Factor:   2,
 	Cap:      30 * time.Second,
 }
 
@@ -365,11 +366,6 @@ func (task *Task) postTaskAllocated() {
 	allocationKey := task.allocationKey
 
 	go func(pod *v1.Pod, alias, nodeName, allocationKey string) {
-		// post a message to indicate the pod gets its allocation
-		events.GetRecorder().Eventf(pod.DeepCopy(),
-			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
-			"Successfully assigned %s to node %s", alias, nodeName)
-
 		// before binding pod to node, first bind volumes to pod
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 			zap.String("podName", pod.Name),
@@ -404,6 +400,10 @@ func (task *Task) postTaskAllocated() {
 				fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
 			return
 		}
+		// post a message to indicate the pod gets its allocation
+		events.GetRecorder().Eventf(pod.DeepCopy(),
+			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
+			"Successfully assigned %s to node %s", alias, nodeName)
 		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", pod.Name))
 
 		task.lock.Lock()
@@ -716,12 +716,15 @@ func (task *Task) rollbackAllocation(allocationKey, nodeID, eventReason, eventMs
 func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, eventMsg string) {
 	// Move the task back to Scheduling before releasing to the core, so the re-delivered
 	// allocation (valid only from the Scheduling state) is accepted by the state machine.
-	if err := task.handle(NewRescheduleTaskEvent(task.applicationID, task.taskID)); err != nil {
-		log.Log(log.ShimCacheTask).Error("failed to move task back to Scheduling after bind failure",
+	task.lock.Lock()
+	if task.sm.Current() != TaskStates().Scheduling {
+		log.Log(log.ShimCacheTask).Info("task is not in Scheduling state, moving it back to Scheduling",
 			zap.String("appID", task.applicationID),
 			zap.String("taskID", task.taskID),
-			zap.Error(err))
+			zap.String("currentState", task.sm.Current()))
+		task.sm.SetState(TaskStates().Scheduling)
 	}
+	task.lock.Unlock()
 	task.rollbackAllocation(allocationKey, nodeID, eventReason, eventMsg)
 }
 
