@@ -357,17 +357,14 @@ func (task *Task) postTaskPending() {
 // the allocation is rolled back to a pending ask so the core can re-schedule the task
 // on a different node. On success we move the task to the next state BOUND.
 func (task *Task) postTaskAllocated() {
-	go func() {
-		// Snapshot the fields needed for binding without holding the lock during the
-		// potentially slow bind calls. This avoids blocking other goroutines and lets the
-		// rollback/reschedule path (which acquires the lock) run when binding fails.
-		task.lock.RLock()
-		pod := task.pod
-		alias := task.alias
-		nodeName := task.nodeName
-		allocationKey := task.allocationKey
-		task.lock.RUnlock()
+	// Snapshot the fields needed for binding before launching the goroutine without re-acquiring the lock.
+	// We already hold task.lock (via task.handle()) during state transitions.
+	pod := task.pod
+	alias := task.alias
+	nodeName := task.nodeName
+	allocationKey := task.allocationKey
 
+	go func(pod *v1.Pod, alias, nodeName, allocationKey string) {
 		// post a message to indicate the pod gets its allocation
 		events.GetRecorder().Eventf(pod.DeepCopy(),
 			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
@@ -417,7 +414,7 @@ func (task *Task) postTaskAllocated() {
 		events.GetRecorder().Eventf(pod.DeepCopy(), nil,
 			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", alias, nodeName)
-	}()
+	}(pod, alias, nodeName, allocationKey)
 }
 
 // beforeTaskAllocated is called before handling the TaskAllocated event.
@@ -713,8 +710,8 @@ func (task *Task) rollbackAllocation(allocationKey, nodeID, eventReason, eventMs
 }
 
 // rescheduleOnBindFailure is called when volume or pod binding fails after all retries.
-// It moves the task from Allocated back to Scheduling and rolls the allocation back to a
-// pending ask so the core can re-schedule it on a different node.
+// Move the task back to Scheduling before rolling back the allocation, so a
+// subsequent TaskAllocated event from the core (which requires Scheduling) is accepted.
 // Must be called without holding the task lock.
 func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, eventMsg string) {
 	// Move the task back to Scheduling before releasing to the core, so the re-delivered
