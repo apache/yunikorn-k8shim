@@ -32,25 +32,30 @@ import (
 )
 
 // PlaceholderManager is a service to manage the lifecycle of app placeholders
+// +lockclass:cache.PlaceholderManager
 type PlaceholderManager struct {
 	// clients can neve be nil, even the kubeclient cannot be nil as the shim will not start without it
 	clients *client.Clients
 	// when the placeholder manager is unable to delete a pod,
 	// this pod becomes to be an "orphan" pod. We add them to a map
 	// and keep retrying deleting them in order to avoid wasting resources.
-	orphanPods  map[string]*v1.Pod
-	stopChan    chan struct{}
-	running     atomic.Bool
+	// +checklocks:RWMutex
+	orphanPods map[string]*v1.Pod
+	stopChan   chan struct{}
+	running    atomic.Bool
+	// +checklocks:RWMutex
 	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
 	locking.RWMutex
 }
 
 var (
+	// +checklocks:mu
 	placeholderMgr *PlaceholderManager
 	mu             locking.Mutex
 )
 
+// +checklocksexclude:mu
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	mu.Lock()
 	defer mu.Unlock()
@@ -63,19 +68,22 @@ func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	return placeholderMgr
 }
 
+// +checklocksexclude:mu
 func getPlaceholderManager() *PlaceholderManager {
 	mu.Lock()
 	defer mu.Unlock()
 	return placeholderMgr
 }
 
+// +checklocksexclude:app.lock
 func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
 	// map task group to count of already created placeholders
 	tgCounts := make(map[string]int32)
-	for _, ph := range app.getPlaceHolderTasks() {
+	// YUNIKORN-3424: application task map walked under the placeholder manager lock only
+	for _, ph := range app.getPlaceHolderTasks() { // +checklocksignore
 		tgCounts[ph.GetTaskGroupName()]++
 	}
 
@@ -102,6 +110,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 }
 
 // clean up all the placeholders for an application
+// +checklocksexclude:app.lock
 func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	mgr.Lock()
 	defer mgr.Unlock()

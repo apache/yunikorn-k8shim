@@ -45,13 +45,14 @@ import (
 
 // shim scheduler watches api server and interacts with unity scheduler to allocate pods
 type KubernetesShim struct {
-	apiFactory           client.APIProvider
-	context              *cache.Context
-	phManager            *cache.PlaceholderManager
-	callback             api.ResourceManagerCallback
-	stopChan             chan struct{}
-	stopOnce             sync.Once
-	lock                 *locking.RWMutex
+	apiFactory client.APIProvider
+	context    *cache.Context
+	phManager  *cache.PlaceholderManager
+	callback   api.ResourceManagerCallback
+	stopChan   chan struct{}
+	stopOnce   sync.Once
+	lock       *locking.RWMutex
+	// +checklocks:lock
 	outstandingAppsFound bool
 }
 

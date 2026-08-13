@@ -46,8 +46,9 @@ const (
 )
 
 type WebHook struct {
-	ac     *admission.AdmissionController
-	port   int
+	ac   *admission.AdmissionController
+	port int
+	// +checklocks:Mutex
 	server *http.Server
 	locking.Mutex
 }
@@ -166,7 +167,8 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 	}
 
 	go func() {
-		if err := wh.server.ListenAndServeTLS("", ""); err != nil {
+		// YUNIKORN-3425: server field read in the serving goroutine while Shutdown can nil it
+		if err := wh.server.ListenAndServeTLS("", ""); err != nil { // +checklocksignore
 			if errors.Is(err, http.ErrServerClosed) {
 				log.Log(log.Admission).Info("existing server closed")
 			} else {

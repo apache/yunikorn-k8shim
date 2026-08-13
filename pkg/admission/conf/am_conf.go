@@ -82,11 +82,13 @@ const (
 	DefaultAccessControlExternalGroups   = ""
 )
 
+// +checklocksguardedby:lock
 type AdmissionControllerConf struct {
-	namespace  string
+	// +checklocksunguarded
+	namespace string
+	// +checklocksunguarded
 	kubeConfig string
 
-	// mutable values require locking
 	enableConfigHotRefresh  bool
 	policyGroup             string
 	amServiceName           string
@@ -224,6 +226,7 @@ type configMapUpdateHandler struct {
 	conf *AdmissionControllerConf
 }
 
+// +checklocksexclude:h.conf.lock
 func (h *configMapUpdateHandler) OnAdd(obj interface{}, _ bool) {
 	cm := utils.Convert2ConfigMap(obj)
 	if idx, ok := h.configMapIndex(cm); ok {
@@ -231,6 +234,7 @@ func (h *configMapUpdateHandler) OnAdd(obj interface{}, _ bool) {
 	}
 }
 
+// +checklocksexclude:h.conf.lock
 func (h *configMapUpdateHandler) OnUpdate(_, newObj interface{}) {
 	cm := utils.Convert2ConfigMap(newObj)
 	if idx, ok := h.configMapIndex(cm); ok {
@@ -238,6 +242,7 @@ func (h *configMapUpdateHandler) OnUpdate(_, newObj interface{}) {
 	}
 }
 
+// +checklocksexclude:h.conf.lock
 func (h *configMapUpdateHandler) OnDelete(obj interface{}) {
 	var cm *v1.ConfigMap
 	switch t := obj.(type) {
@@ -335,6 +340,7 @@ func (acc *AdmissionControllerConf) DumpConfiguration() {
 	acc.dumpConfigurationInternal()
 }
 
+// +checklocksread:acc.lock
 func (acc *AdmissionControllerConf) dumpConfigurationInternal() {
 	log.Log(log.AdmissionConf).Info("Loaded admission controller configuration",
 		zap.String("namespace", acc.namespace),

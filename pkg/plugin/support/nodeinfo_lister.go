@@ -30,19 +30,23 @@ type nodeInfoListerImpl struct {
 	cache *external.SchedulerCache
 }
 
-func (n nodeInfoListerImpl) List() ([]fwk.NodeInfo, error) {
+// +checklocksread:n.cache.lock
+func (n *nodeInfoListerImpl) List() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfo(), nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithAffinityList() ([]fwk.NodeInfo, error) {
+// +checklocksread:n.cache.lock
+func (n *nodeInfoListerImpl) HavePodsWithAffinityList() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfoPodsWithAffinity(), nil
 }
 
-func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeInfo, error) {
+// +checklocksread:n.cache.lock
+func (n *nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeInfo, error) {
 	return n.cache.GetNodesInfoPodsWithReqAntiAffinity(), nil
 }
 
-func (n nodeInfoListerImpl) Get(nodeName string) (fwk.NodeInfo, error) {
+// +checklocksread:n.cache.lock
+func (n *nodeInfoListerImpl) Get(nodeName string) (fwk.NodeInfo, error) {
 	nodes := n.cache.GetNodesInfoMap()
 	node, ok := nodes[nodeName]
 	if !ok {

@@ -38,6 +38,7 @@ type Placeholder struct {
 	pod           *v1.Pod
 }
 
+// +checklocksexclude:app.lock
 func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGroup) *Placeholder {
 	logger := log.Log(log.ShimPlaceHolderConfig)
 	// Here the owner reference is always the originator pod

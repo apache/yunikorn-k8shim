@@ -28,7 +28,8 @@ type storageInfoListerImpl struct {
 	cache *external.SchedulerCache
 }
 
-func (s storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
+// +checklocksread:s.cache.lock
+func (s *storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
 	return s.cache.IsPVCUsedByPods(key)
 }
 

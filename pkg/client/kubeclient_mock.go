@@ -41,10 +41,13 @@ type KubeClientMock struct {
 	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
 	getFn          func(podName string) (*v1.Pod, error)
 	clientSet      kubernetes.Interface
-	pods           map[string]*v1.Pod
-	lock           locking.RWMutex
-	bindStats      BindStats
-	boundPods      []BoundPod
+	// +checklocks:lock
+	pods map[string]*v1.Pod
+	lock locking.RWMutex
+	// +checklocks:lock
+	bindStats BindStats
+	// +checklocks:lock
+	boundPods []BoundPod
 }
 
 // BindStats statistics about KubeClientMock.Bind() calls
@@ -111,9 +114,12 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 		boundPods: make([]BoundPod, 0, 1024),
 	}
 
+	// this closure is only ever called through kubeMock.bindFn from Bind, which holds the
+	// write lock, the analysis cannot see that through the function field so the accesses to
+	// the guarded fields below are ignored
 	kubeMock.bindFn = func(pod *v1.Pod, hostID string) error {
 		// kubeMock must be locked for this
-		stats := &kubeMock.bindStats
+		stats := &kubeMock.bindStats // +checklocksignore
 
 		if err {
 			stats.Errors++
@@ -129,7 +135,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 		}
 		stats.Last = now
 		stats.LastPod = pod.Name
-		kubeMock.boundPods = append(kubeMock.boundPods, BoundPod{
+		kubeMock.boundPods = append(kubeMock.boundPods, BoundPod{ // +checklocksignore
 			Pod:  pod.Name,
 			Host: hostID,
 		})

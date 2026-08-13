@@ -446,7 +446,22 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				Dst:  states.Killed,
 			},
 		},
+		// The callbacks below are invoked by the state machine from Application.handle which
+		// holds the application lock. The dispatch goes through the fsm library so the lock
+		// cannot be tracked across it, and the application is not nameable from out here: it
+		// exists only inside each body, recovered from the event arguments. Each callback
+		// therefore states its lock by naming the expression its own body uses.
+		//
+		// These are preconditions and not exemptions, so the bodies are ENFORCED: each one is
+		// analysed with the application lock held, and a guarded field of any other object, a
+		// call that must not be entered with this lock held, or taking the lock again are all
+		// reported. Every callback carries one, including those that touch nothing guarded
+		// today, so that the next line added to one is checked rather than reported.
+		//
+		// A guard that matches no assertion in its body records nothing, silently. Changing
+		// how a callback recovers its application means changing the annotation with it.
 		fsm.Callbacks{
+			// +checklocks:event.Args[0].(*Application).lock
 			events.EnterState: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				log.Log(log.ShimFSM).Debug("shim app state transition",
@@ -455,22 +470,27 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			states.Accepted: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.flushReleaseableTasks()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			states.Reserving: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			states.Resuming: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onResuming()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			SubmitApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				event.Err = app.handleSubmitApplicationEvent()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
@@ -482,10 +502,12 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				reason := eventArgs[0]
 				app.handleRejectApplicationEvent(reason)
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			CompleteApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleCompleteApplicationEvent()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			FailApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
@@ -497,10 +519,12 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				errMsg := eventArgs[0]
 				app.handleFailApplicationEvent(errMsg)
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			UpdateReservation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReservationStateChange()
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			ReleaseAppAllocation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
@@ -513,6 +537,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				terminationType := eventArgs[1]
 				app.handleReleaseAppAllocationEvent(taskID, terminationType)
 			},
+			// +checklocks:event.Args[0].(*Application).lock
 			AppTaskCompleted.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleAppTaskCompletedEvent()
