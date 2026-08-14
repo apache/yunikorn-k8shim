@@ -366,6 +366,10 @@ func (task *Task) postTaskAllocated() {
 	allocationKey := task.allocationKey
 
 	go func(pod *v1.Pod, alias, nodeName, allocationKey string) {
+		// this lock is to protect the task from being modified while we are binding the pod to node
+		// once all task related operations are done, release the lock
+		// This is important specially while calling rollbackAllocation, which needs to acquire the context lock, so we cannot hold the task lock while calling it.
+		task.lock.Lock()
 		// before binding pod to node, first bind volumes to pod
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 			zap.String("podName", pod.Name),
@@ -379,6 +383,8 @@ func (task *Task) postTaskAllocated() {
 		}); err != nil {
 			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed after retries",
 				zap.String("taskID", task.taskID), zap.Error(err))
+			// release task lock before calling rescheduleOnBindFailure to avoid deadlock
+			task.lock.Unlock()
 			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
 				fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
 			return
@@ -396,6 +402,7 @@ func (task *Task) postTaskAllocated() {
 		}); err != nil {
 			log.Log(log.ShimCacheTask).Error("bind pod to node failed after retries",
 				zap.String("taskID", task.taskID), zap.Error(err))
+			task.lock.Unlock()
 			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodBindFailure",
 				fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
 			return
@@ -406,11 +413,10 @@ func (task *Task) postTaskAllocated() {
 			"Successfully assigned %s to node %s", alias, nodeName)
 		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", pod.Name))
 
-		task.lock.Lock()
 		task.schedulingState = TaskSchedAllocated
-		task.lock.Unlock()
 
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+		task.lock.Unlock()
 		events.GetRecorder().Eventf(pod.DeepCopy(), nil,
 			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
 			"Pod %s is successfully bound to node %s", alias, nodeName)
@@ -657,19 +663,8 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 // pending ask so it can be re-scheduled on a different node.
 // Must be called without holding the task lock.
 func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
-	task.lock.RLock()
-	alias := task.alias
-	task.lock.RUnlock()
-	task.rollbackAllocation(allocationKey, nodeID, "AssumePodFailed",
-		fmt.Sprintf("Node assignment failed for %s on node %s, it will be retried", alias, nodeID))
-}
-
-// rollbackAllocation resets the task allocation state and notifies the core to move
-// the allocation back to a pending ask so it can be re-scheduled on a different node.
-// Must be called without holding the task lock.
-func (task *Task) rollbackAllocation(allocationKey, nodeID, eventReason, eventMsg string) {
-	// Clear stale node assignment under write lock so the task is clean for the next allocation.
 	task.lock.Lock()
+	alias := task.alias
 	podCopy := task.pod.DeepCopy()
 	appID := task.applicationID
 	partition := task.application.partition
@@ -677,6 +672,14 @@ func (task *Task) rollbackAllocation(allocationKey, nodeID, eventReason, eventMs
 	task.nodeName = ""
 	task.lock.Unlock()
 
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, "AssumePodFailed",
+		fmt.Sprintf("Node assignment failed for %s on node %s, it will be retried", alias, nodeID))
+}
+
+// rollbackAllocation resets the task allocation state and notifies the core to move
+// the allocation back to a pending ask so it can be re-scheduled on a different node.
+// Must be called without holding the task lock.
+func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocationKey, nodeID, eventReason, eventMsg string) {
 	// Post a warning event so operators can see the retry via kubectl describe pod.
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, eventReason, eventReason, eventMsg)
@@ -712,11 +715,11 @@ func (task *Task) rollbackAllocation(allocationKey, nodeID, eventReason, eventMs
 // rescheduleOnBindFailure is called when volume or pod binding fails after all retries.
 // Move the task back to Scheduling before rolling back the allocation, so a
 // subsequent TaskAllocated event from the core (which requires Scheduling) is accepted.
-// Must be called without holding the task lock.
+// Must be called without holding the task lock as rollbackAllocation uses context lock.
 func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, eventMsg string) {
+	task.lock.Lock()
 	// Move the task back to Scheduling before releasing to the core, so the re-delivered
 	// allocation (valid only from the Scheduling state) is accepted by the state machine.
-	task.lock.Lock()
 	if task.sm.Current() != TaskStates().Scheduling {
 		log.Log(log.ShimCacheTask).Info("task is not in Scheduling state, moving it back to Scheduling",
 			zap.String("appID", task.applicationID),
@@ -724,8 +727,14 @@ func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, ev
 			zap.String("currentState", task.sm.Current()))
 		task.sm.SetState(TaskStates().Scheduling)
 	}
+	podCopy := task.pod.DeepCopy()
+	appID := task.applicationID
+	partition := task.application.partition
+	task.allocationKey = ""
+	task.nodeName = ""
 	task.lock.Unlock()
-	task.rollbackAllocation(allocationKey, nodeID, eventReason, eventMsg)
+
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, eventReason, eventMsg)
 }
 
 func (task *Task) SetTaskPod(pod *v1.Pod) {
