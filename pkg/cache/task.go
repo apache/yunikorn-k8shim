@@ -41,10 +41,10 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-// bindPodBackoff controls the retry schedule for binding pod volumes and binding the
+// retryBackoff controls the retry schedule for binding pod volumes and binding the
 // pod to a node. Declared as a package variable so tests can shorten it.
-var bindPodBackoff = wait.Backoff{
-	Steps:    30,
+var retryBackoff = wait.Backoff{
+	Steps:    8, // total time is 1 + 2 + 4 + 8 + 16 + 30 + 30 + 30 = 121 seconds
 	Duration: time.Second,
 	Factor:   2,
 	Cap:      30 * time.Second,
@@ -374,7 +374,7 @@ func (task *Task) postTaskAllocated() {
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 			zap.String("podName", pod.Name),
 			zap.String("podUID", string(pod.UID)))
-		if err := retry.OnError(bindPodBackoff, func(err error) bool {
+		if err := retry.OnError(retryBackoff, func(err error) bool {
 			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed, retrying",
 				zap.String("taskID", task.taskID), zap.Error(err))
 			return true
@@ -393,7 +393,7 @@ func (task *Task) postTaskAllocated() {
 			zap.String("podName", pod.Name),
 			zap.String("podUID", string(pod.UID)))
 
-		if err := retry.OnError(bindPodBackoff, func(err error) bool {
+		if err := retry.OnError(retryBackoff, func(err error) bool {
 			log.Log(log.ShimCacheTask).Error("bind pod to node failed, retrying",
 				zap.String("taskID", task.taskID), zap.Error(err))
 			return true

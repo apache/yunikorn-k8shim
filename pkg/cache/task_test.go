@@ -1040,9 +1040,9 @@ func newBindTestPod(name, uid string) *v1.Pod {
 // setShortBindBackoff shrinks the bind retry backoff so tests do not wait for the
 // production schedule, and returns a restore function.
 func setShortBindBackoff(steps int) func() {
-	original := bindPodBackoff
-	bindPodBackoff = wait.Backoff{Steps: steps, Duration: time.Millisecond}
-	return func() { bindPodBackoff = original }
+	original := retryBackoff
+	retryBackoff = wait.Backoff{Steps: steps, Duration: time.Millisecond}
+	return func() { retryBackoff = original }
 }
 
 // TestRescheduleOnBindFailure_ClearsStateAndReschedules verifies that a bind failure
