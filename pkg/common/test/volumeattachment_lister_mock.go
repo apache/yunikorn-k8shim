@@ -36,8 +36,8 @@ func NewMockVolumeAttachmentLister() listersv1.VolumeAttachmentLister {
 	}
 }
 
-func (nsl *MockVolumeAttachmentLister) List(labels.Selector) (ret []*storagev1.VolumeAttachment, err error) {
-	ret = make([]*storagev1.VolumeAttachment, 0)
+func (nsl *MockVolumeAttachmentLister) List(labels.Selector) ([]*storagev1.VolumeAttachment, error) {
+	ret := make([]*storagev1.VolumeAttachment, 0)
 	for _, pc := range nsl.volumeAttachments {
 		ret = append(ret, pc)
 	}

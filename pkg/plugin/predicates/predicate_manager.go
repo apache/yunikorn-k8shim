@@ -46,8 +46,8 @@ import (
 
 type PredicateManager interface {
 	EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint
-	Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (plugin string, error error)
-	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) (index int)
+	Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (string, error)
+	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) int
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -127,7 +127,7 @@ func buildClusterEvents(actionMap map[fwk.EventResource]fwk.ActionType, queueing
 	return events
 }
 
-func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (plugin string, error error) {
+func (p *predicateManagerImpl) Predicates(pod *v1.Pod, node *framework.NodeInfo, allocate bool) (string, error) {
 	if allocate {
 		return p.predicatesAllocate(pod, node)
 	}

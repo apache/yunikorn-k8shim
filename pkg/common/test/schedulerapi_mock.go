@@ -42,7 +42,7 @@ type SchedulerAPIMock struct {
 func NewSchedulerAPIMock() *SchedulerAPIMock {
 	return &SchedulerAPIMock{
 		registerFn: func(request *si.RegisterResourceManagerRequest,
-			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+			callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 			return nil, nil
 		},
 		UpdateAllocationFn: func(request *si.AllocationRequest) error {

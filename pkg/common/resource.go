@@ -53,7 +53,7 @@ func (w *ResourceBuilder) Build() *si.Resource {
 // GetPodResource from a pod's containers and convert that into an internal resource.
 // Scheduling only accounts for requests.
 // Convert the pod into a resource to allow for pod count checks in quotas and nodes.
-func GetPodResource(pod *v1.Pod) (resource *si.Resource) {
+func GetPodResource(pod *v1.Pod) *si.Resource {
 	podResource := &si.Resource{
 		Resources: map[string]*si.Quantity{"pods": {Value: 1}},
 	}

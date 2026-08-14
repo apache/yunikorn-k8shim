@@ -450,7 +450,7 @@ func TestReleaseAppAllocation(t *testing.T) {
 
 func newMockSchedulerAPI() *mockSchedulerAPI {
 	return &mockSchedulerAPI{
-		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 			return nil, nil
 		},
 		UpdateAllocationFn: func(request *si.AllocationRequest) error {

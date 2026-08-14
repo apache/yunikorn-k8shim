@@ -579,11 +579,11 @@ func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.Clus
 	return nil
 }
 
-func (m *mockPredicateManager) Predicates(_ *v1.Pod, _ *framework.NodeInfo, _ bool) (plugin string, error error) {
+func (m *mockPredicateManager) Predicates(_ *v1.Pod, _ *framework.NodeInfo, _ bool) (string, error) {
 	return "", nil
 }
 
-func (m *mockPredicateManager) PreemptionPredicates(_ *v1.Pod, _ *framework.NodeInfo, _ []*v1.Pod, _ int) (index int) {
+func (m *mockPredicateManager) PreemptionPredicates(_ *v1.Pod, _ *framework.NodeInfo, _ []*v1.Pod, _ int) int {
 	return 0
 }
 

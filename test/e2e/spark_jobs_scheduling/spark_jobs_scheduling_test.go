@@ -97,7 +97,7 @@ var _ = Describe("", func() {
 		By(fmt.Sprintf("Get apps from specific queue: %s", sparkQueueName))
 		var appsFromQueue []*dao.ApplicationDAOInfo
 		// Poll for apps to appear in the queue
-		err = wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(120)*time.Second, false, func(context.Context) (done bool, err error) {
+		err = wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(120)*time.Second, false, func(context.Context) (bool, error) {
 			appsFromQueue, err = restClient.GetApps(configmanager.DefaultPartition, sparkQueueName)
 			if err != nil {
 				return false, err

@@ -36,8 +36,8 @@ func NewMockPriorityClassLister() listersV1.PriorityClassLister {
 	}
 }
 
-func (nsl *MockPriorityClassLister) List(labels.Selector) (ret []*v1.PriorityClass, err error) {
-	ret = make([]*v1.PriorityClass, 0)
+func (nsl *MockPriorityClassLister) List(labels.Selector) ([]*v1.PriorityClass, error) {
+	ret := make([]*v1.PriorityClass, 0)
 	for _, pc := range nsl.priorityClasses {
 		ret = append(ret, pc)
 	}
