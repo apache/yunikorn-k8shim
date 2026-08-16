@@ -38,7 +38,6 @@ import (
 
 type SchedulerKubeClient struct {
 	clientSet *kubernetes.Clientset
-	configs   *rest.Config
 }
 
 // Every client identifies the concern it serves in its user agent so that traffic can be
@@ -131,7 +130,6 @@ func newSchedulerKubeClient(kc string, concern string) SchedulerKubeClient {
 	config := newRestConfig(kc, schedulerConf.KubeQPS, schedulerConf.KubeBurst, concern)
 	return SchedulerKubeClient{
 		clientSet: newClientSetOrDie(config),
-		configs:   config,
 	}
 }
 
@@ -189,10 +187,6 @@ func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {
 	return nc.clientSet
 }
 
-func (nc SchedulerKubeClient) GetConfigs() *rest.Config {
-	return nc.configs
-}
-
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 	log.Log(log.ShimClient).Info("bind pod to node",
 		zap.String("podName", pod.Name),
@@ -243,18 +237,6 @@ func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.C
 		return nil, err
 	}
 	return configmap, nil
-}
-
-func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
-	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.Background(), podName, apis.GetOptions{})
-	if err != nil {
-		log.Log(log.ShimClient).Warn("failed to get pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-		return nil, err
-	}
-	return pod, nil
 }
 
 func (nc SchedulerKubeClient) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {

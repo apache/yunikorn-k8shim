@@ -21,7 +21,6 @@ package client
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 type KubeClient interface {
@@ -40,13 +39,8 @@ type KubeClient interface {
 	// Update the status of a pod
 	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
 
-	// Get a pod
-	Get(podNamespace string, podName string) (*v1.Pod, error)
-
 	// minimal expose this, only informers factory needs it
 	GetClientSet() kubernetes.Interface
-
-	GetConfigs() *rest.Config
 
 	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
 }
