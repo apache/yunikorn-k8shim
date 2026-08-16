@@ -1140,3 +1140,100 @@ func TestOrphanPods(t *testing.T) {
 	cache.UpdateNode(node)
 	assert.Check(t, !cache.IsPodOrphaned(podUID1), "pod on added node still marked as orphaned")
 }
+
+// this test verifies that removing the node an assumed pod is assumed on reverts the assignment
+// instead of orphaning the pod: the bind never happened, so the pod must not be adopted, and
+// recovered as an existing allocation, when the node comes back
+func TestRemoveNodeWithAssumedPod(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	node := newTestNode()
+	cache.UpdateNode(node)
+
+	pod := newTestPod()
+	cache.UpdatePod(pod)
+
+	assumedPod := pod.DeepCopy()
+	assumedPod.Spec.NodeName = host1
+	cache.AssumePod(assumedPod, true)
+	assert.Check(t, cache.IsAssumedPod(podUID1), "pod is not assumed")
+
+	// the node is removed before the bind completed: the assignment must be reverted
+	_, orphans := cache.RemoveNode(node)
+	assert.Equal(t, len(orphans), 0, "assumed pod is returned as an orphan")
+	assert.Check(t, !cache.IsAssumedPod(podUID1), "pod is still assumed after the node was removed")
+	assert.Check(t, !cache.IsPodOrphaned(podUID1), "pod is orphaned after the node was removed")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, "", "pod is still assigned to the removed node")
+	assert.Equal(t, len(cache.assignedPods), 0, "pod is still in the assigned pods")
+
+	// the node comes back: the pod is pending, it must not be adopted onto the node
+	_, adopted := cache.UpdateNode(node)
+	assert.Equal(t, len(adopted), 0, "pod is adopted after the node was added back")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, "", "pod is assigned to the node that came back")
+	assert.Equal(t, len(cache.assignedPods), 0, "pod is in the assigned pods after the node came back")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 0, "pod is added to the node that came back")
+}
+
+// this test verifies that a pod which the cluster reports as assigned to a node is orphaned when
+// that node is removed and is adopted again when the node comes back: that assignment is real
+func TestRemoveNodeWithBoundPod(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	node := newTestNode()
+	cache.UpdateNode(node)
+
+	pod := newTestPod()
+	pod.Spec.NodeName = host1
+	pod.Status.Phase = v1.PodRunning
+	cache.UpdatePod(pod)
+	assert.Check(t, !cache.IsAssumedPod(podUID1), "running pod is assumed")
+
+	_, orphans := cache.RemoveNode(node)
+	assert.Equal(t, len(orphans), 1, "bound pod is not returned as an orphan")
+	assert.Check(t, cache.IsPodOrphaned(podUID1), "bound pod is not orphaned after the node was removed")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, host1, "bound pod lost its node assignment")
+
+	// the node comes back: the pod is still on it and must be adopted
+	_, adopted := cache.UpdateNode(node)
+	assert.Equal(t, len(adopted), 1, "bound pod is not adopted after the node was added back")
+	assert.Check(t, !cache.IsPodOrphaned(podUID1), "adopted pod is still an orphan")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, host1, "adopted pod lost its node assignment")
+	assert.Equal(t, cache.assignedPods[podUID1], host1, "adopted pod is not in the assigned pods")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "adopted pod is not added to the node")
+}
+
+// newTestNode returns a node with a name of host1 and enough capacity for the test pods
+func newTestNode() *v1.Node {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+	return &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+}
+
+// newTestPod returns an unassigned pod with a name of podName1
+func newTestPod() *v1.Pod {
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      podName1,
+			Namespace: "default",
+			UID:       podUID1,
+		},
+		Spec: v1.PodSpec{},
+	}
+}
