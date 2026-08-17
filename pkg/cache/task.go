@@ -375,6 +375,11 @@ func (task *Task) postTaskAllocated() {
 			zap.String("podName", pod.Name),
 			zap.String("podUID", string(pod.UID)))
 		if err := retry.OnError(retryBackoff, func(err error) bool {
+			if strings.HasPrefix(err.Error(), "binding volumes:") {
+				log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed due to volume binding error, stopping retries",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				return false
+			}
 			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed, retrying",
 				zap.String("taskID", task.taskID), zap.Error(err))
 			return true
