@@ -335,6 +335,46 @@ func TestValidateConfigMapServerError(t *testing.T) {
 	assert.NilError(t, err, "No error expected")
 }
 
+// Test for the case to check if validateConfigMap accepts a valid config response with checksum
+func TestValidateConfigMapValidConfigWithChecksum(t *testing.T) {
+	configmap := prepareConfigMap(ConfigData)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		resp := `{"allowed": true, "reason": "", "checksum": "ABC123", "checksumMatch": false}`
+		w.Write([]byte(resp)) //nolint:errcheck
+	}))
+	defer srv.Close()
+	// both server and url pattern contains http://, so we need to delete one
+	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
+	err := controller.validateConfigMap("yunikorn", configmap)
+	assert.NilError(t, err, "No error expected with checksum fields in response")
+}
+
+// Test for the checksum fields returned by the scheduler validate-conf response
+func TestValidateConfResponseChecksum(t *testing.T) {
+	tests := []struct {
+		name         string
+		response     string
+		wantAllowed  bool
+		wantChecksum string
+		wantChkMatch bool
+	}{
+		{"checksum present and matching", `{"allowed": true, "reason": "", "checksum": "ABC123", "checksumMatch": true}`, true, "ABC123", true},
+		{"checksum present not matching", `{"allowed": true, "reason": "", "checksum": "ABC123", "checksumMatch": false}`, true, "ABC123", false},
+		{"checksum fields omitted", `{"allowed": true, "reason": ""}`, true, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var data ValidateConfResponse
+			err := json.Unmarshal([]byte(tt.response), &data)
+			assert.NilError(t, err, "unexpected error unmarshalling validate-conf response")
+			assert.Equal(t, data.Allowed, tt.wantAllowed, "allowed flag not parsed as expected")
+			assert.Equal(t, data.Checksum, tt.wantChecksum, "checksum not parsed as expected")
+			assert.Equal(t, data.ChecksumMatch, tt.wantChkMatch, "checksumMatch flag not parsed as expected")
+		})
+	}
+}
+
 func prepareConfigMap(data string) *v1.ConfigMap {
 	configmap := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
