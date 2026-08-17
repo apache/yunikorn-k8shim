@@ -49,7 +49,7 @@ func NewVolumeBinderMock() *VolumeBinderMock {
 	}
 }
 
-func (v *VolumeBinderMock) GetPodVolumeClaims(_ klog.Logger, _ *v1.Pod) (podVolumeClaims *volumebinding.PodVolumeClaims, err error) {
+func (v *VolumeBinderMock) GetPodVolumeClaims(_ klog.Logger, _ *v1.Pod) (*volumebinding.PodVolumeClaims, error) {
 	if v.volumeClaimError != nil {
 		return nil, v.volumeClaimError
 	}
@@ -57,11 +57,11 @@ func (v *VolumeBinderMock) GetPodVolumeClaims(_ klog.Logger, _ *v1.Pod) (podVolu
 	return v.podVolumeClaim, nil
 }
 
-func (v *VolumeBinderMock) GetEligibleNodes(_ klog.Logger, _ []*v1.PersistentVolumeClaim) (eligibleNodes sets.Set[string]) {
+func (v *VolumeBinderMock) GetEligibleNodes(_ klog.Logger, _ []*v1.PersistentVolumeClaim) sets.Set[string] {
 	return nil
 }
 
-func (v *VolumeBinderMock) FindPodVolumes(_ klog.Logger, _ *v1.Pod, _ *volumebinding.PodVolumeClaims, _ *v1.Node) (podVolumes *volumebinding.PodVolumes, reasons volumebinding.ConflictReasons, err error) {
+func (v *VolumeBinderMock) FindPodVolumes(_ klog.Logger, _ *v1.Pod, _ *volumebinding.PodVolumeClaims, _ *v1.Node) (*volumebinding.PodVolumes, volumebinding.ConflictReasons, error) {
 	if v.findPodVolumesError != nil {
 		return nil, nil, v.findPodVolumesError
 	}
@@ -73,7 +73,7 @@ func (v *VolumeBinderMock) FindPodVolumes(_ klog.Logger, _ *v1.Pod, _ *volumebin
 	return v.podVolumes, nil, nil
 }
 
-func (v *VolumeBinderMock) AssumePodVolumes(_ klog.Logger, _ *v1.Pod, _ string, _ *volumebinding.PodVolumes) (allFullyBound bool, err error) {
+func (v *VolumeBinderMock) AssumePodVolumes(_ klog.Logger, _ *v1.Pod, _ string, _ *volumebinding.PodVolumes) (bool, error) {
 	if v.assumeVolumeError != nil {
 		return false, v.assumeVolumeError
 	}

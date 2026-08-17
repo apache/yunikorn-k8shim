@@ -112,7 +112,7 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	for i := 0; i < numNodes; i++ {
 		addNode(cluster, "test.host."+strconv.Itoa(i))
 	}
-	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (bool, error) {
 		return cluster.GetActiveNodeCountInCore(partitionName) == numNodes, nil
 	})
 	assert.NilError(b, err, "node initialization did not finish in time")
@@ -128,7 +128,7 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	defer ps.stop()
 
 	// await binding of pods
-	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (bool, error) {
 		c := ps.getCompletedPodsCount()
 		fmt.Printf("Number of completed pods: %d\n", c)
 		return c == totalPods, nil

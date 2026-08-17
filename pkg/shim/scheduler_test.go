@@ -167,7 +167,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.GetAPIs().SchedulerAPI = test.NewSchedulerAPIMock().RegisterFunction(
 		func(request *si.RegisterResourceManagerRequest,
-			callback api.ResourceManagerCallback) (response *si.RegisterResourceManagerResponse, e error) {
+			callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
 			return nil, fmt.Errorf("some error")
 		})
 

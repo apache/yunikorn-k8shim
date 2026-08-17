@@ -44,7 +44,7 @@ func NewConfigMapListerMock() *ConfigMapListerMock {
 	}
 }
 
-func (c ConfigMapListerMock) List(selector labels.Selector) (ret []*v1.ConfigMap, err error) {
+func (c ConfigMapListerMock) List(selector labels.Selector) ([]*v1.ConfigMap, error) {
 	return c.configMaps, nil
 }
 

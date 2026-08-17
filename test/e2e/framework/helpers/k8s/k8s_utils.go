@@ -1485,8 +1485,8 @@ func GetWorkerNodes(nodes v1.NodeList) []v1.Node {
 }
 
 // Sums up current resource usage in a list of pods. Non-running pods are filtered out.
-func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
-	reqs = make(v1.ResourceList)
+func GetPodsTotalRequests(podList *v1.PodList) v1.ResourceList {
+	reqs := make(v1.ResourceList)
 	for i := range podList.Items {
 		pod := podList.Items[i]
 		podReqs := v1.ResourceList{}
@@ -1502,7 +1502,7 @@ func GetPodsTotalRequests(podList *v1.PodList) (reqs v1.ResourceList) {
 			}
 		}
 	}
-	return
+	return reqs
 }
 
 // GetNodesAvailRes Returns map of nodeName to list of available resource (memory and cpu only) amounts.
@@ -1868,7 +1868,7 @@ func (k *KubeCtl) GetSecret(namespace, secretName string) (*v1.Secret, error) {
 
 func (k *KubeCtl) WaitForSecret(namespace, secretName string, timeout time.Duration) error {
 	var cond wait.ConditionFunc // nolint:staticcheck
-	cond = func() (done bool, err error) {
+	cond = func() (bool, error) {
 		secret, err := k.GetSecret(namespace, secretName)
 		if err != nil {
 			return false, err

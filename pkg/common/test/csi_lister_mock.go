@@ -40,6 +40,6 @@ func (n CSINodeListerMock) Get(name string) (*storagev1.CSINode, error) {
 }
 
 // List lists all CSINodes in the indexer.
-func (n CSINodeListerMock) List(selector labels.Selector) (ret []*storagev1.CSINode, err error) {
+func (n CSINodeListerMock) List(selector labels.Selector) ([]*storagev1.CSINode, error) {
 	return nil, fmt.Errorf("not implemented")
 }

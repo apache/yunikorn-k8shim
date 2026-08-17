@@ -672,8 +672,9 @@ var _ = Describe("", func() {
 
 })
 
-func createJob(applicationID string, minResource map[string]resource.Quantity, annotations k8s.PodAnnotation, parallelism int32) (job *batchv1.Job) {
+func createJob(applicationID string, minResource map[string]resource.Quantity, annotations k8s.PodAnnotation, parallelism int32) *batchv1.Job {
 	var (
+		job      *batchv1.Job
 		err      error
 		requests = v1.ResourceList{}
 		limits   = v1.ResourceList{}

@@ -44,7 +44,7 @@ func (n *PodListerMock) DeletePod(pod *v1.Pod) {
 	delete(n.pods, pod)
 }
 
-func (n *PodListerMock) List(selector labels.Selector) (ret []*v1.Pod, err error) {
+func (n *PodListerMock) List(selector labels.Selector) ([]*v1.Pod, error) {
 	result := make([]*v1.Pod, 0)
 	for pod := range n.pods {
 		if selector.Matches(labels.Set(pod.Labels)) {

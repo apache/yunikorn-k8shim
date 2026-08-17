@@ -43,7 +43,7 @@ func (n *NodeListerMock) RemoveNode(node *v1.Node) {
 	delete(n.nodes, node)
 }
 
-func (n *NodeListerMock) List(selector labels.Selector) (ret []*v1.Node, err error) {
+func (n *NodeListerMock) List(selector labels.Selector) ([]*v1.Node, error) {
 	list := make([]*v1.Node, 0, len(n.nodes))
 	for node := range n.nodes {
 		if selector.Matches(labels.Set(node.Labels)) {

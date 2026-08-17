@@ -65,6 +65,7 @@ linters:
     - dogsled
     - whitespace
     - ginkgolinter
+    - nonamedreturns
   exclusions:
     generated: lax
     presets:

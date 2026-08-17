@@ -38,7 +38,7 @@ func NewMockNamespaceLister(errIfNotFound bool) listersV1.NamespaceLister {
 	}
 }
 
-func (nsl *MockNamespaceLister) List(labels.Selector) (ret []*v1.Namespace, err error) {
+func (nsl *MockNamespaceLister) List(labels.Selector) ([]*v1.Namespace, error) {
 	return nil, nil
 }
 
