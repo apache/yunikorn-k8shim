@@ -320,8 +320,12 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 					cache.nodesInfoPodsWithReqAntiAffinity = nil
 				}
 			}
-			if pod.Spec.NodeName == "" {
-				// new pod wasn't assigned to a node, so use existing assignment
+			if pod.Spec.NodeName == "" && cache.isAssumedPod(key) {
+				// new pod wasn't assigned to a node, but the pod is assumed on one, so use the
+				// existing assignment until the result of the bind shows up. Only assumed pods
+				// keep their assignment: a forgotten pod must not have it resurrected here.
+				// Copy before updating, the pod passed in can be owned by the informer cache.
+				pod = pod.DeepCopy()
 				pod.Spec.NodeName = nodeName
 			}
 		}
@@ -457,15 +461,26 @@ func (cache *SchedulerCache) ForgetPod(pod *v1.Pod) {
 func (cache *SchedulerCache) forgetPod(pod *v1.Pod) {
 	key := string(pod.UID)
 
-	// update the pod in cache
-	cache.updatePod(pod)
-
-	// remove assigned allocation
 	log.Log(log.ShimCacheExternal).Debug("Removing assumed pod from cache",
 		zap.String("podName", pod.Name),
 		zap.String("podKey", key))
 
+	// a pod that is no longer assumed has been bound already: its assignment is real and is kept
+	revert := cache.isAssumedPod(key) && pod.Spec.NodeName != ""
+
+	// remove the assumed state first: updatePod preserves the assignment of an assumed pod
 	delete(cache.assumedPods, key)
+
+	if revert {
+		// the pod was never bound to the node it was assumed on, revert the assignment.
+		// Copy before updating, the pod passed in can be shared with the caller.
+		unassigned := pod.DeepCopy()
+		unassigned.Spec.NodeName = ""
+		pod = unassigned
+	}
+
+	// update the pod in cache
+	cache.updatePod(pod)
 }
 
 // Implement k8s.io/client-go/listers/core/v1#PodLister interface

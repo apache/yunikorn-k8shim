@@ -805,6 +805,128 @@ func TestUpdatePod(t *testing.T) {
 	assert.Equal(t, pod3Result.Spec.NodeName, "new-node", "node name not updated")
 }
 
+// this test verifies that an update for an assumed pod which does not carry a node name keeps
+// the assumed assignment, and that the pod of the update itself is left untouched as it can be
+// owned by the informer cache
+func TestUpdateAssumedPod(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(newTestNode())
+
+	pod := newTestPod()
+	cache.UpdatePod(pod)
+
+	assumedPod := pod.DeepCopy()
+	assumedPod.Spec.NodeName = host1
+	cache.AssumePod(assumedPod, true)
+	assert.Check(t, cache.IsAssumedPod(podUID1), "pod is not assumed")
+
+	// the pod is not assigned in the cluster yet, the assumed assignment must survive the update
+	updatedPod := pod.DeepCopy()
+	cache.UpdatePod(updatedPod)
+	assert.Check(t, cache.IsAssumedPod(podUID1), "pod is not assumed after update")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, host1, "assumed pod lost its node assignment")
+	assert.Equal(t, cache.assignedPods[podUID1], host1, "assumed pod is not in the assigned pods")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "assumed pod is not added to the node")
+	assert.Equal(t, updatedPod.Spec.NodeName, "", "pod of the update was modified")
+}
+
+// this test verifies that forgetting an assumed pod reverts the node assignment which was made
+// when the pod was assumed: the bind never happened so the pod must be unassigned in the cache,
+// and an update for the still unassigned pod must not bring the assignment back
+func TestForgetPod(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(newTestNode())
+
+	pod := newTestPod()
+	cache.UpdatePod(pod)
+
+	assumedPod := pod.DeepCopy()
+	assumedPod.Spec.NodeName = host1
+	cache.AssumePod(assumedPod, true)
+	assert.Check(t, cache.IsAssumedPod(podUID1), "pod is not assumed")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, host1, "assumed pod is not assigned to the node")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "assumed pod is not added to the node")
+
+	// the bind failed: the assignment must be reverted
+	cache.ForgetPod(cache.GetPod(podUID1))
+	assert.Check(t, !cache.IsAssumedPod(podUID1), "pod is still assumed after forget")
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, "", "forgotten pod is still assigned to a node")
+	assert.Equal(t, len(cache.assignedPods), 0, "forgotten pod is still in the assigned pods")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 0, "forgotten pod is still added to the node")
+
+	// an update for the pod, which is still unassigned in the cluster, must not restore the
+	// assignment: the pod would be recovered as an existing allocation on the node
+	updatedPod := pod.DeepCopy()
+	cache.UpdatePod(updatedPod)
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, "", "update restored the node assignment")
+	assert.Equal(t, len(cache.assignedPods), 0, "update restored the assigned pods entry")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 0, "update added the pod back to the node")
+
+	// forget of a pod that is not assumed must not change anything
+	cache.ForgetPod(cache.GetPod(podUID1))
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, "", "forgotten pod is assigned to a node")
+	assert.Equal(t, len(cache.podsMap), 1, "wrong pod count after second forget")
+}
+
+// this test verifies that forgetting a pod which is bound in the cluster, and thus is not assumed
+// anymore, leaves the node assignment in place
+func TestForgetBoundPod(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(newTestNode())
+
+	pod := newTestPod()
+	pod.Spec.NodeName = host1
+	pod.Status.Phase = v1.PodRunning
+	cache.UpdatePod(pod)
+	assert.Check(t, !cache.IsAssumedPod(podUID1), "running pod is assumed")
+
+	cache.ForgetPod(cache.GetPod(podUID1))
+	assert.Equal(t, cache.GetPod(podUID1).Spec.NodeName, host1, "bound pod lost its node assignment")
+	assert.Equal(t, cache.assignedPods[podUID1], host1, "bound pod is not in the assigned pods")
+	// nolint:staticcheck
+	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "bound pod is not added to the node")
+}
+
+// newTestNode returns a node with a name of host1 and enough capacity for the test pods
+func newTestNode() *v1.Node {
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
+	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
+	return &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+		Status: v1.NodeStatus{
+			Allocatable: resourceList,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+		},
+	}
+}
+
+// newTestPod returns an unassigned pod with a name of podName1
+func newTestPod() *v1.Pod {
+	return &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name:      podName1,
+			Namespace: "default",
+			UID:       podUID1,
+		},
+		Spec: v1.PodSpec{},
+	}
+}
+
 func TestRemovePod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
