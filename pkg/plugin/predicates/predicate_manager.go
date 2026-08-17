@@ -45,7 +45,6 @@ import (
 )
 
 type PredicateManager interface {
-	// EventsToRegister returns the cluster events that should be registered for predicate plugins.
 	EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint
 	// Predicates checks if a pod can fit on a node.
 	// Returns the name of the predicate plugin that failed (may be empty) and any error encountered.
