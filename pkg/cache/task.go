@@ -520,20 +520,22 @@ func (task *Task) sanityCheckBeforeScheduling() error {
 
 // throw a warning if the pod has inconsistent metadata
 func (task *Task) checkPodMetadataBeforeScheduling() {
-	appID := utils.GetApplicationIDFromPod(task.pod)
-	ignoredAppIDLabels, ignoredAppIDAnnotation := utils.GetIgnoredLabelAnnotationInPod(task.pod, appID, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys)
+	// take a reference under the task lock: the informer can replace task.pod concurrently
+	pod := task.GetTaskPod()
+	appID := utils.GetApplicationIDFromPod(pod)
+	ignoredAppIDLabels, ignoredAppIDAnnotation := utils.GetIgnoredLabelAnnotationInPod(pod, appID, constants.AppIdLabelKeys, constants.AppIdAnnotationKeys)
 	if len(ignoredAppIDLabels) > 0 || len(ignoredAppIDAnnotation) > 0 {
-		task.logIgnoredPodMetadata("app-id", appID, ignoredAppIDLabels, ignoredAppIDAnnotation)
+		task.logIgnoredPodMetadata(pod, "app-id", appID, ignoredAppIDLabels, ignoredAppIDAnnotation)
 	}
 
-	queueName := utils.GetQueueNameFromPod(task.pod)
-	ignoredQueueLabels, ignoredQueueAnnotation := utils.GetIgnoredLabelAnnotationInPod(task.pod, queueName, constants.QueueLabelKeys, constants.QueueAnnotationKeys)
+	queueName := utils.GetQueueNameFromPod(pod)
+	ignoredQueueLabels, ignoredQueueAnnotation := utils.GetIgnoredLabelAnnotationInPod(pod, queueName, constants.QueueLabelKeys, constants.QueueAnnotationKeys)
 	if len(ignoredQueueLabels) > 0 || len(ignoredQueueAnnotation) > 0 {
-		task.logIgnoredPodMetadata("queue", queueName, ignoredQueueLabels, ignoredQueueAnnotation)
+		task.logIgnoredPodMetadata(pod, "queue", queueName, ignoredQueueLabels, ignoredQueueAnnotation)
 	}
 }
 
-func (task *Task) logIgnoredPodMetadata(metadataType string, fianlValue string, ignoredLabel map[string]string, ignoredAnnotation map[string]string) {
+func (task *Task) logIgnoredPodMetadata(pod *v1.Pod, metadataType string, fianlValue string, ignoredLabel map[string]string, ignoredAnnotation map[string]string) {
 	ignoredItems := make([]string, 0)
 	for key, value := range ignoredLabel {
 		ignoredItems = append(ignoredItems, fmt.Sprintf("(Label) %s: %s", key, value))
@@ -542,10 +544,10 @@ func (task *Task) logIgnoredPodMetadata(metadataType string, fianlValue string, 
 		ignoredItems = append(ignoredItems, fmt.Sprintf("(Annotation) %s: %s", key, value))
 	}
 	logMessage := fmt.Sprintf("Found multiple '%s' value in pod. { podName: %s, fianlValue: %s, ignored: [%s] }",
-		metadataType, task.pod.Name, fianlValue, strings.Join(ignoredItems, ", "))
+		metadataType, pod.Name, fianlValue, strings.Join(ignoredItems, ", "))
 
 	log.Log(log.ShimCacheTask).Warn(logMessage)
-	events.GetRecorder().Eventf(task.pod.DeepCopy(),
+	events.GetRecorder().Eventf(pod.DeepCopy(),
 		nil, v1.EventTypeWarning, "Scheduling", "Scheduling", logMessage)
 }
 
