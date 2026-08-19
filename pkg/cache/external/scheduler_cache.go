@@ -207,8 +207,23 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	for _, fwkPod := range nodeInfo.Pods {
 		pod := fwkPod.GetPod()
 		key := string(pod.UID)
+		// a pod that is still assumed was never bound to the node: the node name it carries was set
+		// by the shim when the pod was assumed, it is not an assignment made by the cluster
+		revert := cache.isAssumedPod(key)
 		delete(cache.assignedPods, key)
 		delete(cache.assumedPods, key)
+		if revert {
+			// the assumed node is gone before the bind completed, revert the assignment instead of
+			// orphaning the pod: an orphan is adopted again when the node comes back and the pod
+			// would be recovered as an existing allocation for a bind that never happened. The pod
+			// is just pending again and is scheduled on whatever node is available.
+			// Copy before updating, the pod is shared with the pods map and can be owned by the
+			// informer cache.
+			unassigned := pod.DeepCopy()
+			unassigned.Spec.NodeName = ""
+			cache.podsMap[key] = unassigned
+			continue
+		}
 		cache.orphanedPods[key] = pod
 		orphans = append(orphans, pod)
 	}
