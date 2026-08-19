@@ -30,12 +30,17 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -1022,4 +1027,229 @@ func TestRollbackOnAssumePodFailure_NilSchedulerAPI(t *testing.T) {
 
 	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared even with nil SchedulerAPI")
 	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared even with nil SchedulerAPI")
+}
+
+// newBindTestPod returns a minimal pod usable for exercising the bind path.
+func newBindTestPod(name, uid string) *v1.Pod {
+	return &v1.Pod{
+		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)},
+	}
+}
+
+// setShortBindBackoff shrinks the bind retry backoff so tests do not wait for the
+// production schedule, and returns a restore function.
+func setShortBindBackoff(steps int) func() {
+	original := retryBackoff
+	retryBackoff = wait.Backoff{Steps: steps, Duration: time.Millisecond}
+	return func() { retryBackoff = original }
+}
+
+// TestRescheduleOnBindFailure_ClearsStateAndReschedules verifies that a bind failure
+// clears the allocation, moves the task back to Scheduling, and sends a
+// SCHEDULING_FAILED_ON_RM release so the core can re-schedule on a different node.
+func TestRescheduleOnBindFailure_ClearsStateAndReschedules(t *testing.T) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	var rollbackSent atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM &&
+					rel.AllocationKey == taskUID1 {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
+	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	task.sm.SetState(TaskStates().Allocated)
+	task.rescheduleOnBindFailure(taskUID1, fakeNodeName, "PodBindFailure", "bind failed, it will be retried")
+
+	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should be back in Scheduling after bind failure")
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared")
+	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+	assert.Assert(t, len(recorder.Events) >= 1, "a bind failure event should be posted")
+}
+
+// TestPostTaskAllocated_BindRetrySucceeds verifies that a transient pod bind failure is
+// retried and, once it succeeds, the task stays Allocated without being rolled back.
+func TestPostTaskAllocated_BindRetrySucceeds(t *testing.T) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+	events.SetRecorder(events.NewMockedRecorder())
+	defer events.SetRecorder(events.NewMockedRecorder())
+	defer setShortBindBackoff(5)()
+
+	var bindCalls atomic.Int32
+	apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
+		if bindCalls.Add(1) < 3 {
+			return fmt.Errorf("transient bind error")
+		}
+		return nil
+	})
+
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	task := NewTask(taskUID1, app, mockedContext, newBindTestPod("bind-retry-pod", "bind-retry-uid"))
+	task.sm.SetState(TaskStates().Scheduling)
+
+	err := task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, taskUID1, fakeNodeName))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+
+	err = utils.WaitForCondition(func() bool {
+		return bindCalls.Load() == 3 && task.GetTaskSchedulingState() == TaskSchedAllocated
+	}, 10*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "pod bind did not succeed after retries")
+	assert.Equal(t, TaskStates().Allocated, task.GetTaskState(), "task should remain Allocated after a successful bind")
+	assert.Equal(t, fakeNodeName, task.GetNodeName(), "node assignment should be kept after a successful bind")
+}
+
+// TestPostTaskAllocated_BindExhaustedReschedules verifies that when pod binding keeps
+// failing, the allocation is rolled back and the task returns to Scheduling.
+func TestPostTaskAllocated_BindExhaustedReschedules(t *testing.T) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+	events.SetRecorder(events.NewMockedRecorder())
+	defer events.SetRecorder(events.NewMockedRecorder())
+	defer setShortBindBackoff(2)()
+
+	apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
+		return fmt.Errorf("permanent bind error")
+	})
+
+	var rollbackSent atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	task := NewTask(taskUID1, app, mockedContext, newBindTestPod("bind-fail-pod", "bind-fail-uid"))
+	task.sm.SetState(TaskStates().Scheduling)
+
+	err := task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, taskUID1, fakeNodeName))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 10*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "task should be moved back to Scheduling after bind exhaustion")
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
+	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+}
+
+// TestPostTaskAllocated_VolumeBindExhaustedReschedules verifies that when volume binding
+// keeps failing, the allocation is rolled back and the task returns to Scheduling.
+func TestPostTaskAllocated_VolumeBindExhaustedReschedules(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	binder.SetAllBound(false)
+	binder.SetPodVolumes(&volumebinding.PodVolumes{})
+	binder.EnableBindPodVolumesError("permanent volume bind error")
+	mockedContext := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	defer setShortBindBackoff(2)()
+
+	apiProvider := mockedContext.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var rollbackSent atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
+	// assume the pod so it is present in the scheduler cache with volumes not fully bound
+	err := mockedContext.AssumePod(pod1UID, fakeNodeName)
+	assert.NilError(t, err, "failed to assume pod")
+
+	app := NewApplication(appID, queue, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	task := NewTask(pod1UID, app, mockedContext, newBindTestPod(podName1, pod1UID))
+	task.sm.SetState(TaskStates().Scheduling)
+
+	err = task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, pod1UID, fakeNodeName))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 10*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "task should be moved back to Scheduling after volume bind exhaustion")
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
+	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+}
+
+// TestPostTaskAllocated_VolumeBindNoRetryOnBindingVolumesError verifies that when volume binding
+// fails with a "binding volumes:" error, retries are stopped immediately and the allocation is rolled back.
+func TestPostTaskAllocated_VolumeBindNoRetryOnBindingVolumesError(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	binder.SetAllBound(false)
+	binder.SetPodVolumes(&volumebinding.PodVolumes{})
+	binder.EnableBindPodVolumesError("binding volumes: timed out waiting for volume binding")
+	mockedContext := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	// Using a long backoff to prove it doesn't wait for retries
+	origBackoff := retryBackoff
+	retryBackoff = wait.Backoff{
+		Steps:    5,
+		Duration: 10 * time.Second,
+		Factor:   2,
+	}
+	defer func() {
+		retryBackoff = origBackoff
+	}()
+
+	apiProvider := mockedContext.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+	var rollbackSent atomic.Bool
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, rel := range request.Releases.AllocationsToRelease {
+				if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+					rollbackSent.Store(true)
+				}
+			}
+		}
+		return nil
+	})
+
+	// assume the pod so it is present in the scheduler cache with volumes not fully bound
+	err := mockedContext.AssumePod(pod1UID, fakeNodeName)
+	assert.NilError(t, err, "failed to assume pod")
+
+	app := NewApplication(appID, queue, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	task := NewTask(pod1UID, app, mockedContext, newBindTestPod(podName1, pod1UID))
+	task.sm.SetState(TaskStates().Scheduling)
+
+	err = task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, pod1UID, fakeNodeName))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskState() == TaskStates().Scheduling
+	}, 10*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "task should be moved back to Scheduling without retrying for binding volumes error")
+	assert.Equal(t, int32(1), binder.GetBindCount(), "bindPodVolumes should only be called once when error starts with 'binding volumes:'")
+	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
+	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
+	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 }

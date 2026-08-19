@@ -21,6 +21,7 @@ package test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -41,6 +42,7 @@ type VolumeBinderMock struct {
 	podVolumes        *volumebinding.PodVolumes
 	allBound          bool
 	revertCalledCount int
+	bindCount         atomic.Int32
 }
 
 func NewVolumeBinderMock() *VolumeBinderMock {
@@ -94,7 +96,12 @@ func (v *VolumeBinderMock) SetPodVolumes(podVolumes *volumebinding.PodVolumes) {
 }
 
 func (v *VolumeBinderMock) BindPodVolumes(_ context.Context, _ *v1.Pod, _ *volumebinding.PodVolumes) error {
+	v.bindCount.Add(1)
 	return v.bindError
+}
+
+func (v *VolumeBinderMock) GetBindCount() int32 {
+	return v.bindCount.Load()
 }
 
 func (v *VolumeBinderMock) EnableVolumeClaimsError(message string) {
@@ -103,6 +110,10 @@ func (v *VolumeBinderMock) EnableVolumeClaimsError(message string) {
 
 func (v *VolumeBinderMock) EnableFindPodVolumesError(message string) {
 	v.findPodVolumesError = errors.New(message)
+}
+
+func (v *VolumeBinderMock) EnableBindPodVolumesError(message string) {
+	v.bindError = errors.New(message)
 }
 
 func (v *VolumeBinderMock) SetConflictReasons(reasons ...string) {

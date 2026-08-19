@@ -27,6 +27,8 @@ import (
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -38,6 +40,15 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
+
+// retryBackoff controls the retry schedule for binding pod volumes and binding the
+// pod to a node. Declared as a package variable so tests can shorten it.
+var retryBackoff = wait.Backoff{
+	Steps:    8, // total time is 1 + 2 + 4 + 8 + 16 + 30 + 30 + 30 = 121 seconds
+	Duration: time.Second,
+	Factor:   2,
+	Cap:      30 * time.Second,
+}
 
 type Task struct {
 	taskID        string
@@ -343,46 +354,78 @@ func (task *Task) postTaskPending() {
 // This routine binds the pod to the allocated node.
 // It calls K8s api to bind a pod to the assigned node, this may need some time,
 // so we do a delay binding, background process, to avoid blocking main process.
-// The result of the binding is tracked and failures are properly handled.
-// If successful, we move task to next state BOUND, otherwise we fail the task
+// Volume binding and pod binding are retried with a backoff; if they ultimately fail
+// the allocation is rolled back to a pending ask so the core can re-schedule the task
+// on a different node. On success we move the task to the next state BOUND.
 func (task *Task) postTaskAllocated() {
-	go func() {
-		// we need to obtain task's lock first,
-		// this ensures no other threads modifying task state at the time being
+	// Snapshot the fields needed for binding before launching the goroutine without re-acquiring the lock.
+	// We already hold task.lock (via task.handle()) during state transitions.
+	pod := task.pod
+	alias := task.alias
+	nodeName := task.nodeName
+	allocationKey := task.allocationKey
+
+	go func(pod *v1.Pod, alias, nodeName, allocationKey string) {
+		// this lock is to protect the task from being modified while we are binding the pod to node
+		// once all task related operations are done, release the lock
+		// This is important specially while calling rollbackAllocation, which needs to acquire the context lock, so we cannot hold the task lock while calling it.
 		task.lock.Lock()
-		defer task.lock.Unlock()
-
-		// post a message to indicate the pod gets its allocation
-		events.GetRecorder().Eventf(task.pod.DeepCopy(),
-			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
-			"Successfully assigned %s to node %s", task.alias, task.nodeName)
-
 		// before binding pod to node, first bind volumes to pod
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
-			zap.String("podName", task.pod.Name),
-			zap.String("podUID", string(task.pod.UID)))
-		if err := task.context.bindPodVolumes(task.pod); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed", zap.String("taskID", task.taskID), zap.Error(err))
-			task.failWithEvent(fmt.Sprintf("bind volumes to pod failed, name: %s, %s", task.alias, err.Error()), "PodVolumesBindFailure")
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)))
+		if err := retry.OnError(retryBackoff, func(err error) bool {
+			if strings.HasPrefix(err.Error(), "binding volumes:") {
+				log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed due to volume binding error, stopping retries",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				return false
+			}
+			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed, retrying",
+				zap.String("taskID", task.taskID), zap.Error(err))
+			return true
+		}, func() error {
+			return task.context.bindPodVolumes(pod)
+		}); err != nil {
+			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed after retries",
+				zap.String("taskID", task.taskID), zap.Error(err))
+			// release task lock before calling rescheduleOnBindFailure to avoid deadlock
+			task.lock.Unlock()
+			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
+				fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
 			return
 		}
 		log.Log(log.ShimCacheTask).Debug("bind pod",
-			zap.String("podName", task.pod.Name),
-			zap.String("podUID", string(task.pod.UID)))
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)))
 
-		if err := task.context.apiProvider.GetAPIs().KubeClient.Bind(task.pod, task.nodeName); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind pod to node failed", zap.String("taskID", task.taskID), zap.Error(err))
-			task.failWithEvent(fmt.Sprintf("bind pod to node failed, name: %s, %s", task.alias, err.Error()), "PodBindFailure")
+		if err := retry.OnError(retryBackoff, func(err error) bool {
+			log.Log(log.ShimCacheTask).Error("bind pod to node failed, retrying",
+				zap.String("taskID", task.taskID), zap.Error(err))
+			return true
+		}, func() error {
+			return task.context.apiProvider.GetAPIs().KubeClient.Bind(pod, nodeName)
+		}); err != nil {
+			log.Log(log.ShimCacheTask).Error("bind pod to node failed after retries",
+				zap.String("taskID", task.taskID), zap.Error(err))
+			task.lock.Unlock()
+			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodBindFailure",
+				fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
 			return
 		}
-		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", task.pod.Name))
-		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
-		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
-			"Pod %s is successfully bound to node %s", task.alias, task.nodeName)
+		// post a message to indicate the pod gets its allocation
+		events.GetRecorder().Eventf(pod.DeepCopy(),
+			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
+			"Successfully assigned %s to node %s", alias, nodeName)
+		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", pod.Name))
 
 		task.schedulingState = TaskSchedAllocated
-	}()
+
+		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
+		task.lock.Unlock()
+		events.GetRecorder().Eventf(pod.DeepCopy(), nil,
+			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
+			"Pod %s is successfully bound to node %s", alias, nodeName)
+	}(pod, alias, nodeName, allocationKey)
 }
 
 // beforeTaskAllocated is called before handling the TaskAllocated event.
@@ -627,21 +670,26 @@ func (task *Task) failWithEvent(errorMessage, actionReason string) {
 // pending ask so it can be re-scheduled on a different node.
 // Must be called without holding the task lock.
 func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
-	// Read fields needed for event posting and release request.
-	// Clear stale node assignment under write lock so the task is clean for the next allocation.
 	task.lock.Lock()
-	podCopy := task.pod.DeepCopy()
 	alias := task.alias
+	podCopy := task.pod.DeepCopy()
 	appID := task.applicationID
 	partition := task.application.partition
 	task.allocationKey = ""
 	task.nodeName = ""
 	task.lock.Unlock()
 
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, "AssumePodFailed",
+		fmt.Sprintf("Node assignment failed for %s on node %s, it will be retried", alias, nodeID))
+}
+
+// rollbackAllocation resets the task allocation state and notifies the core to move
+// the allocation back to a pending ask so it can be re-scheduled on a different node.
+// Must be called without holding the task lock.
+func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocationKey, nodeID, eventReason, eventMsg string) {
 	// Post a warning event so operators can see the retry via kubectl describe pod.
 	events.GetRecorder().Eventf(podCopy, nil,
-		v1.EventTypeWarning, "AssumePodFailed", "AssumePodFailed",
-		"Node assignment failed for %s on node %s, it will be retried", alias, nodeID)
+		v1.EventTypeWarning, eventReason, eventReason, eventMsg)
 
 	// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
 	// even if AssumePodVolumes was never reached or already cleaned up internally.
@@ -669,6 +717,31 @@ func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
 	log.Log(log.ShimCacheTask).Info("task allocation rolled back, will retry on a different node",
 		zap.String("appID", appID),
 		zap.String("allocationKey", allocationKey))
+}
+
+// rescheduleOnBindFailure is called when volume or pod binding fails after all retries.
+// Move the task back to Scheduling before rolling back the allocation, so a
+// subsequent TaskAllocated event from the core (which requires Scheduling) is accepted.
+// Must be called without holding the task lock as rollbackAllocation uses context lock.
+func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, eventMsg string) {
+	task.lock.Lock()
+	// Move the task back to Scheduling before releasing to the core, so the re-delivered
+	// allocation (valid only from the Scheduling state) is accepted by the state machine.
+	if task.sm.Current() != TaskStates().Scheduling {
+		log.Log(log.ShimCacheTask).Info("task is not in Scheduling state, moving it back to Scheduling",
+			zap.String("appID", task.applicationID),
+			zap.String("taskID", task.taskID),
+			zap.String("currentState", task.sm.Current()))
+		task.sm.SetState(TaskStates().Scheduling)
+	}
+	podCopy := task.pod.DeepCopy()
+	appID := task.applicationID
+	partition := task.application.partition
+	task.allocationKey = ""
+	task.nodeName = ""
+	task.lock.Unlock()
+
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, eventReason, eventMsg)
 }
 
 func (task *Task) SetTaskPod(pod *v1.Pod) {
