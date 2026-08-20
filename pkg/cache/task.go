@@ -370,54 +370,81 @@ func (task *Task) postTaskAllocated() {
 		// once all task related operations are done, release the lock
 		// This is important specially while calling rollbackAllocation, which needs to acquire the context lock, so we cannot hold the task lock while calling it.
 		task.lock.Lock()
-		// before binding pod to node, first bind volumes to pod
-		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)))
-		if err := retry.OnError(retryBackoff, func(err error) bool {
-			if strings.HasPrefix(err.Error(), "binding volumes:") {
-				log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed due to volume binding error, stopping retries",
-					zap.String("taskID", task.taskID), zap.Error(err))
-				return false
+
+		// DRA Bindings
+		if len(pod.Spec.ResourceClaims) > 0 { // Have to make check more robust
+			// before binding pod to node, dra bindings to pod
+			log.Log(log.ShimCacheTask).Debug("dra bindings",
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)))
+			reserve := task.context.Reserve(pod.Name, nodeName)
+			reschedule := true
+			if reserve != nil && reserve.Success {
+				reschedule = false
+				preBind := task.context.PreBind(pod.Name, nodeName)
+				if preBind != nil && !preBind.Success {
+					reschedule = true
+					task.context.Unreserve(pod.Name, nodeName)
+				}
 			}
-			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed, retrying",
-				zap.String("taskID", task.taskID), zap.Error(err))
-			return true
-		}, func() error {
-			return task.context.bindPodVolumes(pod)
-		}); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind volumes to pod failed after retries",
-				zap.String("taskID", task.taskID), zap.Error(err))
-			// release task lock before calling rescheduleOnBindFailure to avoid deadlock
-			task.lock.Unlock()
-			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
-				fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
-			return
+			if reschedule {
+				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodDRABindFailure",
+					fmt.Sprintf("Failed to bind dra for %s on node %s, it will be retried", alias, nodeName))
+				return
+			}
 		}
-		log.Log(log.ShimCacheTask).Debug("bind pod",
-			zap.String("podName", pod.Name),
-			zap.String("podUID", string(pod.UID)))
 
-		if err := retry.OnError(retryBackoff, func(err error) bool {
-			log.Log(log.ShimCacheTask).Error("bind pod to node failed, retrying",
-				zap.String("taskID", task.taskID), zap.Error(err))
-			return true
-		}, func() error {
-			return task.context.apiProvider.GetAPIs().KubeClient.Bind(pod, nodeName)
-		}); err != nil {
-			log.Log(log.ShimCacheTask).Error("bind pod to node failed after retries",
-				zap.String("taskID", task.taskID), zap.Error(err))
-			task.lock.Unlock()
-			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodBindFailure",
-				fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
-			return
+		// Bind Pod Volumes
+		if len(pod.Spec.Volumes) > 0 {
+			// before binding pod to node, first bind volumes to pod
+			log.Log(log.ShimCacheTask).Debug("bind pod volumes",
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)))
+			if err := retry.OnError(retryBackoff, func(err error) bool {
+				if strings.HasPrefix(err.Error(), "binding volumes:") {
+					log.Log(log.ShimCacheTask).Warn("bind volumes to pod failed due to volume binding error, stopping retries",
+						zap.String("taskID", task.taskID), zap.Error(err))
+					return false
+				}
+				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed, retrying",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				return true
+			}, func() error {
+				return task.context.bindPodVolumes(pod)
+			}); err != nil {
+				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed after retries",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				// release task lock before calling rescheduleOnBindFailure to avoid deadlock
+				task.lock.Unlock()
+				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
+					fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
+				return
+			}
+			log.Log(log.ShimCacheTask).Debug("bind pod",
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)))
+
+			if err := retry.OnError(retryBackoff, func(err error) bool {
+				log.Log(log.ShimCacheTask).Error("bind pod to node failed, retrying",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				return true
+			}, func() error {
+				return task.context.apiProvider.GetAPIs().KubeClient.Bind(pod, nodeName)
+			}); err != nil {
+				log.Log(log.ShimCacheTask).Error("bind pod to node failed after retries",
+					zap.String("taskID", task.taskID), zap.Error(err))
+				task.lock.Unlock()
+				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodBindFailure",
+					fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
+				return
+			}
+			// post a message to indicate the pod gets its allocation
+			events.GetRecorder().Eventf(pod.DeepCopy(),
+				nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
+				"Successfully assigned %s to node %s", alias, nodeName)
+			log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", pod.Name))
+
 		}
-		// post a message to indicate the pod gets its allocation
-		events.GetRecorder().Eventf(pod.DeepCopy(),
-			nil, v1.EventTypeNormal, "Scheduled", "Scheduled",
-			"Successfully assigned %s to node %s", alias, nodeName)
-		log.Log(log.ShimCacheTask).Info("successfully bound pod", zap.String("podName", pod.Name))
-
 		task.schedulingState = TaskSchedAllocated
 
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
@@ -691,12 +718,14 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, eventReason, eventReason, eventMsg)
 
-	// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
-	// even if AssumePodVolumes was never reached or already cleaned up internally.
-	task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
+	if len(podCopy.Spec.Volumes) > 0 {
+		// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
+		// even if AssumePodVolumes was never reached or already cleaned up internally.
+		task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
 
-	// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
-	task.context.ForgetPod(allocationKey)
+		// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
+		task.context.ForgetPod(allocationKey)
+	}
 
 	// Notify the core to roll back the allocation to a pending ask.
 	if schedulerAPI := task.context.apiProvider.GetAPIs().SchedulerAPI; schedulerAPI != nil {
