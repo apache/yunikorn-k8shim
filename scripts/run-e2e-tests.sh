@@ -168,7 +168,10 @@ function install_cluster() {
     --set admissionController.image.pullPolicy=IfNotPresent \
     --set web.image.repository=local/yunikorn \
     --set web.image.tag="${WEBTEST_IMAGE}" \
-    --set web.image.pullPolicy=IfNotPresent
+    --set web.image.pullPolicy=IfNotPresent \
+    --set deadlockDetection.enabled=true \
+    --set deadlockDetection.timeoutSeconds=10 \
+    --set deadlockDetection.exit=true
   exit_on_error "failed to install yunikorn"
   "${KUBECTL}" wait --for=condition=available --timeout=300s deployment/yunikorn-scheduler -n yunikorn
   exit_on_error "failed to wait for yunikorn scheduler deployment being deployed"

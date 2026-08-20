@@ -590,7 +590,7 @@ test:
 	@echo "running unit tests"
 	@mkdir -p "$(OUTPUT)"
 	"$(GO)" clean -testcache
-	"$(GO)" test ./pkg/... -cover -race -tags deadlock -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
+	"$(GO)" test ./pkg/... -cover -race -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
 	"$(GO)" vet "$(REPO)"...
 
 # Run benchmarks
