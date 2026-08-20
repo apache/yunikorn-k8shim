@@ -22,7 +22,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
@@ -37,6 +39,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -510,19 +513,55 @@ func (app *Application) onResuming() {
 	}
 }
 
+// isPlaceholderTimeoutElapsed returns true when the configured placeholder timeout has already
+// elapsed since the application creation time. Used on restart to avoid creating placeholder
+// pods that would immediately time out.
+func (app *Application) isPlaceholderTimeoutElapsed() bool {
+	if app.placeholderTimeoutInSec <= 0 {
+		return false
+	}
+	creationTimeTag := app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime]
+	if creationTimeTag == "" {
+		return false
+	}
+	createdAtSec, err := strconv.ParseInt(creationTimeTag, 10, 64)
+	if err != nil {
+		return false
+	}
+	elapsed := time.Since(time.Unix(createdAtSec, 0))
+	return elapsed >= time.Duration(app.placeholderTimeoutInSec)*time.Second
+}
+
 // onReserving triggered when entering the reserving state.
 // During normal operation this creates all the placeholders. During recovery this call could cause the application
 // in the shim and core to progress to the next state.
 func (app *Application) onReserving() {
 	// if any placeholder already exist during recovery we might need to send
 	// an event to trigger Application state change in the core
-	if len(app.getPlaceHolderTasks()) > 0 {
+	switch {
+	case len(app.getPlaceHolderTasks()) > 0:
 		ev := NewUpdateApplicationReservationEvent(app.applicationID)
 		dispatcher.Dispatch(ev)
-	} else if app.originatingTask != nil {
-		// not recovery or no placeholders created yet add an event to the pod
-		events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
-			"CreatingPlaceholders", "Application %s creating placeholders", app.applicationID)
+	case app.isPlaceholderTimeoutElapsed():
+		log.Log(log.ShimCacheApplication).Info("placeholder timeout exceeded on restart, not creating placeholders",
+			zap.String("appID", app.applicationID),
+			zap.String("schedulingStyle", app.schedulingStyle))
+		if app.originatingTask != nil {
+			events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+				"PlaceholderTimeout", "Application %s placeholder timeout exceeded, not creating placeholders", app.applicationID)
+		}
+		if app.schedulingStyle == constants.SchedulingPolicyStyleParamValues["Hard"] {
+			dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID, constants.ApplicationInsufficientResourcesFailure))
+		} else {
+			dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+		}
+		return
+	default:
+		if app.originatingTask != nil {
+			// not recovery or no placeholders created yet add an event to the pod
+			events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeNormal, "GangScheduling",
+				"CreatingPlaceholders", "Application %s creating placeholders", app.applicationID)
+		}
 	}
 
 	go func() {

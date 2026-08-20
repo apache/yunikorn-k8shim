@@ -21,6 +21,7 @@ package cache
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -865,6 +866,240 @@ func TestTryReservePostRestart(t *testing.T) {
 	// verify there will be no placeholders created
 	time.Sleep(time.Second)
 	assert.Equal(t, createdPods.count(), 0)
+}
+
+func TestIsPlaceholderTimeoutElapsed(t *testing.T) {
+	app := NewApplication("app00001", "root.default", "test-user",
+		testGroups, map[string]string{}, newMockSchedulerAPI())
+	creationTag := siCommon.DomainYuniKorn + siCommon.CreationTime
+
+	tests := []struct {
+		name    string
+		timeout int64
+		tag     string
+		setTag  bool
+		elapsed bool
+	}{
+		{
+			name:    "no timeout configured",
+			timeout: 0,
+			tag:     strconv.FormatInt(time.Now().Add(-60*time.Second).Unix(), 10),
+			setTag:  true,
+			elapsed: false,
+		},
+		{
+			name:    "missing creation time tag",
+			timeout: 10,
+			setTag:  false,
+			elapsed: false,
+		},
+		{
+			name:    "invalid creation time tag",
+			timeout: 10,
+			tag:     "not-a-number",
+			setTag:  true,
+			elapsed: false,
+		},
+		{
+			name:    "timeout not yet elapsed",
+			timeout: 60,
+			tag:     strconv.FormatInt(time.Now().Unix(), 10),
+			setTag:  true,
+			elapsed: false,
+		},
+		{
+			name:    "timeout elapsed",
+			timeout: 10,
+			tag:     strconv.FormatInt(time.Now().Add(-60*time.Second).Unix(), 10),
+			setTag:  true,
+			elapsed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app.SetPlaceholderTimeout(tt.timeout)
+			if tt.setTag {
+				app.tags[creationTag] = tt.tag
+			} else {
+				delete(app.tags, creationTag)
+			}
+			assert.Equal(t, tt.elapsed, app.isPlaceholderTimeoutElapsed())
+		})
+	}
+}
+
+func TestOnReservingCreatesPlaceholdersWhenTimeoutNotElapsed(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	app := NewApplication("app00001", "root.abc", "test-user",
+		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	context.addApplicationToContext(app)
+	app.setTaskGroups([]TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 1,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+	})
+	app.SetPlaceholderTimeout(300)
+	app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(time.Now().Unix(), 10)
+
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
+	assert.NilError(t, err)
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, TryReserve))
+	assert.NilError(t, err)
+
+	assertAppState(t, app, ApplicationStates().Reserving, 3*time.Second)
+	err = utils.WaitForCondition(func() bool {
+		return createdPods.count() == 1
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "placeholders should be created when timeout has not elapsed")
+}
+
+func TestOnReservingWithExistingPlaceholders(t *testing.T) {
+	context := initContextForTest()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	createdPods := newThreadSafePodsMap()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createdPods.add(pod)
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+	defer mgr.Stop()
+
+	app := NewApplication("app00001", "root.abc", "test-user",
+		testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	context.addApplicationToContext(app)
+	app.setTaskGroups([]TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 2,
+			MinResource: map[string]resource.Quantity{
+				v1.ResourceCPU.String():    resource.MustParse("500m"),
+				v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+			},
+		},
+	})
+	app.SetPlaceholderTimeout(10)
+	app.setSchedulingStyle(constants.SchedulingPolicyStyleParamValues["Hard"])
+	app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(
+		time.Now().Add(-60*time.Second).Unix(), 10)
+
+	existingPlaceholder := NewTaskPlaceholder("placeholder-01", app, context, &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name: "placeholder-pod-01",
+			UID:  "UID-placeholder-01",
+		},
+	})
+	existingPlaceholder.setTaskGroupName("test-group-1")
+	app.addTask(existingPlaceholder)
+
+	err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+	assert.NilError(t, err)
+	err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
+	assert.NilError(t, err)
+	err = app.handle(NewSimpleApplicationEvent(app.applicationID, TryReserve))
+	assert.NilError(t, err)
+
+	assertAppState(t, app, ApplicationStates().Reserving, 3*time.Second)
+	err = utils.WaitForCondition(func() bool {
+		return createdPods.count() == 1
+	}, 100*time.Millisecond, 3*time.Second)
+	assert.NilError(t, err, "missing placeholders should still be created during recovery")
+}
+
+func TestOnReservingSkipsTimedOutPlaceholders(t *testing.T) {
+	tests := []struct {
+		name            string
+		schedulingStyle string
+		expectedState   string
+	}{
+		{
+			name:            "soft",
+			schedulingStyle: constants.SchedulingPolicyStyleParamDefault,
+			expectedState:   ApplicationStates().Running,
+		},
+		{
+			name:            "hard",
+			schedulingStyle: constants.SchedulingPolicyStyleParamValues["Hard"],
+			expectedState:   ApplicationStates().Failing,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context := initContextForTest()
+			dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+			dispatcher.Start()
+			defer dispatcher.Stop()
+
+			createdPods := newThreadSafePodsMap()
+			mockedAPIProvider := client.NewMockedAPIProvider(false)
+			mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+				createdPods.add(pod)
+				return pod, nil
+			})
+			mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+			mgr.Start()
+			defer mgr.Stop()
+
+			app := NewApplication("app00001", "root.abc", "test-user",
+				testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+			context.addApplicationToContext(app)
+			app.setTaskGroups([]TaskGroup{
+				{
+					Name:      "test-group-1",
+					MinMember: 1,
+					MinResource: map[string]resource.Quantity{
+						v1.ResourceCPU.String():    resource.MustParse("500m"),
+						v1.ResourceMemory.String(): resource.MustParse("500Mi"),
+					},
+				},
+			})
+			app.SetPlaceholderTimeout(1)
+			app.setSchedulingStyle(tt.schedulingStyle)
+			app.tags[siCommon.DomainYuniKorn+siCommon.CreationTime] = strconv.FormatInt(
+				time.Now().Add(-60*time.Second).Unix(), 10)
+
+			err := app.handle(NewSubmitApplicationEvent(app.applicationID))
+			assert.NilError(t, err)
+			err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
+			assert.NilError(t, err)
+
+			err = app.handle(NewSimpleApplicationEvent(app.applicationID, TryReserve))
+			assert.NilError(t, err)
+
+			assertAppState(t, app, tt.expectedState, 3*time.Second)
+			err = utils.WaitForCondition(func() bool {
+				return createdPods.count() == 0
+			}, 100*time.Millisecond, time.Second)
+			assert.NilError(t, err, "placeholders should not be created when timeout already elapsed")
+		})
+	}
 }
 
 func TestTriggerAppSubmission(t *testing.T) {
