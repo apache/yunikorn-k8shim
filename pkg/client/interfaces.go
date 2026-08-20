@@ -21,7 +21,6 @@ package client
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 type KubeClient interface {
@@ -40,21 +39,20 @@ type KubeClient interface {
 	// Update the status of a pod
 	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
 
-	// Get a pod
-	Get(podNamespace string, podName string) (*v1.Pod, error)
-
 	// minimal expose this, only informers factory needs it
 	GetClientSet() kubernetes.Interface
-
-	GetConfigs() *rest.Config
 
 	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
 }
 
 func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+	return NewKubeClientWithUserAgent(kc, userAgentWrites)
 }
 
-func NewBootstrapKubeClient(kc string) KubeClient {
-	return newBootstrapSchedulerKubeClient(kc)
+// NewKubeClientWithUserAgent creates a KubeClient which identifies itself with the given
+// user agent concern, the build version is appended to it. The client uses the
+// kubernetes.qps and kubernetes.burst policy from the scheduler configuration, which is
+// unlimited by default.
+func NewKubeClientWithUserAgent(kc string, userAgent string) KubeClient {
+	return newSchedulerKubeClient(kc, userAgent)
 }

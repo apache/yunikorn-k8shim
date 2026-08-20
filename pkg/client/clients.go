@@ -34,9 +34,18 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
-// clients encapsulates a set of useful client APIs
-// that can be shared by callers when talking to K8s api-server,
-// or the scheduler core.
+// Clients encapsulates the client APIs shared by callers when talking to the K8s api-server
+// or the scheduler core. Each Kubernetes client serves one concern with its own rate limit
+// policy and user agent, see kubeclient.go:
+//   - KubeClient carries the direct must-complete traffic: binds, pod create/delete, pod and
+//     status updates, the volume binder and the predicate handle, the configmap loads at
+//     registration, and the reads made in service of those writes (the get before a retried
+//     update). Its policy is the opt-in kubernetes.qps/burst cap.
+//   - the informers, cluster wide and namespaced, run on a separate clientset created in
+//     NewAPIFactory: list/watch traffic is never rate limited on the client side and is
+//     attributed separately.
+//   - events do not pass through any of these: the broadcaster writes through the shedding
+//     event sink, see NewEventSink.
 type Clients struct {
 	// client apis
 	KubeClient   KubeClient

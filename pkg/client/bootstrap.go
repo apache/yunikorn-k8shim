@@ -26,8 +26,10 @@ import (
 )
 
 func LoadBootstrapConfigMaps() ([]*v1.ConfigMap, error) {
-	// we need a bootstrap client so that we can read the initial version of the configmap
-	kubeClient := NewBootstrapKubeClient(conf.GetDefaultKubeConfigPath())
+	// we need a client so that we can read the initial version of the configmap, this runs
+	// before the configmaps are loaded so it always uses the configuration defaults. All
+	// binaries load their bootstrap configmaps this way, hence the separate user agent.
+	kubeClient := NewKubeClientWithUserAgent(conf.GetDefaultKubeConfigPath(), userAgentBootstrap)
 	namespace := conf.GetSchedulerNamespace()
 
 	defaults, err := kubeClient.GetConfigMap(namespace, constants.DefaultConfigMapName)

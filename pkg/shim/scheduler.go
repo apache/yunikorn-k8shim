@@ -25,7 +25,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/scheme"
 	k8events "k8s.io/client-go/tools/events"
 
@@ -64,12 +63,7 @@ var (
 )
 
 func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
-	kubeClient := client.NewKubeClient(configs.KubeConfig)
-
-	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
-
-	apiFactory, err := client.NewAPIFactory(scheduler, informerFactory, configs, false)
+	apiFactory, err := client.NewAPIFactory(scheduler, configs, false)
 	if err != nil {
 		log.Log(log.Shim).Fatal("problem in creating the api factory")
 		return nil
@@ -81,8 +75,8 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	}
 	rmCallback := cache.NewAsyncRMCallback(context)
 
-	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
-		Interface: kubeClient.GetClientSet().EventsV1()})
+	// the sink sheds the events above the configured event rate
+	eventBroadcaster := k8events.NewBroadcaster(client.NewEventSink(configs.KubeConfig))
 	err = eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
 	if err != nil {
 		log.Log(log.Shim).Error("Could not create event broadcaster",
