@@ -52,6 +52,12 @@ type PredicateManager interface {
 	// PreemptionPredicates checks if a pod can be scheduled on the node by preempting victims.
 	// Returns the victim index that allows the pod to fit, or -1 if none.
 	PreemptionPredicates(pod *v1.Pod, node *framework.NodeInfo, victims []*v1.Pod, startIndex int) int
+	// Reserve Binding cycle - Reserve the node
+	Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error)
+	// PreBind Binding cycle - PreBind the node
+	PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error)
+	// Unreserve Binding cycle - Unreserve the node
+	Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -63,6 +69,8 @@ type predicateManagerImpl struct {
 	allocationPreFilters  *[]fwk.PreFilterPlugin
 	reservationFilters    *[]fwk.FilterPlugin
 	allocationFilters     *[]fwk.FilterPlugin
+	reservePlugins        *[]fwk.ReservePlugin
+	preBindPlugins        *[]fwk.PreBindPlugin
 	klogger               klog.Logger
 	sharedLister          fwk.SharedLister
 }
@@ -176,6 +184,45 @@ func (p *predicateManagerImpl) PreemptionPredicates(pod *v1.Pod, node *framework
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", node.Node().Name))
 	return -1
+}
+
+func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	reservePl := *p.reservePlugins
+	for _, pl := range reservePl {
+		plugin := pl.Name()
+		status := pl.Reserve(context.Background(), cycleState, pod, node.Node().Name)
+		if status.IsError() {
+			log.Log(log.ShimPredicates).Error("failed running Reserve plugin",
+				zap.String("pluginName", plugin),
+				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+				zap.String("message", status.Message()))
+			return plugin, errors.New(status.Message())
+		}
+	}
+	return "", nil
+}
+
+func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	preBindPl := *p.preBindPlugins
+	for _, pl := range preBindPl {
+		plugin := pl.Name()
+		status := pl.PreBind(context.Background(), cycleState, pod, node.Node().Name)
+		if status.IsError() {
+			log.Log(log.ShimPredicates).Error("failed running PreBind plugin",
+				zap.String("pluginName", plugin),
+				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
+				zap.String("message", status.Message()))
+			return plugin, errors.New(status.Message())
+		}
+	}
+	return "", nil
+}
+
+func (p *predicateManagerImpl) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
+	reservePl := *p.reservePlugins
+	for _, pl := range reservePl {
+		pl.Unreserve(context.Background(), cycleState, pod, node.Node().Name)
+	}
 }
 
 func (p *predicateManagerImpl) removePodFromNodeNoFail(node fwk.NodeInfo, pod *v1.Pod) {
@@ -372,7 +419,15 @@ func NewPredicateManager(handle fwk.Handle) PredicateManager {
 		"*": true,
 	}
 
-	return newPredicateManagerInternal(handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters)
+	reservePlugins := map[string]bool{
+		names.DynamicResources: true,
+	}
+
+	preBindPlugins := map[string]bool{
+		names.DynamicResources: true,
+	}
+
+	return newPredicateManagerInternal(handle, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, reservePlugins, preBindPlugins)
 }
 
 func newPredicateManagerInternal(
@@ -380,7 +435,9 @@ func newPredicateManagerInternal(
 	reservationPreFilters map[string]bool,
 	allocationPreFilters map[string]bool,
 	reservationFilters map[string]bool,
-	allocationFilters map[string]bool) *predicateManagerImpl {
+	allocationFilters map[string]bool,
+	reservePluginsMap map[string]bool,
+	preBindPluginsMap map[string]bool) *predicateManagerImpl {
 	// ensure K8s scheduler metrics have been initialized in YK standalone mode to avoid SIGSEGV
 	if metrics.Goroutines == nil {
 		metrics.InitMetrics()
@@ -406,16 +463,23 @@ func newPredicateManagerInternal(
 	resFilt := make([]fwk.Plugin, 0)
 	allocFilt := make([]fwk.Plugin, 0)
 
+	reserve := make([]fwk.Plugin, 0)
+	preBind := make([]fwk.Plugin, 0)
+
 	addPlugins("PreFilter", createdPlugins, &resPre, reservationPreFilters)
 	addPlugins("PreFilter", createdPlugins, &allocPre, allocationPreFilters)
 	addPlugins("Filter", createdPlugins, &resFilt, reservationFilters)
 	addPlugins("Filter", createdPlugins, &allocFilt, allocationFilters)
+	addPlugins("Reserve", createdPlugins, &reserve, reservePluginsMap)
+	addPlugins("PreBind", createdPlugins, &preBind, preBindPluginsMap)
 
 	pm := &predicateManagerImpl{
 		reservationPreFilters: preFilterPlugins(resPre),
 		allocationPreFilters:  preFilterPlugins(allocPre),
 		reservationFilters:    filterPlugins(resFilt),
 		allocationFilters:     filterPlugins(allocFilt),
+		reservePlugins:        reservePlugins(reserve),
+		preBindPlugins:        preBindPlugins(preBind),
 		klogger:               klog.NewKlogr(),
 		sharedLister:          handle.SnapshotSharedLister(),
 	}
@@ -440,6 +504,28 @@ func filterPlugins(plugins []fwk.Plugin) *[]fwk.FilterPlugin {
 		filter, ok := plugin.(fwk.FilterPlugin)
 		if ok {
 			result = append(result, filter)
+		}
+	}
+	return &result
+}
+
+func reservePlugins(plugins []fwk.Plugin) *[]fwk.ReservePlugin {
+	result := make([]fwk.ReservePlugin, 0)
+	for _, plugin := range plugins {
+		reserve, ok := plugin.(fwk.ReservePlugin)
+		if ok {
+			result = append(result, reserve)
+		}
+	}
+	return &result
+}
+
+func preBindPlugins(plugins []fwk.Plugin) *[]fwk.PreBindPlugin {
+	result := make([]fwk.PreBindPlugin, 0)
+	for _, plugin := range plugins {
+		preBind, ok := plugin.(fwk.PreBindPlugin)
+		if ok {
+			result = append(result, preBind)
 		}
 	}
 	return &result
