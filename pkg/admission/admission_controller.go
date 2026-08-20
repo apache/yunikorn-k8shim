@@ -71,8 +71,10 @@ type AdmissionController struct {
 }
 
 type ValidateConfResponse struct {
-	Allowed bool   `json:"allowed"`
-	Reason  string `json:"reason"`
+	Allowed       bool   `json:"allowed"`
+	Reason        string `json:"reason"`
+	Checksum      string `json:"checksum"`
+	ChecksumMatch bool   `json:"checksumMatch"`
 }
 
 func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *PriorityClassCache, nsCache *NamespaceCache) *AdmissionController {
@@ -594,7 +596,8 @@ func (c *AdmissionController) validateConfigMap(namespace string, cm *v1.ConfigM
 		return err
 	}
 
-	log.Log(log.Admission).Info("Successfully validated YuniKorn configuration")
+	log.Log(log.Admission).Info("Successfully validated YuniKorn configuration",
+		zap.String("checksum", responseData.Checksum), zap.Bool("checksumMatch", responseData.ChecksumMatch))
 	return nil
 }
 
