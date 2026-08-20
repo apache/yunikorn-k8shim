@@ -41,6 +41,11 @@ type AsyncRMCallback struct {
 	stopCtx context.Context
 }
 
+func (callback *AsyncRMCallback) PreFilterPredicates(args *si.PreFilterPredicatesArgs) *si.PreFilterPredicatesResponse {
+	//TODO implement me
+	panic("implement me")
+}
+
 var _ api.ResourceManagerCallback = &AsyncRMCallback{}
 var _ api.StateDumpPlugin = &AsyncRMCallback{}
 
@@ -235,6 +240,18 @@ func (callback *AsyncRMCallback) Predicates(args *si.PredicatesArgs) error {
 
 func (callback *AsyncRMCallback) PreemptionPredicates(args *si.PreemptionPredicatesArgs) *si.PreemptionPredicatesResponse {
 	return callback.context.IsPodFitNodeViaPreemption(args.AllocationKey, args.NodeID, args.PreemptAllocationKeys, int(args.StartIndex))
+}
+
+func (callback *AsyncRMCallback) Reserve(args *si.BindingArgs) *si.BindingResponse {
+	return callback.context.Reserve(args.AllocationKey, args.NodeID)
+}
+
+func (callback *AsyncRMCallback) PreBind(args *si.BindingArgs) *si.BindingResponse {
+	return callback.context.PreBind(args.AllocationKey, args.NodeID)
+}
+
+func (callback *AsyncRMCallback) Unreserve(args *si.BindingArgs) *si.BindingResponse {
+	return callback.context.Unreserve(args.AllocationKey, args.NodeID)
 }
 
 func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
