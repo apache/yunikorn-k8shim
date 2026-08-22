@@ -175,7 +175,51 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 	ctx := cache.NewContext(mockedAPIProvider)
 	shim := newShimSchedulerInternal(ctx, mockedAPIProvider, callback)
 	assert.Error(t, shim.Run(), "some error")
+	assertStopChannelClosed(t, shim)
+
+	// Stop must remain safe when Run() already stopped the shim after its failure.
 	shim.Stop()
+}
+
+func TestSchedulerStopClosesStopChannel(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	shim := newShimSchedulerInternal(cache.NewContext(mockedAPIProvider), mockedAPIProvider, nil)
+
+	shim.Stop()
+	assertStopChannelClosed(t, shim)
+
+	// Stop must be idempotent because callers can invoke it after a failed Run().
+	shim.Stop()
+}
+
+func TestSchedulerStopStopsAPIFactory(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	apiProvider := &trackingAPIProvider{APIProvider: mockedAPIProvider}
+	shim := newShimSchedulerInternal(cache.NewContext(apiProvider), apiProvider, nil)
+
+	shim.Stop()
+	assert.Check(t, apiProvider.stopped.Load(), "API provider should be stopped with the scheduler")
+
+	shim.Stop()
+}
+
+func assertStopChannelClosed(t *testing.T, shim *KubernetesShim) {
+	t.Helper()
+	select {
+	case <-shim.stopChan:
+	default:
+		t.Fatal("scheduler stop channel should be closed")
+	}
+}
+
+type trackingAPIProvider struct {
+	client.APIProvider
+	stopped atomic.Bool
+}
+
+func (p *trackingAPIProvider) Stop() {
+	p.stopped.Store(true)
+	p.APIProvider.Stop()
 }
 
 func TestTaskFailures(t *testing.T) {

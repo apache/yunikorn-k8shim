@@ -204,7 +204,6 @@ func (fc *MockScheduler) waitAndVerifySchedulerAllocations(
 func (fc *MockScheduler) stop() {
 	close(fc.stopChan)
 	fc.scheduler.Stop()
-	fc.apiProvider.Stop()
 	fc.started.Store(false)
 }
 

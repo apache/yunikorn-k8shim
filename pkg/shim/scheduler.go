@@ -20,6 +20,7 @@ package shim
 
 import (
 	ctx "context"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -49,6 +50,7 @@ type KubernetesShim struct {
 	phManager            *cache.PlaceholderManager
 	callback             api.ResourceManagerCallback
 	stopChan             chan struct{}
+	stopOnce             sync.Once
 	lock                 *locking.RWMutex
 	outstandingAppsFound bool
 }
@@ -224,14 +226,19 @@ func (ss *KubernetesShim) Run() error {
 }
 
 func (ss *KubernetesShim) Stop() {
-	log.Log(log.ShimScheduler).Info("stopping scheduler")
-	select {
-	case ss.stopChan <- struct{}{}:
-		// stop the dispatcher
-		dispatcher.Stop()
+	stopped := false
+	ss.stopOnce.Do(func() {
+		stopped = true
+		log.Log(log.ShimScheduler).Info("stopping scheduler")
+		close(ss.stopChan)
+		// stop the client library code that communicates with Kubernetes
+		ss.apiFactory.Stop()
 		// stop the placeholder manager
 		ss.phManager.Stop()
-	default:
+		// stop the dispatcher
+		dispatcher.Stop()
+	})
+	if !stopped {
 		log.Log(log.ShimScheduler).Info("scheduler is already stopped")
 	}
 }
