@@ -310,7 +310,10 @@ func (app *Application) getTasks(state string) []*Task {
 	sort.Slice(taskList, func(i, j int) bool {
 		l := taskList[i]
 		r := taskList[j]
-		return l.createTime.Before(r.createTime)
+		if l.createTime.Unix() != r.createTime.Unix() {
+			return l.createTime.Unix() < r.createTime.Unix()
+		}
+		return l.taskID < r.taskID
 	})
 
 	return taskList

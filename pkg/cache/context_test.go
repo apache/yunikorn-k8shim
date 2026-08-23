@@ -2635,14 +2635,19 @@ func TestRegisterPods(t *testing.T) {
 	pod3 := newPodHelper(appID3, namespace, uid3, nodeName1, appID3, v1.PodSucceeded)
 	pod4 := newPodHelper(appID4, namespace, uid4, nodeName1, appID4, v1.PodRunning)
 
-	api.GetPodListerMock().AddPod(pod1)
-	api.GetPodListerMock().AddPod(pod2)
-	api.GetPodListerMock().AddPod(pod3)
+	// add pods in arbitrary order to test deterministic sorting by UID when creation timestamps are identical
 	api.GetPodListerMock().AddPod(pod4)
+	api.GetPodListerMock().AddPod(pod1)
+	api.GetPodListerMock().AddPod(pod3)
+	api.GetPodListerMock().AddPod(pod2)
 
 	pods, err = context.registerPods()
 	assert.NilError(t, err, "register pods should not have failed")
 	assert.Assert(t, assertListerPods(pods, 3), "should have returned 3 running pods in the list")
+	assert.Equal(t, string(pods[0].UID), uid1, "pods with identical creation time should be sorted deterministically by UID: expected pod1 at index 0")
+	assert.Equal(t, string(pods[1].UID), uid2, "pods with identical creation time should be sorted deterministically by UID: expected pod2 at index 1")
+	assert.Assert(t, pods[2] == nil, "terminated pod3 should be nil")
+	assert.Equal(t, string(pods[3].UID), uid4, "pods with identical creation time should be sorted deterministically by UID: expected pod4 at index 3")
 
 	assert.Assert(t, context.schedulerCache.GetPod(string(pod1.UID)) != nil, "expected to find pod 1 in cache")
 	assert.Assert(t, context.schedulerCache.GetPod(string(pod2.UID)) != nil, "expected to find pod 2 in cache")

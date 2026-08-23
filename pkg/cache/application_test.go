@@ -848,14 +848,18 @@ func TestTryReservePostRestart(t *testing.T) {
 		},
 	})
 
+	// add tasks in arbitrary order (task2 before task1) to test deterministic sorting by taskID
 	app.addTask(task0)
-	app.addTask(task1)
 	app.addTask(task2)
+	app.addTask(task1)
 
 	// there should be 1 Allocated task, i.e task0
-	// there should be 2 New tasks, i.e task1 and task2
+	// there should be 2 New tasks, i.e task1 and task2 sorted by taskID
 	assert.Equal(t, len(app.getTasks(TaskStates().Allocated)), 1)
-	assert.Equal(t, len(app.getTasks(TaskStates().New)), 2)
+	newTasks := app.getTasks(TaskStates().New)
+	assert.Equal(t, len(newTasks), 2)
+	assert.Equal(t, newTasks[0].GetTaskID(), "task01", "tasks with identical creation time should be sorted deterministically by taskID: expected task01 at index 0")
+	assert.Equal(t, newTasks[1].GetTaskID(), "task02", "tasks with identical creation time should be sorted deterministically by taskID: expected task02 at index 1")
 
 	// run app schedule
 	app.Schedule()

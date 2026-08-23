@@ -1731,7 +1731,10 @@ func (ctx *Context) registerPods() ([]*v1.Pod, error) {
 
 	// sort pods by creation time so that overall queue ordering is consistent with prior runs
 	sort.Slice(pods, func(i, j int) bool {
-		return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
+		if pods[i].CreationTimestamp.Unix() != pods[j].CreationTimestamp.Unix() {
+			return pods[i].CreationTimestamp.Unix() < pods[j].CreationTimestamp.Unix()
+		}
+		return pods[i].UID < pods[j].UID
 	})
 
 	// add all pods to the context
