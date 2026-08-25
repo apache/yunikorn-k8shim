@@ -19,6 +19,7 @@
 package shim
 
 import (
+	ctx "context"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -66,9 +67,10 @@ func (fc *MockScheduler) init() {
 	mockedAPIProvider.GetAPIs().SchedulerAPI = fc.rmProxy
 	events.SetRecorder(events.NewMockedRecorder())
 
+	callbackCtx, cancelCallbacks := ctx.WithCancel(ctx.Background())
 	context := cache.NewContext(mockedAPIProvider)
-	rmCallback := cache.NewAsyncRMCallback(context)
-	ss := newShimSchedulerInternal(context, mockedAPIProvider, rmCallback)
+	rmCallback := cache.NewAsyncRMCallback(context, callbackCtx)
+	ss := newShimSchedulerInternal(context, mockedAPIProvider, rmCallback, cancelCallbacks)
 
 	fc.context = context
 	fc.scheduler = ss

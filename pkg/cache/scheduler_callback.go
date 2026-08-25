@@ -19,12 +19,13 @@
 package cache
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
@@ -37,13 +38,14 @@ import (
 // asynchronously to avoid blocking the scheduler.
 type AsyncRMCallback struct {
 	context *Context
+	stopCtx context.Context
 }
 
 var _ api.ResourceManagerCallback = &AsyncRMCallback{}
 var _ api.StateDumpPlugin = &AsyncRMCallback{}
 
-func NewAsyncRMCallback(ctx *Context) *AsyncRMCallback {
-	return &AsyncRMCallback{context: ctx}
+func NewAsyncRMCallback(ctx *Context, stopCtx context.Context) *AsyncRMCallback {
+	return &AsyncRMCallback{context: ctx, stopCtx: stopCtx}
 }
 
 func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationResponse) error {
@@ -70,13 +72,31 @@ func (callback *AsyncRMCallback) UpdateAllocation(response *si.AllocationRespons
 			Duration: time.Second,
 			Cap:      30 * time.Second,
 		}
-		err := retry.OnError(backOff, func(err error) bool {
-			log.Log(log.ShimRMCallback).Error("AssumePod failed, retrying", zap.Error(err))
-			return true
-		}, func() error {
-			return callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID)
+		var lastErr error
+		// ConditionWithContextFunc receives a context derived from callback.stopCtx; closure accesses callback.context directly.
+		err := wait.ExponentialBackoffWithContext(callback.stopCtx, backOff, func(_ context.Context) (bool, error) {
+			if assumeErr := callback.context.AssumePod(alloc.AllocationKey, alloc.NodeID); assumeErr != nil {
+				log.Log(log.ShimRMCallback).Error("AssumePod failed, retrying", zap.Error(assumeErr))
+				lastErr = assumeErr
+				return false, nil
+			}
+			return true, nil
 		})
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				// Shim is shutting down (context.DeadlineExceeded is checked defensively for future-proofing).
+				// Do not fall through to rollbackOnAssumePodFailure:
+				// rollback re-queues the ask to the core scheduler, which is still running
+				// independently of stopCtx/dispatcher.Stop(), so the core immediately
+				// re-allocates this task and re-triggers UpdateAllocation, which hits this
+				// same canceled context and rolls back again — an unbounded busy loop on the
+				// RM-proxy callback goroutine that Stop() can never interrupt. See YUNIKORN-3369.
+				log.Log(log.ShimRMCallback).Info("AssumePod retry aborted due to context cancellation", zap.Error(err))
+				continue
+			}
+			if wait.Interrupted(err) && lastErr != nil {
+				err = lastErr
+			}
 			if task.IsPlaceholder() {
 				// Placeholder tasks do not have volume bindings, so AssumePod failure
 				// is unexpected and unrecoverable; wrap the error with context.

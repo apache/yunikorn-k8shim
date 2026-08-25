@@ -19,6 +19,7 @@
 package cache
 
 import (
+	ctx "context"
 	"encoding/json"
 	"strings"
 	"sync/atomic"
@@ -164,6 +165,61 @@ func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
 		}
 	}
 	assert.Assert(t, assumePodErrorFound, "no event with reason 'AssumePodError' was recorded")
+}
+
+// TestUpdateAllocation_ContextCanceled_ProcessesRemainingBatch verifies that a
+// canceled stopCtx aborts AssumePod retries without dropping the rest of the
+// response.New batch or rolling back the already-canceled allocation.
+func TestUpdateAllocation_ContextCanceled_ProcessesRemainingBatch(t *testing.T) {
+	_, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	// register a second task under the same app so a single UpdateAllocation
+	// batch can carry two `New` allocations; mirrors initCallbackTest's own
+	// pod-construction pattern for taskUID1 (Annotations-based app ID, no
+	// Spec.NodeName so it is unassigned and must go through AssumePod).
+	pod2 := &v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: "yunikorn-test-00002",
+			UID:  taskUID2,
+			Annotations: map[string]string{
+				constants.AnnotationApplicationID: appID,
+			},
+		},
+		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+	}
+	context.AddPod(pod2)
+	task2 := context.getTask(appID, taskUID2)
+	assert.Assert(t, task2 != nil)
+	task2.sm.SetState(TaskStates().Scheduling)
+
+	// swap in a callback whose stopCtx is already canceled, simulating
+	// KubernetesShim.Stop() having already run before this batch arrives.
+	cancelCtx, cancel := ctx.WithCancel(ctx.Background())
+	cancel()
+	callback := NewAsyncRMCallback(context, cancelCtx)
+
+	task1 := context.getTask(appID, taskUID1)
+	err := callback.UpdateAllocation(&si.AllocationResponse{
+		New: []*si.Allocation{
+			{ApplicationID: appID, AllocationKey: taskUID1, NodeID: fakeNodeName},
+			{ApplicationID: appID, AllocationKey: taskUID2, NodeID: fakeNodeName},
+		},
+	})
+	assert.NilError(t, err, "a canceled-context batch must not surface an error to the RM proxy")
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID2))
+	// setAllocationKey runs unconditionally as the first step of each loop
+	// iteration, before the retry/cancellation logic; task2 only has it set
+	// if the loop actually reached the second allocation.
+	assert.Equal(t, taskUID2, task2.GetAllocationKey(), "second allocation in the batch must still be reached after the first hits a canceled context")
+	assert.Equal(t, TaskStates().Scheduling, task1.GetTaskState(), "canceled allocation must not be rolled back")
+	assert.Equal(t, TaskStates().Scheduling, task2.GetTaskState(), "canceled allocation must not be rolled back")
 }
 
 func TestUpdateAllocation_NewTask_PodAlreadyAssigned(t *testing.T) {
@@ -592,7 +648,7 @@ func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCall
 	dispatcher.Start()
 	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
 	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
-	callback := NewAsyncRMCallback(context)
+	callback := NewAsyncRMCallback(context, t.Context())
 	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
 		for _, node := range request.Nodes {
 			dispatcher.Dispatch(CachedSchedulerNodeEvent{

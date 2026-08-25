@@ -173,7 +173,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 		})
 
 	ctx := cache.NewContext(mockedAPIProvider)
-	shim := newShimSchedulerInternal(ctx, mockedAPIProvider, callback)
+	shim := newShimSchedulerInternal(ctx, mockedAPIProvider, callback, func() {})
 	assert.Error(t, shim.Run(), "some error")
 	assertStopChannelClosed(t, shim)
 
@@ -183,7 +183,7 @@ func TestSchedulerRegistrationFailed(t *testing.T) {
 
 func TestSchedulerStopClosesStopChannel(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
-	shim := newShimSchedulerInternal(cache.NewContext(mockedAPIProvider), mockedAPIProvider, nil)
+	shim := newShimSchedulerInternal(cache.NewContext(mockedAPIProvider), mockedAPIProvider, nil, func() {})
 
 	shim.Stop()
 	assertStopChannelClosed(t, shim)
@@ -195,7 +195,7 @@ func TestSchedulerStopClosesStopChannel(t *testing.T) {
 func TestSchedulerStopStopsAPIFactory(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	apiProvider := &trackingAPIProvider{APIProvider: mockedAPIProvider}
-	shim := newShimSchedulerInternal(cache.NewContext(apiProvider), apiProvider, nil)
+	shim := newShimSchedulerInternal(cache.NewContext(apiProvider), apiProvider, nil, func() {})
 
 	shim.Stop()
 	assert.Check(t, apiProvider.stopped.Load(), "API provider should be stopped with the scheduler")
@@ -203,6 +203,24 @@ func TestSchedulerStopStopsAPIFactory(t *testing.T) {
 	shim.Stop()
 }
 
+func TestNewCallbackWithCancel(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	shimCtx := cache.NewContext(mockedAPIProvider)
+
+	callback, cancel := newCallbackWithCancel(shimCtx)
+	assert.Assert(t, callback != nil, "expected a non-nil callback")
+	assert.Assert(t, cancel != nil, "expected a non-nil cancel func")
+	cancel() // must be safe to invoke
+}
+
+func TestSchedulerNilCancelCallbacksFallsBackToNoop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	shim := newShimSchedulerInternal(cache.NewContext(mockedAPIProvider), mockedAPIProvider, nil, nil)
+
+	assert.Assert(t, shim.cancelCallbacks != nil, "nil cancelCallbacks must fall back to a no-op")
+	shim.cancelCallbacks() // must not panic
+	shim.Stop()            // Stop() invokes cancelCallbacks(); must not panic either
+}
 func assertStopChannelClosed(t *testing.T, shim *KubernetesShim) {
 	t.Helper()
 	select {
@@ -322,6 +340,53 @@ func TestAssumePodError(t *testing.T) {
 		"task must be in Scheduling state while AssumePod retries are in flight")
 	assert.Equal(t, 0, len(cluster.GetBoundPods(false)),
 		"no pods should be bound when AssumePod always fails")
+}
+
+// TestAssumePodError_AbortsOnShutdown verifies that Stop() interrupts the
+// AssumePod retry loop instead of letting it run out its full 30-step,
+// ~29s backoff after shutdown.
+func TestAssumePodError_AbortsOnShutdown(t *testing.T) {
+	cluster := MockScheduler{}
+	cluster.init()
+	binder := test.NewVolumeBinderMock()
+	binder.EnableVolumeClaimsError("unable to get volume claims")
+	cluster.apiProvider.SetVolumeBinder(binder)
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+	addNode(&cluster, "node-1")
+
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 1000).
+		AddResource(siCommon.CPU, 1).
+		Build()
+	pod1 := createTestPod("root.a", "app0001", "task0001", taskResource)
+	cluster.AddPod(pod1)
+
+	// wait until the retry loop has made repeated attempts, proving it is
+	// actively blocking the RM callback goroutine on the 1s-per-step backoff
+	err = utils.WaitForCondition(func() bool {
+		return binder.GetVolumeClaimsCallCount() >= 2
+	}, 100*time.Millisecond, 10*time.Second)
+	assert.NilError(t, err, "AssumePod retry never made repeated attempts")
+
+	countAtStop := binder.GetVolumeClaimsCallCount()
+	cluster.stop()
+
+	// at most the single attempt already in flight when Stop() ran may still land
+	err = utils.WaitForCondition(func() bool {
+		return binder.GetVolumeClaimsCallCount() <= countAtStop+1
+	}, 50*time.Millisecond, time.Second)
+	assert.NilError(t, err, "AssumePod made more than one additional attempt after shim.Stop()")
+
+	settledCount := binder.GetVolumeClaimsCallCount()
+	// the pre-fix backoff retries roughly once per second; wait more than a
+	// full step to prove the loop actually exited rather than merely being
+	// mid-sleep
+	time.Sleep(2 * time.Second)
+	assert.Equal(t, settledCount, binder.GetVolumeClaimsCallCount(),
+		"AssumePod kept retrying after shim.Stop(); the retry loop did not abort on shutdown")
 }
 
 func TestForeignPodTracking(t *testing.T) {

@@ -51,6 +51,7 @@ type KubernetesShim struct {
 	callback             api.ResourceManagerCallback
 	stopChan             chan struct{}
 	stopOnce             sync.Once
+	cancelCallbacks      ctx.CancelFunc
 	lock                 *locking.RWMutex
 	outstandingAppsFound bool
 }
@@ -81,7 +82,7 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 		log.Log(log.Shim).Fatal("problem in creating the context")
 		return nil
 	}
-	rmCallback := cache.NewAsyncRMCallback(context)
+	rmCallback, cancelCallbacks := newCallbackWithCancel(context)
 
 	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
 		Interface: kubeClient.GetClientSet().EventsV1()})
@@ -94,17 +95,29 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 		events.SetRecorder(eventRecorder)
 	}
 
-	return newShimSchedulerInternal(context, apiFactory, rmCallback)
+	return newShimSchedulerInternal(context, apiFactory, rmCallback, cancelCallbacks)
 }
 
-// this is visible for testing
-func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider, cb api.ResourceManagerCallback) *KubernetesShim {
+// newCallbackWithCancel builds the async RM callback used by the shim together
+// with the CancelFunc that aborts any in-flight AssumePod retry when the shim
+// shuts down. Split out of NewShimScheduler so it can be tested without a live
+// Kubernetes client.
+func newCallbackWithCancel(cacheCtx *cache.Context) (api.ResourceManagerCallback, ctx.CancelFunc) {
+	callbackCtx, cancelCallbacks := ctx.WithCancel(ctx.Background())
+	return cache.NewAsyncRMCallback(cacheCtx, callbackCtx), cancelCallbacks
+}
+
+func newShimSchedulerInternal(ctx *cache.Context, apiFactory client.APIProvider, cb api.ResourceManagerCallback, cancelCallbacks ctx.CancelFunc) *KubernetesShim {
+	if cancelCallbacks == nil {
+		cancelCallbacks = func() {}
+	}
 	ss := &KubernetesShim{
 		apiFactory:           apiFactory,
 		context:              ctx,
 		phManager:            cache.NewPlaceholderManager(apiFactory.GetAPIs()),
 		callback:             cb,
 		stopChan:             make(chan struct{}),
+		cancelCallbacks:      cancelCallbacks,
 		lock:                 &locking.RWMutex{},
 		outstandingAppsFound: false,
 	}
@@ -231,6 +244,8 @@ func (ss *KubernetesShim) Stop() {
 		stopped = true
 		log.Log(log.ShimScheduler).Info("stopping scheduler")
 		close(ss.stopChan)
+		// stop the AssumePod retry loop running on the RM proxy callback goroutine
+		ss.cancelCallbacks()
 		// stop the client library code that communicates with Kubernetes
 		ss.apiFactory.Stop()
 		// stop the placeholder manager
