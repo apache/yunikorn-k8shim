@@ -789,84 +789,85 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 	return -1, false
 }
 
-func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framework.NodeInfo, *si.BindingResponse) {
+func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framework.NodeInfo, error) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	pod := ctx.schedulerCache.GetPod(name)
 	if pod == nil {
-		return nil, nil, &si.BindingResponse{
-			Success: false,
-			Reason:  ErrorPodNotFound.Error(),
-		}
+		return nil, nil, ErrorPodNotFound
 	}
 	// if pod exists in cache, try to run predicates
 	targetNode := ctx.schedulerCache.GetNode(node)
 	if targetNode == nil {
-		return nil, nil, &si.BindingResponse{
-			Success: false,
-			Reason:  ErrorNodeNotFound.Error(),
-		}
+		return nil, nil, ErrorNodeNotFound
 	}
 	return pod, targetNode, nil
 }
 
 // Reserve Binding Cycle - Reserve the node for binding process
-func (ctx *Context) Reserve(name, node string) *si.BindingResponse {
-	pod, targetNode, resp := ctx.doPluginRequisiteChecks(name, node)
-	if resp != nil {
-		return resp
+func (ctx *Context) Reserve(name, node string) bool {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
 	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
 	plugin, err := ctx.predManager.Reserve(pod, nil, targetNode)
 	if err != nil {
-		bindErr := errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
-		return &si.BindingResponse{
-			Success: false,
-			Reason:  bindErr.Error(),
-		}
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.Error(err),
+			zap.String("plugin", plugin),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
 	}
-	return &si.BindingResponse{
-		Success: true,
-	}
+	return true
 }
 
 // PreBind Binding Cycle - PreBind the node for binding process
-func (ctx *Context) PreBind(name, node string) *si.BindingResponse {
-	pod, targetNode, resp := ctx.doPluginRequisiteChecks(name, node)
-	if resp != nil {
-		return resp
+func (ctx *Context) PreBind(name, node string) bool {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
 	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
 	plugin, err := ctx.predManager.PreBind(pod, nil, targetNode)
 	if err != nil {
-		bindErr := errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
-		return &si.BindingResponse{
-			Success: false,
-			Reason:  bindErr.Error(),
-		}
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.Error(err),
+			zap.String("plugin", plugin),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
 	}
-	return &si.BindingResponse{
-		Success: true,
-	}
+	return true
 }
 
 // Unreserve Binding Cycle - Unreserve the node to clear out the binding work
-func (ctx *Context) Unreserve(name, node string) *si.BindingResponse {
-	pod, targetNode, resp := ctx.doPluginRequisiteChecks(name, node)
-	if resp != nil {
-		return resp
+func (ctx *Context) Unreserve(name, node string) {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("unreserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return
 	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
 	ctx.predManager.Unreserve(pod, nil, targetNode)
-	return &si.BindingResponse{
-		Success: true,
-	}
 }
 
 // call volume binder to bind pod volumes if necessary,

@@ -764,6 +764,16 @@ func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (map[string]*si.Empt
 func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ bool) error {
 	return nil
 }
+func (m *mockPredicateManager) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	return "", nil
+}
+
+func (m *mockPredicateManager) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	return "", nil
+}
+
+func (m *mockPredicateManager) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
+}
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) int {
 	return 0

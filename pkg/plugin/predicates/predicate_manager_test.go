@@ -130,7 +130,7 @@ func TestPreemptionFilterWithVictims(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	emptyNode := framework.NewNodeInfo()
 	emptyNode.SetNode(&v1.Node{})
@@ -198,7 +198,7 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	handle, lister := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	nodeName := "preemption-node"
 	node := &v1.Node{
@@ -373,7 +373,7 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 			config, err := prepareConfig(eps)
 			assert.NilError(t, err)
 			handle, _ := getFrameworkHandle()
-			p := newPredicateManagerInternal(handle, r, config, nil, map[string]bool{pluginName: true}, nil, map[string]bool{"mock-filter": true})
+			p := newPredicateManagerInternal(handle, r, config, nil, map[string]bool{pluginName: true}, nil, map[string]bool{"mock-filter": true}, nil, nil)
 
 			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod", UID: "pod-uid"}}
 			node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node"}}
@@ -405,7 +405,7 @@ func TestPodFitsHost(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -490,7 +490,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -609,7 +609,7 @@ func TestPodFitsSelector(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -1370,7 +1370,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	resourceTests := []struct {
 		pod      *v1.Pod
@@ -1451,7 +1451,7 @@ func TestInterPodAffinity(t *testing.T) {
 	handle, lister := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
@@ -2415,13 +2415,13 @@ func TestReserveAlloc(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 	pluginErr := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, pluginErr, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
-	predicateManager = newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager = newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 	pluginErr = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
 	assert.NilError(t, pluginErr, "error should have been nil, node is schedulable")
 
@@ -2458,7 +2458,7 @@ func TestReserveNodeSelector(t *testing.T) {
 	handle, _ := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep, nil, nil)
 
 	testCases := []struct {
 		name          string
@@ -2588,7 +2588,7 @@ func TestPreFilter(t *testing.T) {
 				} else {
 					resPreFilters = ep
 				}
-				p := newPredicateManagerInternal(handle, r, config, resPreFilters, allocPreFilters, nil, nil)
+				p := newPredicateManagerInternal(handle, r, config, resPreFilters, allocPreFilters, nil, nil, nil, nil)
 				feasibleNodes, cycleState, filterErr := p.PreFilter(tc.pod, allocate)
 				if tc.skippedPlugins != nil {
 					for _, sp := range tc.skippedPlugins {
@@ -2690,7 +2690,7 @@ func TestFilter(t *testing.T) {
 				} else {
 					resFilters = ep
 				}
-				p := newPredicateManagerInternal(handle, r, config, nil, nil, resFilters, allocFilters)
+				p := newPredicateManagerInternal(handle, r, config, nil, nil, resFilters, allocFilters, nil, nil)
 				cycleState := framework.NewCycleState()
 				if tc.skippedPlugins != nil {
 					cycleState.SetSkipFilterPlugins(tc.skippedPlugins)
@@ -2778,7 +2778,7 @@ func TestPreemptionFilter(t *testing.T) {
 			handle, _ := getFrameworkHandle()
 			config, err := prepareConfig(eps)
 			assert.NilError(t, err)
-			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, ep)
+			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, ep, nil, nil)
 			cycleState := framework.NewCycleState()
 			if tc.skippedPlugins != nil {
 				cycleState.SetSkipFilterPlugins(tc.skippedPlugins)
