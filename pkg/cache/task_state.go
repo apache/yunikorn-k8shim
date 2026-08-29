@@ -375,7 +375,14 @@ func eventDesc(states *TStates) fsm.Events {
 }
 
 func callbacks(states *TStates) fsm.Callbacks {
+	// The callbacks below are invoked by the state machine from Task.handle which holds the
+	// task lock. The dispatch goes through the fsm library so the lock cannot be tracked
+	// across it, and the task is not nameable from out here: it exists only inside each body,
+	// recovered from the event arguments. Each callback therefore states its lock by naming
+	// the expression its own body uses, exactly as the application callbacks do; see the
+	// longer note in application_state.go for what that buys and what it demands.
 	return fsm.Callbacks{
+		// +checklocks:event.Args[0].(*Task).lock
 		events.EnterState: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			log.Log(log.ShimFSM).Info("Task state transition",
@@ -386,18 +393,22 @@ func callbacks(states *TStates) fsm.Callbacks {
 				zap.String("destination", event.Dst),
 				zap.String("event", event.Event))
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		states.Pending: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.postTaskPending()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		states.Allocated: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.postTaskAllocated()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		states.Rejected: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.postTaskRejected()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		states.Failed: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 1)
@@ -414,14 +425,17 @@ func callbacks(states *TStates) fsm.Callbacks {
 				zap.String("taskID", task.taskID),
 				zap.String("reason", reason))
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		states.Bound: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.postTaskBound()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.beforeTaskFail()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 2)
@@ -434,10 +448,12 @@ func callbacks(states *TStates) fsm.Callbacks {
 			nodeID := eventArgs[1]
 			task.beforeTaskAllocated(event.Src, allocationKey, nodeID)
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.beforeTaskCompleted()
 		},
+		// +checklocks:event.Args[0].(*Task).lock
 		SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.handleSubmitTaskEvent()

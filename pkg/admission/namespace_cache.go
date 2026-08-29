@@ -31,6 +31,7 @@ import (
 )
 
 type NamespaceCache struct {
+	// +checklocks:RWMutex
 	nameSpaces map[string]nsFlags
 
 	locking.RWMutex
@@ -109,6 +110,7 @@ type namespaceUpdateHandler struct {
 // OnAdd adds or replaces the namespace entry in the cache.
 // The cached value is only the resulting value of the annotation, not the whole namespace object.
 // An empty string for the Name is technically possible but should not occur.
+// +checklocksexclude:h.cache.RWMutex
 func (h *namespaceUpdateHandler) OnAdd(obj interface{}, _ bool) {
 	ns := convert2Namespace(obj)
 	if ns == nil {
@@ -122,11 +124,13 @@ func (h *namespaceUpdateHandler) OnAdd(obj interface{}, _ bool) {
 }
 
 // OnUpdate calls OnAdd for processing the namespace cache update.
+// +checklocksexclude:h.cache.RWMutex
 func (h *namespaceUpdateHandler) OnUpdate(_, newObj interface{}) {
 	h.OnAdd(newObj, false)
 }
 
 // OnDelete removes the namespace from the cache.
+// +checklocksexclude:h.cache.RWMutex
 func (h *namespaceUpdateHandler) OnDelete(obj interface{}) {
 	var ns *v1.Namespace
 	switch t := obj.(type) {

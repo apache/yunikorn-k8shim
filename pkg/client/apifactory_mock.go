@@ -46,7 +46,8 @@ type MockedAPIProvider struct {
 	stop         chan struct{}
 	eventHandler chan *ResourceEventHandlers
 	events       chan informerEvent
-	running      bool
+	// +checklocks:Mutex
+	running bool
 }
 
 type operation int

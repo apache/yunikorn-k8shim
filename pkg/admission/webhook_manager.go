@@ -68,6 +68,10 @@ type WebhookManager interface {
 	WaitForCertificateExpiration()
 }
 
+// The class exists so that lockblocking can see this lock is held. It is deliberately outside
+// the order taxonomy that pkg/locking declares and the runtime check carries: that taxonomy is
+// the scheduler cache objects, and this class has no ordering relation to any of them.
+// +lockclass:admission.WebhookManager
 type webhookManagerImpl struct {
 	conf             *conf.AdmissionControllerConf
 	serviceName      string
@@ -75,10 +79,15 @@ type webhookManagerImpl struct {
 	conflictAttempts int
 
 	// mutable values (require locking)
-	caCert1    *x509.Certificate
-	caKey1     *rsa.PrivateKey
-	caCert2    *x509.Certificate
-	caKey2     *rsa.PrivateKey
+	// +checklocks:RWMutex
+	caCert1 *x509.Certificate
+	// +checklocks:RWMutex
+	caKey1 *rsa.PrivateKey
+	// +checklocks:RWMutex
+	caCert2 *x509.Certificate
+	// +checklocks:RWMutex
+	caKey2 *rsa.PrivateKey
+	// +checklocks:RWMutex
 	expiration time.Time
 
 	locking.RWMutex
@@ -660,7 +669,10 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 	defer wm.Unlock()
 
 	namespace := wm.conf.GetNamespace()
-	secret, err := wm.clientset.CoreV1().Secrets(namespace).Get(ctx.Background(), secretName, metav1.GetOptions{})
+	// the Secrets round trip runs under the write lock so the certificate fields publish
+	// atomically; every reader runs after the loader returns on the same goroutine, only the
+	// expiry timer reads across goroutines and it starts after the load
+	secret, err := wm.clientset.CoreV1().Secrets(namespace).Get(ctx.Background(), secretName, metav1.GetOptions{}) // +lockblockingignore
 	if err != nil {
 		log.Log(log.AdmissionWebhook).Error("Unable to retrieve admission-controller-secrets secrets", zap.Error(err))
 		return false, err
@@ -736,7 +748,8 @@ func (wm *webhookManagerImpl) loadCaCertificatesInternal() (bool, error) {
 		secret.Data[caCert2Path] = *cert2Pem
 		secret.Data[caPrivateKey2Path] = *key2Pem
 
-		_, err = wm.clientset.CoreV1().Secrets(namespace).Update(ctx.Background(), secret, metav1.UpdateOptions{})
+		// same as the read above
+		_, err = wm.clientset.CoreV1().Secrets(namespace).Update(ctx.Background(), secret, metav1.UpdateOptions{}) // +lockblockingignore
 		if err != nil {
 			if apierrors.IsConflict(err) {
 				// signal to caller that we need to be run again

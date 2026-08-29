@@ -1,3 +1,5 @@
+//go:build tools
+
 /*
  Licensed to the Apache Software Foundation (ASF) under one
  or more contributor license agreements.  See the NOTICE file
@@ -16,30 +18,11 @@
  limitations under the License.
 */
 
-package support
+// Package tools pins the build tools that are not imported by the code base. This is a
+// module of its own so that the tool dependencies never end up in the go.mod of the shim
+// itself. The blank import is what keeps the version in go.mod and go.sum.
+package tools
 
 import (
-	fwk "k8s.io/kube-scheduler/framework"
-
-	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
+	_ "github.com/tigerquoll/vet-lock/cmd/vet-lock"
 )
-
-type storageInfoListerImpl struct {
-	cache *external.SchedulerCache
-}
-
-// +checklocksread:s.cache.lock
-func (s *storageInfoListerImpl) IsPVCUsedByPods(key string) bool {
-	return s.cache.IsPVCUsedByPods(key)
-}
-
-var _ fwk.StorageInfoLister = &storageInfoListerImpl{}
-
-// NewStorageInfoLister returns a new StorageInfoLister which references the scheduler cache. The returned lister is
-// not safe for access without acquiring the scheduler cache read lock first.
-func NewStorageInfoLister(cache *external.SchedulerCache) fwk.StorageInfoLister {
-	sl := &storageInfoListerImpl{
-		cache: cache,
-	}
-	return sl
-}

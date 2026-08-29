@@ -69,16 +69,19 @@ var (
 )
 
 // context maintains scheduling state, like apps and apps' tasks.
+// +lockclass:cache.Context
 type Context struct {
+	// +checklocks:lock
 	applications   map[string]*Application        // apps
 	schedulerCache *schedulercache.SchedulerCache // external cache
 	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
 	predManager    predicates.PredicateManager    // K8s predicates
 	namespace      string                         // yunikorn namespace
-	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
-	txnID          atomic.Uint64                  // transaction ID counter
-	klogger        klog.Logger
+	// +checklocks:lock
+	configMaps []*v1.ConfigMap  // cached yunikorn configmaps
+	lock       *locking.RWMutex // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
+	txnID      atomic.Uint64    // transaction ID counter
+	klogger    klog.Logger
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -192,6 +195,7 @@ func (ctx *Context) updateNode(_, obj interface{}) {
 	ctx.updateNodeInternal(node, true)
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 	// update scheduler cache
 	if prevNode, adoptedPods := ctx.schedulerCache.UpdateNode(node); prevNode == nil {
@@ -351,6 +355,7 @@ func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
 	}
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 	taskID := string(pod.UID)
 	app := ctx.getApplication(appID)
@@ -386,6 +391,8 @@ func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 	}
 }
 
+// +checklocks:ctx.lock
+// +checklocksexclude:app.lock
 func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 	// add app if it doesn't already exist
 	if app == nil {
@@ -1011,6 +1018,7 @@ func (ctx *Context) AddApplication(request *AddApplicationRequest) *Application 
 	return ctx.addApplication(request)
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) addApplication(request *AddApplicationRequest) *Application {
 	log.Log(log.ShimContext).Debug("AddApplication", zap.Any("Request", request))
 	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
@@ -1071,6 +1079,7 @@ func (ctx *Context) GetApplication(appID string) *Application {
 	return ctx.getApplication(appID)
 }
 
+// +checklocksread:ctx.lock
 func (ctx *Context) getApplication(appID string) *Application {
 	if app, ok := ctx.applications[appID]; ok {
 		return app
@@ -1084,6 +1093,7 @@ func (ctx *Context) RemoveApplication(appID string) {
 	ctx.removeApplication(appID)
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) removeApplication(appID string) {
 	if _, exist := ctx.applications[appID]; !exist {
 		log.Log(log.ShimContext).Debug("Attempted to remove non-existent application", zap.String("appID", appID))
@@ -1099,6 +1109,7 @@ func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
 	return ctx.addTask(request)
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
@@ -1229,6 +1240,7 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 
 // update task's pod condition when the condition has not yet updated,
 // return true if the update was done and false if the update is skipped due to any error, or a dup operation
+// +checklocksexclude:task.lock
 func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition) bool {
 	if task.GetTaskState() == TaskStates().Scheduling {
 		// only update the pod when pod condition changes
@@ -1533,6 +1545,7 @@ func (ctx *Context) loadNodes() ([]*v1.Node, error) {
 	return nodes, err
 }
 
+// +checklocks:ctx.lock
 func (ctx *Context) registerNode(node *v1.Node) error {
 	acceptedNodes, err := ctx.registerNodes([]*v1.Node{node})
 	if err != nil {
@@ -1552,6 +1565,7 @@ func (ctx *Context) RegisterNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 
 // registerNodes registers the nodes to the scheduler core.
 // This method must be called while holding the Context write lock.
+// +checklocks:ctx.lock
 func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 	nodesToRegister := make([]*si.NodeInfo, 0)
 	pendingNodes := make(map[string]*v1.Node)
@@ -1592,6 +1606,8 @@ func (ctx *Context) registerNodes(nodes []*v1.Node) ([]*v1.Node, error) {
 	return acceptedNodes, nil
 }
 
+// YUNIKORN-3430: context lock released and retaken around the wait
+// +checklocksignore
 func (ctx *Context) registerNodesInternal(nodesToRegister []*si.NodeInfo, pendingNodes map[string]*v1.Node) ([]*v1.Node, []*v1.Node, error) {
 	acceptedNodes := make([]*v1.Node, 0)
 	rejectedNodes := make([]*v1.Node, 0)
