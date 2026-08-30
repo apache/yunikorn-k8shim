@@ -68,12 +68,15 @@ import (
 // Neither is bounded by count, so the list stops new KINDS of leak from being
 // added, it is not a proof that the exempted counts stay put.
 //
-// Two matching caveats: the entries that key on compiler-assigned closure names
-// (".func1", ".func2") are positional, so inserting an earlier closure in the
-// same enclosing function silently breaks the match (goleak v1.3.0 cannot match
-// the creator frame); and a test that catches one of these goroutines mid-body,
-// rather than parked in its select, sees a different top frame and can fail
-// spuriously.
+// Three matching caveats. The entries that key on compiler-assigned closure
+// names (".func1", ".func2") are positional, so inserting an earlier closure in
+// the same enclosing function silently breaks the match (goleak v1.3.0 cannot
+// match the creator frame). A test that catches one of these goroutines
+// mid-body, rather than parked in its select, sees a different top frame and can
+// fail spuriously. And a frame name is a dependency's private detail: bumping
+// yunikorn-core or apimachinery can rename or unexport one, which turns the
+// exemption into a no-op and the next run red. That is not hypothetical; both
+// events entries below had to be realigned after a core bump.
 //
 // Exemptions are split two ways. By lifetime: ecosystemOptions is for Kubernetes
 // goroutines that never stop by design and is permanent, while the rest are the
@@ -117,21 +120,10 @@ func ShimSchedulerOptions() []goleak.Option {
 }
 
 // shimOwnedOptions returns the pkg/shim entries whose cause is in shim code.
+// One is left: YUNIKORN-3367 fixed the shim shutdown path that leaked the
+// other three.
 func shimOwnedOptions() []goleak.Option {
 	return []goleak.Option{
-		// Placeholder-manager cleanup loop (leaked by Stop()-after-failed-Run). See YUNIKORN-3368.
-		goleak.IgnoreTopFunction("github.com/apache/yunikorn-k8shim/pkg/cache.(*PlaceholderManager).Start.func1"),
-
-		// Dispatcher event loop (leaked by Stop()-after-failed-Run). See YUNIKORN-3368.
-		goleak.IgnoreTopFunction("github.com/apache/yunikorn-k8shim/pkg/dispatcher.Start.func1"),
-
-		// A shim doScheduling loop (BackoffUntilWithContext). See YUNIKORN-3367.
-		// Broadest entry here: matches every wait.Until/Forever/JitterUntil in
-		// pkg/shim, and this apimachinery frame name has moved before
-		// (BackoffUntil -> BackoffUntilWithContext), so a dep bump can silently
-		// break the match.
-		goleak.IgnoreTopFunction("k8s.io/apimachinery/pkg/util/wait.BackoffUntilWithContext"),
-
 		// AssumePod retry on the RM proxy loop. See YUNIKORN-3369. Keyed on the
 		// callback frame, not the top frame (time.Sleep), which is too broad.
 		goleak.IgnoreAnyFunction("github.com/apache/yunikorn-k8shim/pkg/cache.(*AsyncRMCallback).UpdateAllocation"),
@@ -141,7 +133,7 @@ func shimOwnedOptions() []goleak.Option {
 // coreServiceOptions returns the pkg/shim entries that come from yunikorn-core:
 // service goroutines the shim starts in-process and cannot stop in tests; they
 // burn down once the core is restartable and the shim calls StopAll
-// (YUNIKORN-3370). A few map to specific core defects, noted per entry.
+// (YUNIKORN-3370). One maps to a specific core defect, noted at that entry.
 func coreServiceOptions() []goleak.Option {
 	return []goleak.Option{
 		// Scheduler event handlers (Scheduler.StartService). See YUNIKORN-3370.
@@ -161,21 +153,20 @@ func coreServiceOptions() []goleak.Option {
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*nodesResourceUsageMonitor).start.func1"),
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*HealthChecker).startInternal.func2"),
 
-		// Partition cleaners (partitionManager.Run). See YUNIKORN-3366.
+		// Partition cleaners (partitionManager.Run). See YUNIKORN-3370.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*partitionManager).cleanRoot"),
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*partitionManager).cleanExpiredApps"),
 
-		// User/group cache cleaner. See YUNIKORN-3366.
+		// User/group cache cleaner. See YUNIKORN-3370.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/common/security.(*UserGroupCache).run"),
 
 		// RM proxy event loop (RMProxy.StartService). See YUNIKORN-3370.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/rmproxy.(*RMProxy).handleRMEvents"),
 
 		// Event system handler and publisher; the handler is the clearest
-		// evidence core is not restartable in-process. See YUNIKORN-3363 and
-		// YUNIKORN-3370.
-		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*EventSystemImpl).StartServiceWithPublisher.func2"),
-		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*EventPublisher).StartService.func1"),
+		// evidence core is not restartable in-process. See YUNIKORN-3370.
+		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*EventSystemImpl).StartServiceWithPublisher.func1"),
+		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*eventPublisher).start.func1"),
 
 		// Internal metrics collector (ServiceContext). See YUNIKORN-3370.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/metrics.(*internalMetricsCollector).StartService.func1"),
