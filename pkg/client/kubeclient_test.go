@@ -44,48 +44,28 @@ users:
   user: {}
 `
 
-func TestUserAgentWithVersion(t *testing.T) {
-	testCases := []struct {
-		name     string
-		concern  string
-		version  string
-		expected string
-	}{
-		{"no version", userAgentWrites, "", "yunikorn-scheduler/writes"},
-		{"version appended", userAgentWrites, "1.7.0", "yunikorn-scheduler/writes (1.7.0)"},
-		{"admission controller", UserAgentAdmissionController, "1.7.0", "yunikorn-admission-controller (1.7.0)"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, userAgentWithVersion(tc.concern, tc.version), "unexpected user agent")
-		})
-	}
-}
-
-func TestRateLimitPolicy(t *testing.T) {
+func TestClientRateLimit(t *testing.T) {
 	testCases := []struct {
 		name          string
-		concern       string
 		qps           int
 		burst         int
 		expectedQPS   float32
 		expectedBurst int
-		expectedLimit string
 	}{
-		{"unlimited", userAgentInformers, 0, 0, -1, 0, "unlimited"},
-		{"negative is unlimited", userAgentWrites, -1, -1, -1, 0, "unlimited"},
-		{"burst without qps is ignored", userAgentBootstrap, 0, 100, -1, 0, "unlimited"},
-		{"limited", userAgentEvents, 100, 200, 100, 200, "100 qps / 200 burst"},
-		{"burst defaults to qps", UserAgentAdmissionController, 100, 0, 100, 100, "100 qps / 100 burst"},
+		{"unset is no limiter", -1, -1, -1, 0},
+		{"zero leaves the client-go defaults", 0, 0, 0, 0},
+		{"burst defaults to qps", 100, 0, 100, 100},
+		{"negative burst defaults to qps", 100, -1, 100, 100},
+		{"qps and burst", 100, 50, 100, 50},
+		{"burst is kept without a qps", -1, 50, -1, 50},
+		{"burst is kept on the client-go defaults", 0, 50, 0, 50},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			qps, burst, rateLimit := rateLimitPolicy(tc.concern, tc.qps, tc.burst)
+			qps, burst := clientRateLimit(tc.qps, tc.burst)
 			assert.Equal(t, tc.expectedQPS, qps, "unexpected QPS")
 			assert.Equal(t, tc.expectedBurst, burst, "unexpected burst")
-			assert.Equal(t, tc.expectedLimit, rateLimit, "unexpected rate limit description")
 		})
 	}
 }
@@ -99,20 +79,21 @@ func TestNewRestConfig(t *testing.T) {
 		qps     int
 		burst   int
 	}{
-		{"unlimited", userAgentInformers, 0, 0},
+		{"unset", userAgentScheduler, -1, -1},
+		{"client-go defaults", userAgentBootstrap, 0, 0},
 		{"limited", userAgentEvents, 100, 200},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			expectedQPS, expectedBurst, _ := rateLimitPolicy(tc.concern, tc.qps, tc.burst)
+			expectedQPS, expectedBurst := clientRateLimit(tc.qps, tc.burst)
 			config := newRestConfig(kc, tc.qps, tc.burst, tc.concern)
-			assert.Equal(t, UserAgent(tc.concern), config.UserAgent, "user agent not set")
+			assert.Equal(t, tc.concern, config.UserAgent, "user agent not set to the concern")
 			// creating the limiter is always left to client-go: a negative QPS makes it
-			// create none, a QPS of 0 would silently fall back to the client-go defaults
+			// create none, a QPS of 0 falls back to the client-go defaults
 			assert.Assert(t, config.RateLimiter == nil, "rate limiter must be left to client-go")
-			assert.Equal(t, expectedQPS, config.QPS, "QPS not taken from the rate limit policy")
-			assert.Equal(t, expectedBurst, config.Burst, "burst not taken from the rate limit policy")
+			assert.Equal(t, expectedQPS, config.QPS, "QPS not normalised")
+			assert.Equal(t, expectedBurst, config.Burst, "burst not normalised")
 		})
 	}
 }
@@ -134,7 +115,7 @@ func TestNewClientSetAcceptsRestConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := kubernetes.NewForConfig(newRestConfig(kc, tc.qps, tc.burst, userAgentWrites))
+			_, err := kubernetes.NewForConfig(newRestConfig(kc, tc.qps, tc.burst, userAgentScheduler))
 			assert.NilError(t, err, "clientset creation failed")
 		})
 	}

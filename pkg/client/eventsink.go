@@ -20,10 +20,12 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/events"
@@ -43,12 +45,15 @@ const (
 	defaultEventMute = time.Second
 )
 
-// rateLimitedEventSink sheds events which exceed the configured rate instead of sending them.
+// rateLimitedEventSink sheds the Normal events which exceed the configured rate instead of
+// sending them. Warning events are always sent: they explain why a pod is not running and
+// there are few of them. The Normal events are the volume, three per scheduled pod
+// (Scheduling, Scheduled and PodBindSuccessful) plus the informational records from the core.
 // The broadcaster writes every event from its own goroutine, so a rate limiter on the events
 // client would only pace those writes: the goroutines pile up for as long as a storm lasts.
 // Events are discardable, dropping them here bounds a storm instead of delaying it.
-// The events are also muted for as long as the server asks us to back off: priority and
-// fairness rejects with a 429 which carries the time to wait for.
+// All events are muted for as long as the server asks us to back off: priority and fairness
+// rejects with a 429 which carries the time to wait for.
 type rateLimitedEventSink struct {
 	inner     events.EventSink
 	limiter   flowcontrol.RateLimiter
@@ -67,8 +72,8 @@ type rateLimitedEventSink struct {
 	muteUntil atomic.Int64
 }
 
-// NewRateLimitedEventSink wraps an event sink and sheds the events which exceed the given
-// rate. A qps <= 0 disables shedding, every event is passed on to the wrapped sink.
+// NewRateLimitedEventSink wraps an event sink and sheds the Normal events which exceed the
+// given rate. A qps <= 0 disables shedding, every event is passed on to the wrapped sink.
 func NewRateLimitedEventSink(inner events.EventSink, qps, burst int) events.EventSink {
 	return newRateLimitedEventSink(inner, qps, burst, clock.RealClock{}, nil)
 }
@@ -76,18 +81,21 @@ func NewRateLimitedEventSink(inner events.EventSink, qps, burst int) events.Even
 // newRateLimitedEventSink allows the clock and the delays recorded by the transport to be
 // passed in for testing
 func newRateLimitedEventSink(inner events.EventSink, qps, burst int, clk clock.PassiveClock, hints *muteHintHolder) *rateLimitedEventSink {
-	limitQPS, limitBurst, rateLimit := rateLimitPolicy(userAgentEvents, qps, burst)
-
 	sink := &rateLimitedEventSink{
 		inner:     inner,
-		rateLimit: rateLimit,
+		rateLimit: "unlimited",
 		clock:     clk,
 		hints:     hints,
 	}
-	shedPolicy := rateLimit
-	if limitQPS > 0 {
-		sink.limiter = flowcontrol.NewTokenBucketRateLimiter(limitQPS, limitBurst)
-		shedPolicy = "shed above " + rateLimit
+	shedPolicy := sink.rateLimit
+	// a qps <= 0 sheds nothing, a burst which is not set defaults to the qps
+	if qps > 0 {
+		if burst <= 0 {
+			burst = qps
+		}
+		sink.rateLimit = fmt.Sprintf("%d qps / %d burst", qps, burst)
+		sink.limiter = flowcontrol.NewTokenBucketRateLimiter(float32(qps), burst)
+		shedPolicy = "shed above " + sink.rateLimit
 	}
 
 	log.Log(log.ShimClient).Info("creating event sink",
@@ -110,7 +118,7 @@ func NewEventSink(kc string) events.EventSink {
 }
 
 func (s *rateLimitedEventSink) Create(ctx context.Context, event *eventsv1.Event) (*eventsv1.Event, error) {
-	if s.shedEvent() {
+	if s.shedEvent(event.Type) {
 		return event, nil
 	}
 	result, err := s.inner.Create(ctx, event)
@@ -119,7 +127,7 @@ func (s *rateLimitedEventSink) Create(ctx context.Context, event *eventsv1.Event
 }
 
 func (s *rateLimitedEventSink) Update(ctx context.Context, event *eventsv1.Event) (*eventsv1.Event, error) {
-	if s.shedEvent() {
+	if s.shedEvent(event.Type) {
 		return event, nil
 	}
 	result, err := s.inner.Update(ctx, event)
@@ -128,7 +136,7 @@ func (s *rateLimitedEventSink) Update(ctx context.Context, event *eventsv1.Event
 }
 
 func (s *rateLimitedEventSink) Patch(ctx context.Context, oldEvent *eventsv1.Event, data []byte) (*eventsv1.Event, error) {
-	if s.shedEvent() {
+	if s.shedEvent(oldEvent.Type) {
 		return oldEvent, nil
 	}
 	result, err := s.inner.Patch(ctx, oldEvent, data)
@@ -187,11 +195,12 @@ func (s *rateLimitedEventSink) muteDelay(err error) (time.Duration, string) {
 // shedEvent returns true if the event must be dropped instead of being passed on. Dropping is
 // reported to the broadcaster as a successful write: it does not retry and does not hold on
 // to the goroutine which is recording the event.
-// The mute is checked before the limiter: while the server is throttling us there is no point
-// in spending a token on an event which it would reject.
-func (s *rateLimitedEventSink) shedEvent() bool {
+// A Warning event is never shed by the bucket and spends no token on it. The mute is checked
+// first and applies to every type: while the server is throttling us the event is rejected
+// anyway, sending it changes nothing.
+func (s *rateLimitedEventSink) shedEvent(eventType string) bool {
 	muted := s.muted()
-	if !muted && (s.limiter == nil || s.limiter.TryAccept()) {
+	if !muted && (eventType == v1.EventTypeWarning || s.limiter == nil || s.limiter.TryAccept()) {
 		return false
 	}
 	s.shed.Add(1)

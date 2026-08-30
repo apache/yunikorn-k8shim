@@ -35,17 +35,14 @@ import (
 )
 
 // Clients encapsulates the client APIs shared by callers when talking to the K8s api-server
-// or the scheduler core. Each Kubernetes client serves one concern with its own rate limit
-// policy and user agent, see kubeclient.go:
-//   - KubeClient carries the direct must-complete traffic: binds, pod create/delete, pod and
-//     status updates, the volume binder and the predicate handle, the configmap loads at
+// or the scheduler core:
+//   - KubeClient carries the must-complete traffic: binds, pod create/delete, pod and status
+//     updates, the volume binder and the predicate handle, the configmap loads at
 //     registration, and the reads made in service of those writes (the get before a retried
-//     update). Its policy is the opt-in kubernetes.qps/burst cap.
-//   - the informers, cluster wide and namespaced, run on a separate clientset created in
-//     NewAPIFactory: list/watch traffic is never rate limited on the client side and is
-//     attributed separately.
-//   - events do not pass through any of these: the broadcaster writes through the shedding
-//     event sink, see NewEventSink.
+//     update). It also backs the informer factories. Its policy is the opt-in
+//     kubernetes.qps/burst cap.
+//   - events do not pass through it: the broadcaster writes through the shedding event sink
+//     on its own client, see NewEventSink.
 type Clients struct {
 	// client apis
 	KubeClient   KubeClient

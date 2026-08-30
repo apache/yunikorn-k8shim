@@ -77,6 +77,7 @@ const (
 	CMKubeBurst      = PrefixKubernetes + "burst"
 	CMKubeEventQPS   = PrefixKubernetes + "eventQPS"
 	CMKubeEventBurst = PrefixKubernetes + "eventBurst"
+	CMKubeEventLevel = PrefixKubernetes + "eventLevel"
 
 	// admissioncontroller
 	PrefixAMFiltering               = PrefixAdmissionController + "filtering."
@@ -97,7 +98,14 @@ const (
 	DefaultKubeBurst                       = -1
 	DefaultKubeEventQPS                    = 200 // events are discardable and limited by default: <= 0 means no limiter
 	DefaultKubeEventBurst                  = 400
+	DefaultKubeEventLevel                  = EventLevelNormal
 	DefaultAMFilteringGenerateUniqueAppIds = false
+
+	// event levels, the value of CMKubeEventLevel: all events, the Warning events only, or
+	// no events at all
+	EventLevelNormal  = "normal"
+	EventLevelWarning = "warning"
+	EventLevelNone    = "none"
 )
 
 var (
@@ -129,6 +137,7 @@ type SchedulerConf struct {
 	KubeBurst                int                `json:"kubeBurst"`
 	KubeEventQPS             int                `json:"kubeEventQPS"`
 	KubeEventBurst           int                `json:"kubeEventBurst"`
+	KubeEventLevel           string             `json:"kubeEventLevel"`
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
 	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
@@ -164,6 +173,7 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		KubeBurst:                conf.KubeBurst,
 		KubeEventQPS:             conf.KubeEventQPS,
 		KubeEventBurst:           conf.KubeEventBurst,
+		KubeEventLevel:           conf.KubeEventLevel,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		PlaceHolderConfig:        conf.PlaceHolderConfig,
@@ -340,6 +350,7 @@ func CreateDefaultConfig() *SchedulerConf {
 		KubeBurst:                DefaultKubeBurst,
 		KubeEventQPS:             DefaultKubeEventQPS,
 		KubeEventBurst:           DefaultKubeEventBurst,
+		KubeEventLevel:           DefaultKubeEventLevel,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
@@ -381,9 +392,21 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.intVar(&conf.KubeBurst, CMKubeBurst)
 	parser.intVar(&conf.KubeEventQPS, CMKubeEventQPS)
 	parser.intVar(&conf.KubeEventBurst, CMKubeEventBurst)
+	parser.stringVar(&conf.KubeEventLevel, CMKubeEventLevel)
 
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
+
+	// an unknown event level falls back to the default, it must not fail the configuration
+	switch conf.KubeEventLevel {
+	case EventLevelNormal, EventLevelWarning, EventLevelNone:
+	default:
+		log.Log(log.ShimConfig).Warn("unknown event level, using the default",
+			zap.String("key", CMKubeEventLevel),
+			zap.String("value", conf.KubeEventLevel),
+			zap.String("default", DefaultKubeEventLevel))
+		conf.KubeEventLevel = DefaultKubeEventLevel
+	}
 
 	if len(parser.errors) > 0 {
 		return nil, parser.errors

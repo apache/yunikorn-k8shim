@@ -83,7 +83,7 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 			zap.Error(err))
 	} else {
 		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
-		events.SetRecorder(eventRecorder)
+		events.SetRecorder(events.NewLevelFilteredRecorder(eventRecorder))
 	}
 
 	return newShimSchedulerInternal(context, apiFactory, rmCallback)

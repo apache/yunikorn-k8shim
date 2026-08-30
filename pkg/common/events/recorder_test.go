@@ -23,10 +23,53 @@ import (
 	"testing"
 
 	"gotest.tools/v3/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestInit(t *testing.T) {
 	// simply test the get won't fail
 	recorder := GetRecorder()
 	assert.Equal(t, reflect.TypeOf(recorder).String(), "*events.MockedRecorder")
+}
+
+// recordingRecorder collects the type of every event which reaches it
+type recordingRecorder struct {
+	recorded []string
+}
+
+func (r *recordingRecorder) Eventf(_ runtime.Object, _ runtime.Object, eventtype, _, _, _ string, _ ...interface{}) {
+	r.recorded = append(r.recorded, eventtype)
+}
+
+// the level filter drops the events below the configured level before they are recorded
+func TestLevelFilteredRecorder(t *testing.T) {
+	testCases := []struct {
+		level    string
+		expected []string
+	}{
+		{conf.EventLevelNormal, []string{v1.EventTypeNormal, v1.EventTypeWarning}},
+		{conf.EventLevelWarning, []string{v1.EventTypeWarning}},
+		{conf.EventLevelNone, nil},
+	}
+
+	original := conf.GetSchedulerConf()
+	defer conf.SetSchedulerConf(original)
+
+	for _, tc := range testCases {
+		t.Run(tc.level, func(t *testing.T) {
+			levelConf := conf.CreateDefaultConfig()
+			levelConf.KubeEventLevel = tc.level
+			conf.SetSchedulerConf(levelConf)
+
+			inner := &recordingRecorder{}
+			recorder := NewLevelFilteredRecorder(inner)
+			recorder.Eventf(nil, nil, v1.EventTypeNormal, "reason", "action", "note")
+			recorder.Eventf(nil, nil, v1.EventTypeWarning, "reason", "action", "note")
+
+			assert.DeepEqual(t, tc.expected, inner.recorded)
+		})
+	}
 }

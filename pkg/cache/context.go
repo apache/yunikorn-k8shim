@@ -1235,7 +1235,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Message: request.Reason,
 				}) {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
+					v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
@@ -1249,7 +1249,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 					Message: request.Reason,
 				}) {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
+					v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
 		default:

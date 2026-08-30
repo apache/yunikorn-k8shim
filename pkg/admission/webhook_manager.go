@@ -85,12 +85,9 @@ type webhookManagerImpl struct {
 }
 
 // NewWebhookManager is used to create a new webhook manager
-func NewWebhookManager(conf *conf.AdmissionControllerConf) (WebhookManager, error) {
-	// the webhook and secret writes must be attributed to the admission controller; the
-	// admission controller never populates the scheduler configuration, so the client runs
-	// on the defaults: no client side rate limiting
-	kubeClient := client.NewKubeClientWithUserAgent(conf.GetKubeConfig(), client.UserAgentAdmissionController)
-	return newWebhookManagerImpl(conf, kubeClient.GetClientSet()), nil
+func NewWebhookManager(conf *conf.AdmissionControllerConf) WebhookManager {
+	kubeClient := client.NewAdmissionControllerKubeClient(conf.GetKubeConfig())
+	return newWebhookManagerImpl(conf, kubeClient.GetClientSet())
 }
 
 func newWebhookManagerImpl(conf *conf.AdmissionControllerConf, clientset kubernetes.Interface) *webhookManagerImpl {

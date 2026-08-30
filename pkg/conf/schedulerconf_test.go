@@ -76,6 +76,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.KubeEventQPS, DefaultKubeEventQPS)
 	assert.Equal(t, conf.KubeEventBurst, DefaultKubeEventBurst)
+	assert.Equal(t, conf.KubeEventLevel, DefaultKubeEventLevel)
 }
 
 // the write path is unlimited by default, events are limited: a value <= 0 means no limiter
@@ -157,6 +158,7 @@ func TestParseConfigMap(t *testing.T) {
 		{CMKubeBurst, "KubeBurst", 3456},
 		{CMKubeEventQPS, "KubeEventQPS", 4567},
 		{CMKubeEventBurst, "KubeEventBurst", 5678},
+		{CMKubeEventLevel, "KubeEventLevel", EventLevelWarning},
 	}
 
 	for _, tc := range testCases {
@@ -193,6 +195,7 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMKubeBurst, "KubeBurst", 3456, false},
 		{CMKubeEventQPS, "KubeEventQPS", 4567, false},
 		{CMKubeEventBurst, "KubeEventBurst", 5678, false},
+		{CMKubeEventLevel, "KubeEventLevel", EventLevelWarning, true},
 	}
 
 	for _, tc := range testCases {
@@ -214,6 +217,30 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 			} else {
 				assert.Equal(t, getConfValue(t, oldConf, tc.field), getConfValue(t, newConf, tc.field), "non-reloadable field updated")
 			}
+		})
+	}
+}
+
+// an unknown event level must not fail the configuration, it falls back to the default
+func TestParseEventLevel(t *testing.T) {
+	testCases := []struct {
+		name     string
+		value    string
+		expected string
+	}{
+		{"normal", EventLevelNormal, EventLevelNormal},
+		{"warning", EventLevelWarning, EventLevelWarning},
+		{"none", EventLevelNone, EventLevelNone},
+		{"unknown", "verbose", DefaultKubeEventLevel},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := CreateDefaultConfig()
+			conf, errs := parseConfig(map[string]string{CMKubeEventLevel: tc.value}, prev)
+			assert.Assert(t, conf != nil, "conf was nil")
+			assert.Assert(t, errs == nil, errs)
+			assert.Equal(t, tc.expected, conf.KubeEventLevel, "unexpected event level")
 		})
 	}
 }

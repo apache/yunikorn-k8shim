@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"gotest.tools/v3/assert"
+	v1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,9 +56,15 @@ func (f *fakeEventSink) Patch(_ context.Context, event *eventsv1.Event, _ []byte
 	return event, f.err
 }
 
+// newEvent creates a Normal event, the type which the sink is allowed to shed
 func newEvent(name string) *eventsv1.Event {
+	return newTypedEvent(name, v1.EventTypeNormal)
+}
+
+func newTypedEvent(name, eventType string) *eventsv1.Event {
 	return &eventsv1.Event{
 		ObjectMeta: apis.ObjectMeta{Namespace: "default", Name: name},
+		Type:       eventType,
 	}
 }
 
@@ -110,6 +117,51 @@ func TestEventSinkShedsAllOperations(t *testing.T) {
 	assert.Equal(t, 1, inner.creates, "unexpected creates")
 	assert.Equal(t, 0, inner.updates, "update not shed")
 	assert.Equal(t, 0, inner.patches, "patch not shed")
+}
+
+// a Warning event is never shed by the bucket and spends no token on it: it is the event a
+// user reads to find out why a pod is not running
+func TestEventSinkWarningNotShed(t *testing.T) {
+	inner := &fakeEventSink{}
+	// a burst of 1 leaves the bucket empty after the first event
+	sink := NewRateLimitedEventSink(inner, 1, 1)
+
+	_, err := sink.Create(context.Background(), newEvent("first"))
+	assert.NilError(t, err, "create failed")
+	assert.Equal(t, 1, inner.creates, "event not forwarded")
+
+	for i := 0; i < 10; i++ {
+		warning := newTypedEvent("warning", v1.EventTypeWarning)
+		result, warnErr := sink.Create(context.Background(), warning)
+		assert.NilError(t, warnErr, "create failed")
+		assert.Equal(t, warning, result, "event not returned")
+	}
+	assert.Equal(t, 11, inner.creates, "warning events were shed")
+
+	// no token was spent on the warnings, the next normal event is still shed
+	_, err = sink.Create(context.Background(), newEvent("shed"))
+	assert.NilError(t, err, "shed event must not fail the write")
+	assert.Equal(t, 11, inner.creates, "normal event was forwarded")
+}
+
+// while the server is throttling us a warning is shed as well: it would only be rejected
+func TestEventSinkShedsWarningWhileMuted(t *testing.T) {
+	clk := clocktesting.NewFakePassiveClock(time.Now())
+	inner := &fakeEventSink{err: apierrors.NewTooManyRequests("slow down", 5)}
+	// no client side limit, only the mute can shed here
+	sink := newRateLimitedEventSink(inner, 0, 0, clk, nil)
+
+	_, err := sink.Create(context.Background(), newTypedEvent("throttled", v1.EventTypeWarning))
+	assert.Assert(t, err != nil, "the 429 must be returned to the broadcaster")
+	assert.Equal(t, 1, inner.creates, "event not forwarded")
+
+	inner.err = nil
+	step(clk, time.Second)
+	warning := newTypedEvent("muted", v1.EventTypeWarning)
+	result, muteErr := sink.Create(context.Background(), warning)
+	assert.NilError(t, muteErr, "muted event must not fail the write")
+	assert.Equal(t, warning, result, "muted event not returned")
+	assert.Equal(t, 1, inner.creates, "warning event sent while muted")
 }
 
 // a qps <= 0 disables shedding, the sink must pass everything through
