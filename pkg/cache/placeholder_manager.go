@@ -19,7 +19,9 @@
 package cache
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,7 +42,12 @@ type PlaceholderManager struct {
 	// and keep retrying deleting them in order to avoid wasting resources.
 	orphanPods  map[string]*v1.Pod
 	stopChan    chan struct{}
+	doneChan    chan struct{}
+	stopOnce    sync.Once
+	started     atomic.Bool
 	running     atomic.Bool
+	cancel      context.CancelFunc
+	cleanupCtx  context.Context
 	cleanupTime time.Duration
 	// a simple mutex will do we do not have separate read and write paths
 	locking.RWMutex
@@ -54,10 +61,14 @@ var (
 func NewPlaceholderManager(clients *client.Clients) *PlaceholderManager {
 	mu.Lock()
 	defer mu.Unlock()
+	cleanupCtx, cancel := context.WithCancel(context.Background())
 	placeholderMgr = &PlaceholderManager{
 		clients:     clients,
 		orphanPods:  make(map[string]*v1.Pod),
 		stopChan:    make(chan struct{}),
+		doneChan:    make(chan struct{}),
+		cleanupCtx:  cleanupCtx,
+		cancel:      cancel,
 		cleanupTime: 5 * time.Second,
 	}
 	return placeholderMgr
@@ -103,18 +114,18 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 
 // clean up all the placeholders for an application
 func (mgr *PlaceholderManager) cleanUp(app *Application) {
-	mgr.Lock()
-	defer mgr.Unlock()
 	log.Log(log.ShimCachePlaceholder).Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 	for _, task := range app.GetPlaceHolderTasks() {
 		// remove pod
-		err := mgr.clients.KubeClient.Delete(task.GetTaskPod())
+		err := mgr.clients.KubeClient.Delete(context.Background(), task.GetTaskPod())
 		if err != nil {
 			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
 				zap.Error(err))
 			if !strings.Contains(err.Error(), "not found") {
+				mgr.Lock()
 				mgr.orphanPods[task.GetTaskID()] = task.GetTaskPod()
+				mgr.Unlock()
 			}
 		}
 	}
@@ -122,51 +133,78 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 		zap.String("appID", app.GetApplicationID()))
 }
 
-func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
-	mgr.Lock()
-	defer mgr.Unlock()
+func (mgr *PlaceholderManager) cleanOrphanPlaceholders(ctx context.Context) {
+	type orphanPod struct {
+		taskID string
+		pod    *v1.Pod
+	}
+	mgr.RLock()
+	orphans := make([]orphanPod, 0, len(mgr.orphanPods))
 	for taskID, pod := range mgr.orphanPods {
+		orphans = append(orphans, orphanPod{taskID: taskID, pod: pod})
+	}
+	mgr.RUnlock()
+
+	for _, orphan := range orphans {
+		if ctx.Err() != nil {
+			return
+		}
 		log.Log(log.ShimCachePlaceholder).Debug("start to clean up orphan pod",
-			zap.String("taskID", taskID),
-			zap.String("podName", pod.Name))
-		err := mgr.clients.KubeClient.Delete(pod)
+			zap.String("taskID", orphan.taskID),
+			zap.String("podName", orphan.pod.Name))
+		err := mgr.clients.KubeClient.Delete(ctx, orphan.pod)
 		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
 			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up orphan pod", zap.Error(err))
 		} else {
-			delete(mgr.orphanPods, taskID)
+			mgr.Lock()
+			if mgr.orphanPods[orphan.taskID] == orphan.pod {
+				delete(mgr.orphanPods, orphan.taskID)
+			}
+			mgr.Unlock()
 		}
 	}
 }
 
 func (mgr *PlaceholderManager) Start() {
-	if mgr.isRunning() {
+	if !mgr.started.CompareAndSwap(false, true) {
 		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager is already started")
 		return
 	}
 	log.Log(log.ShimCachePlaceholder).Info("starting the PlaceholderManager")
 	mgr.setRunning(true)
 	go func() {
-		// clean orphan placeholders approximately every 5 seconds
+		ticker := time.NewTicker(mgr.getCleanupTime())
+		defer func() {
+			ticker.Stop()
+			mgr.setRunning(false)
+			close(mgr.doneChan)
+			log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has been stopped")
+		}()
 		for {
 			select {
 			case <-mgr.stopChan:
-				mgr.setRunning(false)
-				log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has been stopped")
 				return
-			case <-time.After(mgr.getCleanupTime()):
-				mgr.cleanOrphanPlaceholders()
+			case <-ticker.C:
+				mgr.cleanOrphanPlaceholders(mgr.cleanupCtx)
 			}
 		}
 	}()
 }
 
 func (mgr *PlaceholderManager) Stop() {
-	if !mgr.isRunning() {
+	if !mgr.started.Load() {
 		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager already stopped")
 		return
 	}
-	log.Log(log.ShimCachePlaceholder).Info("stopping the PlaceholderManager")
-	mgr.stopChan <- struct{}{}
+	mgr.stopOnce.Do(func() {
+		log.Log(log.ShimCachePlaceholder).Info("stopping the PlaceholderManager")
+		mgr.cancel()
+		close(mgr.stopChan)
+	})
+	<-mgr.doneChan
 }
 
 func (mgr *PlaceholderManager) isRunning() bool {

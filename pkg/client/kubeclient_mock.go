@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -35,7 +36,7 @@ import (
 // KubeClientMock allows us to inject customized bind/delete pod functions
 type KubeClientMock struct {
 	bindFn         func(pod *v1.Pod, hostID string) error
-	deleteFn       func(pod *v1.Pod) error
+	deleteFn       func(ctx context.Context, pod *v1.Pod) error
 	createFn       func(pod *v1.Pod) (*v1.Pod, error)
 	updateFn       func(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
 	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
@@ -64,7 +65,7 @@ type BoundPod struct {
 
 func NewKubeClientMock(err bool) *KubeClientMock {
 	kubeMock := &KubeClientMock{
-		deleteFn: func(pod *v1.Pod) error {
+		deleteFn: func(_ context.Context, pod *v1.Pod) error {
 			if err {
 				return fmt.Errorf("error deleting pod")
 			}
@@ -146,6 +147,12 @@ func (c *KubeClientMock) MockBindFn(bfn func(pod *v1.Pod, hostID string) error) 
 }
 
 func (c *KubeClientMock) MockDeleteFn(dfn func(pod *v1.Pod) error) {
+	c.deleteFn = func(_ context.Context, pod *v1.Pod) error {
+		return dfn(pod)
+	}
+}
+
+func (c *KubeClientMock) MockDeleteWithContextFn(dfn func(ctx context.Context, pod *v1.Pod) error) {
 	c.deleteFn = dfn
 }
 
@@ -191,11 +198,11 @@ func (c *KubeClientMock) Get(podNamespace string, podName string) (*v1.Pod, erro
 	return nil, fmt.Errorf("pod not found: %s/%s", podNamespace, podName)
 }
 
-func (c *KubeClientMock) Delete(pod *v1.Pod) error {
+func (c *KubeClientMock) Delete(ctx context.Context, pod *v1.Pod) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	delete(c.pods, getPodKey(pod))
-	return c.deleteFn(pod)
+	return c.deleteFn(ctx, pod)
 }
 
 func (c *KubeClientMock) GetClientSet() kubernetes.Interface {

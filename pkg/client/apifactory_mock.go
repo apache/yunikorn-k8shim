@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -142,7 +143,13 @@ func (m *MockedAPIProvider) MockBindFn(bfn func(pod *v1.Pod, hostID string) erro
 
 func (m *MockedAPIProvider) MockDeleteFn(dfn func(pod *v1.Pod) error) {
 	if mock, ok := m.clients.KubeClient.(*KubeClientMock); ok {
-		mock.deleteFn = dfn
+		mock.MockDeleteFn(dfn)
+	}
+}
+
+func (m *MockedAPIProvider) MockDeleteWithContextFn(dfn func(ctx context.Context, pod *v1.Pod) error) {
+	if mock, ok := m.clients.KubeClient.(*KubeClientMock); ok {
+		mock.MockDeleteWithContextFn(dfn)
 	}
 }
 

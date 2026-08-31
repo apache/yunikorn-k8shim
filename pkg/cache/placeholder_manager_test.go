@@ -19,8 +19,11 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -342,7 +345,7 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 	placeholderMgr.orphanPods["task01"] = pod1
 	placeholderMgr.orphanPods["task02"] = pod2
 	assert.Equal(t, len(placeholderMgr.orphanPods), 2)
-	placeholderMgr.cleanOrphanPlaceholders()
+	placeholderMgr.cleanOrphanPlaceholders(context.Background())
 	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 }
 
@@ -358,15 +361,15 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 	mgr.Start()
 	assert.Equal(t, mgr.isRunning(), true, "sending start 2nd time should not do anything")
 
-	// this is a blocking call
+	// Stop waits until the cleanup goroutine has exited.
 	mgr.Stop()
-	// allow time for processing as the call can return faster than the flag is set
-	time.Sleep(5 * time.Millisecond)
-	// check manager has stopped
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
-	// this should not block anymore, flag should be set
+	// Repeated stops are safe and return immediately.
 	mgr.Stop()
 	assert.Equal(t, mgr.isRunning(), false, "stopping already stopped manager failed")
+	// A stopped manager is one-shot and cannot be restarted.
+	mgr.Start()
+	assert.Equal(t, mgr.isRunning(), false, "stopped placeholder manager must not restart")
 
 	// make sure stop doesn't do anything on a non running manager
 	mgr = NewPlaceholderManager(mockedAPIProvider.GetAPIs())
@@ -377,9 +380,102 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start (stop start sequence)")
 	// lets stop it again now things should stop correctly
 	mgr.Stop()
-	// allow time for processing as the call can return faster than the flag is set
-	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
+}
+
+func TestPlaceholderManagerConcurrentStop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+
+	const callers = 32
+	start := make(chan struct{})
+	var stopped sync.WaitGroup
+	stopped.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer stopped.Done()
+			<-start
+			mgr.Stop()
+		}()
+	}
+	close(start)
+
+	done := make(chan struct{})
+	go func() {
+		stopped.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("concurrent PlaceholderManager.Stop calls blocked")
+	}
+	assert.Equal(t, mgr.isRunning(), false, "manager should be stopped when every Stop call returns")
+}
+
+func TestPlaceholderManagerConcurrentStartCreatesOneCleanupLoop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	var deletes atomic.Int32
+	mockedAPIProvider.MockDeleteFn(func(_ *v1.Pod) error {
+		deletes.Add(1)
+		return nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.setCleanupTime(time.Millisecond)
+
+	const callers = 64
+	start := make(chan struct{})
+	var started sync.WaitGroup
+	started.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer started.Done()
+			<-start
+			mgr.Start()
+		}()
+	}
+	close(start)
+	started.Wait()
+	mgr.Stop()
+
+	mgr.Lock()
+	mgr.orphanPods["task01"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-01"}}
+	mgr.Unlock()
+	time.Sleep(10 * time.Millisecond)
+	assert.Equal(t, deletes.Load(), int32(0), "an extra cleanup loop remained after Stop")
+}
+
+func TestPlaceholderManagerStopCancelsBlockedCleanup(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	deleteStarted := make(chan struct{})
+	mockedAPIProvider.MockDeleteWithContextFn(func(ctx context.Context, _ *v1.Pod) error {
+		close(deleteStarted)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.setCleanupTime(time.Millisecond)
+	mgr.orphanPods["task01"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-01"}}
+	mgr.Start()
+
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("orphan cleanup did not start")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		mgr.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not cancel the blocked orphan deletion")
+	}
+	assert.Equal(t, mgr.isRunning(), false, "manager should be stopped after cancellation")
 }
 
 func TestPlaceholderManagerCleanup(t *testing.T) {
@@ -406,16 +502,16 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	}
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	mgr.setCleanupTime(100 * time.Millisecond)
-	defer mgr.setCleanupTime(5 * time.Second)
 	mgr.Start()
 	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
+	mgr.Lock()
 	mgr.orphanPods["task01"] = pod1
 	mgr.orphanPods["task02"] = pod2
+	mgr.Unlock()
 	assert.Equal(t, mgr.getOrphanPodsLength(), 2)
 	<-time.After(100 * time.Millisecond)
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.getOrphanPodsLength(), 0)
 	mgr.Stop()
-	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has stopped")
 }

@@ -19,6 +19,8 @@
 package client
 
 import (
+	"context"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -32,7 +34,7 @@ type KubeClient interface {
 	Create(pod *v1.Pod) (*v1.Pod, error)
 
 	// Delete a pod from a host
-	Delete(pod *v1.Pod) error
+	Delete(ctx context.Context, pod *v1.Pod) error
 
 	// Update a pod
 	UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
