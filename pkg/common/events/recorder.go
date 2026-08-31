@@ -57,13 +57,8 @@ func NewLevelFilteredRecorder(inner events.EventRecorder) events.EventRecorder {
 
 // Eventf reads the level on every call: the setting is hot-reloadable
 func (r *levelFilteredRecorder) Eventf(regarding runtime.Object, related runtime.Object, eventtype, reason, action, note string, args ...interface{}) {
-	switch conf.GetSchedulerConf().KubeEventLevel {
-	case conf.EventLevelNone:
+	if conf.GetSchedulerConf().KubeEventLevel == conf.EventLevelWarning && eventtype != v1.EventTypeWarning {
 		return
-	case conf.EventLevelWarning:
-		if eventtype != v1.EventTypeWarning {
-			return
-		}
 	}
 	r.inner.Eventf(regarding, related, eventtype, reason, action, note, args...)
 }

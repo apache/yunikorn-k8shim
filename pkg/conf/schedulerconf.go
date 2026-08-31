@@ -101,11 +101,10 @@ const (
 	DefaultKubeEventLevel                  = EventLevelNormal
 	DefaultAMFilteringGenerateUniqueAppIds = false
 
-	// event levels, the value of CMKubeEventLevel: all events, the Warning events only, or
-	// no events at all
+	// event levels, the value of CMKubeEventLevel: all events, or the Warning events only.
+	// They mirror the Kubernetes event types Normal and Warning.
 	EventLevelNormal  = "normal"
 	EventLevelWarning = "warning"
-	EventLevelNone    = "none"
 )
 
 var (
@@ -399,7 +398,7 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 
 	// an unknown event level falls back to the default, it must not fail the configuration
 	switch conf.KubeEventLevel {
-	case EventLevelNormal, EventLevelWarning, EventLevelNone:
+	case EventLevelNormal, EventLevelWarning:
 	default:
 		log.Log(log.ShimConfig).Warn("unknown event level, using the default",
 			zap.String("key", CMKubeEventLevel),

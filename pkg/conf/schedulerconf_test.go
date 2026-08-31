@@ -230,7 +230,7 @@ func TestParseEventLevel(t *testing.T) {
 	}{
 		{"normal", EventLevelNormal, EventLevelNormal},
 		{"warning", EventLevelWarning, EventLevelWarning},
-		{"none", EventLevelNone, EventLevelNone},
+		{"none", "none", DefaultKubeEventLevel},
 		{"unknown", "verbose", DefaultKubeEventLevel},
 	}
 

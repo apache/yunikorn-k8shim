@@ -52,7 +52,6 @@ func TestLevelFilteredRecorder(t *testing.T) {
 	}{
 		{conf.EventLevelNormal, []string{v1.EventTypeNormal, v1.EventTypeWarning}},
 		{conf.EventLevelWarning, []string{v1.EventTypeWarning}},
-		{conf.EventLevelNone, nil},
 	}
 
 	original := conf.GetSchedulerConf()

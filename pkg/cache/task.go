@@ -434,7 +434,7 @@ func (task *Task) postTaskRejected() {
 // send different requests to scheduler-core, depending on current task state
 func (task *Task) beforeTaskFail() {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
+		v1.EventTypeWarning, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 	task.releaseAllocation(false)
 }
