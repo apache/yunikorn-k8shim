@@ -80,9 +80,9 @@ docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-amd64-l
 ```
 
 ## Design documents
-All design documents are located in our [website](http://yunikorn.apache.org/docs/next/design/architecture). 
+All design documents are located in our [website](https://yunikorn.apache.org/docs/next/design/architecture). 
 The core component design documents also contains the design documents for cross component designs.
 
 ## How do I contribute code?
 
-See how to contribute code in [our website](http://yunikorn.apache.org/community/how_to_contribute).
+See how to contribute code in [our website](https://yunikorn.apache.org/community/how_to_contribute).
