@@ -1264,3 +1264,47 @@ func TestWaitForCondition(t *testing.T) {
 		}
 	}
 }
+
+func dummyGoroutineWorker(stop chan struct{}) {
+	<-stop
+}
+
+func TestCountGoroutines(t *testing.T) {
+	// Negative test: empty pattern should return 0
+	assert.Equal(t, CountGoroutines(""), 0, "empty pattern should return 0")
+
+	// Negative test: non-existent pattern should return 0
+	assert.Equal(t, CountGoroutines("nonExistentGoroutineWorker_XYZ"), 0, "non-existent pattern should return 0")
+
+	// 0-1-N concurrency boundary test: 0 -> 3 -> 2 -> 0
+	assert.Equal(t, CountGoroutines("dummyGoroutineWorker"), 0)
+
+	stop1 := make(chan struct{})
+	stop2 := make(chan struct{})
+	stop3 := make(chan struct{})
+
+	go dummyGoroutineWorker(stop1)
+	go dummyGoroutineWorker(stop2)
+	go dummyGoroutineWorker(stop3)
+
+	// Verify count transitions from 0 to 3
+	err := WaitForCondition(func() bool {
+		return CountGoroutines("dummyGoroutineWorker") == 3
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected exactly 3 goroutines")
+
+	// Verify count decreases from 3 to 2 when one goroutine finishes
+	close(stop1)
+	err = WaitForCondition(func() bool {
+		return CountGoroutines("dummyGoroutineWorker") == 2
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected count to decrease to 2")
+
+	// Verify count decreases from 2 to 0 when remaining goroutines finish
+	close(stop2)
+	close(stop3)
+	err = WaitForCondition(func() bool {
+		return CountGoroutines("dummyGoroutineWorker") == 0
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected all goroutines to terminate")
+}
