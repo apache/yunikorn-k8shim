@@ -40,16 +40,22 @@ type PlaceholderManager struct {
 	// when the placeholder manager is unable to delete a pod,
 	// this pod becomes to be an "orphan" pod. We add them to a map
 	// and keep retrying deleting them in order to avoid wasting resources.
-	orphanPods  map[string]*v1.Pod
-	stopChan    chan struct{}
+	orphanPods map[string]*v1.Pod
+	stopChan   chan struct{}
+	// closed when the cleanup loop exits so Stop can wait for shutdown to complete
 	doneChan    chan struct{}
 	stopOnce    sync.Once
 	started     atomic.Bool
-	running     atomic.Bool
 	cancel      context.CancelFunc
 	cleanupCtx  context.Context
 	cleanupTime time.Duration
-	// a simple mutex will do we do not have separate read and write paths
+	// serializes placeholder creation with application cleanup
+	operationLock locking.Mutex
+	// prevents cleanup work from being added after shutdown begins
+	cleanupLock    locking.Mutex
+	cleanupWorkers sync.WaitGroup
+	stopping       bool
+	// protects orphanPods and cleanupTime
 	locking.RWMutex
 }
 
@@ -81,8 +87,8 @@ func getPlaceholderManager() *PlaceholderManager {
 }
 
 func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
-	mgr.Lock()
-	defer mgr.Unlock()
+	mgr.operationLock.Lock()
+	defer mgr.operationLock.Unlock()
 
 	// map task group to count of already created placeholders
 	tgCounts := make(map[string]int32)
@@ -114,12 +120,18 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 
 // clean up all the placeholders for an application
 func (mgr *PlaceholderManager) cleanUp(app *Application) {
+	mgr.operationLock.Lock()
+	defer mgr.operationLock.Unlock()
+
 	log.Log(log.ShimCachePlaceholder).Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 	for _, task := range app.GetPlaceHolderTasks() {
 		// remove pod
-		err := mgr.clients.KubeClient.Delete(context.Background(), task.GetTaskPod())
+		err := mgr.clients.KubeClient.Delete(mgr.cleanupCtx, task.GetTaskPod())
 		if err != nil {
+			if mgr.cleanupCtx.Err() != nil {
+				return
+			}
 			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
 				zap.Error(err))
 			if !strings.Contains(err.Error(), "not found") {
@@ -131,6 +143,21 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	}
 	log.Log(log.ShimCachePlaceholder).Info("finished cleaning up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
+}
+
+func (mgr *PlaceholderManager) cleanUpAsync(app *Application) {
+	mgr.cleanupLock.Lock()
+	if !mgr.started.Load() || mgr.stopping {
+		mgr.cleanupLock.Unlock()
+		return
+	}
+	mgr.cleanupWorkers.Add(1)
+	mgr.cleanupLock.Unlock()
+
+	go func() {
+		defer mgr.cleanupWorkers.Done()
+		mgr.cleanUp(app)
+	}()
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders(ctx context.Context) {
@@ -174,12 +201,10 @@ func (mgr *PlaceholderManager) Start() {
 		return
 	}
 	log.Log(log.ShimCachePlaceholder).Info("starting the PlaceholderManager")
-	mgr.setRunning(true)
 	go func() {
 		ticker := time.NewTicker(mgr.getCleanupTime())
 		defer func() {
 			ticker.Stop()
-			mgr.setRunning(false)
 			close(mgr.doneChan)
 			log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has been stopped")
 		}()
@@ -201,20 +226,15 @@ func (mgr *PlaceholderManager) Stop() {
 	}
 	mgr.stopOnce.Do(func() {
 		log.Log(log.ShimCachePlaceholder).Info("stopping the PlaceholderManager")
+		mgr.cleanupLock.Lock()
+		mgr.stopping = true
 		mgr.cancel()
 		close(mgr.stopChan)
+		mgr.cleanupLock.Unlock()
 	})
 	<-mgr.doneChan
+	mgr.cleanupWorkers.Wait()
 }
-
-func (mgr *PlaceholderManager) isRunning() bool {
-	return mgr.running.Load()
-}
-
-func (mgr *PlaceholderManager) setRunning(flag bool) {
-	mgr.running.Store(flag)
-}
-
 func (mgr *PlaceholderManager) getOrphanPodsLength() int {
 	mgr.RLock()
 	defer mgr.RUnlock()
