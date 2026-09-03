@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -156,6 +158,295 @@ func TestDispatcherStartStop(t *testing.T) {
 	} else {
 		t.Logf("seen expected error: %v", err)
 	}
+}
+
+func TestDispatcherConcurrentStartStop(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+
+	const callers = 100
+	start := make(chan struct{})
+	var started sync.WaitGroup
+	var startTransitions atomic.Int32
+	started.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer started.Done()
+			<-start
+			if dispatcher.start() {
+				startTransitions.Add(1)
+			}
+		}()
+	}
+	close(start)
+	started.Wait()
+	assert.Equal(t, startTransitions.Load(), int32(1))
+	assert.Assert(t, dispatcher.isRunning())
+
+	stop := make(chan struct{})
+	var stopped sync.WaitGroup
+	var panics atomic.Int32
+	stopped.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer stopped.Done()
+			defer func() {
+				if recover() != nil {
+					panics.Add(1)
+				}
+			}()
+			<-stop
+			Stop()
+		}()
+	}
+	close(stop)
+	stopped.Wait()
+	assert.Equal(t, panics.Load(), int32(0))
+	assert.Assert(t, !dispatcher.isRunning())
+}
+
+func TestDispatcherRepeatedStartStop(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+
+	processed := make(chan string, 1)
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		if event, ok := obj.(TestAppEvent); ok {
+			processed <- event.appID
+		}
+	})
+
+	for i := 0; i < 10; i++ {
+		appID := fmt.Sprintf("test-app-%d", i)
+		Start()
+		assert.Assert(t, dispatcher.isRunning())
+		Dispatch(TestAppEvent{appID: appID, eventType: RunApplication})
+		select {
+		case processedAppID := <-processed:
+			assert.Equal(t, processedAppID, appID)
+		case <-time.After(time.Second):
+			t.Fatalf("dispatcher did not process event during lifecycle %d", i)
+		}
+		Stop()
+		assert.Assert(t, !dispatcher.isRunning())
+	}
+}
+
+func TestDispatcherStopBeforeStart(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+
+	Stop()
+	assert.Assert(t, !dispatcher.isRunning())
+	Start()
+	assert.Assert(t, dispatcher.isRunning())
+	Stop()
+	assert.Assert(t, !dispatcher.isRunning())
+}
+
+func TestDispatcherStopWaitsForWorker(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+	dispatcher.stopTimeout = time.Second
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	defer releaseHandler()
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		close(blocked)
+		<-release
+	})
+
+	Start()
+	Dispatch(TestAppEvent{appID: "blocked", eventType: RunApplication})
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("dispatcher did not start processing the blocking event")
+	}
+
+	stopComplete := make(chan struct{})
+	go func() {
+		Stop()
+		close(stopComplete)
+	}()
+
+	select {
+	case <-stopComplete:
+		t.Fatal("Stop returned while the dispatcher worker was still active")
+	case <-time.After(50 * time.Millisecond):
+	}
+	releaseHandler()
+
+	select {
+	case <-stopComplete:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return after the dispatcher worker exited")
+	}
+	assert.Assert(t, !dispatcher.isRunning())
+}
+
+func TestDispatcherRestartAfterStopTimeout(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+	dispatcher.stopTimeout = 50 * time.Millisecond
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	defer releaseHandler()
+
+	processed := make(chan string, 2)
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		event, ok := obj.(TestAppEvent)
+		if !ok {
+			return
+		}
+		if event.appID == "blocked" {
+			close(blocked)
+			<-release
+		}
+		processed <- event.appID
+	})
+
+	Start()
+	Dispatch(TestAppEvent{appID: "blocked", eventType: RunApplication})
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("dispatcher did not start processing the blocking event")
+	}
+
+	Stop()
+	assert.Assert(t, !dispatcher.isRunning())
+
+	Start()
+	Dispatch(TestAppEvent{appID: "replacement", eventType: RunApplication})
+	select {
+	case appID := <-processed:
+		assert.Equal(t, appID, "replacement")
+	case <-time.After(time.Second):
+		t.Fatal("replacement dispatcher did not process an event after shutdown timed out")
+	}
+
+	releaseHandler()
+	select {
+	case appID := <-processed:
+		assert.Equal(t, appID, "blocked")
+	case <-time.After(time.Second):
+		t.Fatal("stale dispatcher handler did not return")
+	}
+
+	assert.Assert(t, dispatcher.isRunning(), "stale dispatcher changed the replacement lifecycle state")
+}
+
+func TestDispatcherStartWaitsForConcurrentStop(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+	dispatcher.stopTimeout = 200 * time.Millisecond
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	defer releaseHandler()
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		close(blocked)
+		<-release
+	})
+
+	Start()
+	Dispatch(TestAppEvent{appID: "blocked", eventType: RunApplication})
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("dispatcher did not start processing the blocking event")
+	}
+
+	stopReturned := make(chan struct{})
+	go func() {
+		Stop()
+		close(stopReturned)
+	}()
+	err := utils.WaitForCondition(func() bool {
+		return !dispatcher.isRunning()
+	}, time.Millisecond, time.Second)
+	assert.NilError(t, err)
+
+	startReturned := make(chan struct{})
+	go func() {
+		Start()
+		close(startReturned)
+	}()
+	select {
+	case <-startReturned:
+		t.Fatal("Start returned before the concurrent Stop completed")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	select {
+	case <-stopReturned:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return after its timeout")
+	}
+	select {
+	case <-startReturned:
+	case <-time.After(time.Second):
+		t.Fatal("Start did not create a replacement after Stop completed")
+	}
+	assert.Assert(t, dispatcher.isRunning())
+	releaseHandler()
+}
+
+func TestAsyncDispatchStopsWithDispatcherRun(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	dispatcher.asyncDispatchCheckInterval = time.Second
+	dispatcher.dispatchTimeout = 5 * time.Second
+	dispatcher.stopTimeout = 50 * time.Millisecond
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		if event, ok := obj.(TestAppEvent); ok && event.appID == "blocked" {
+			close(blocked)
+			<-release
+		}
+	})
+
+	Start()
+	Dispatch(TestAppEvent{appID: "blocked", eventType: RunApplication})
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("dispatcher did not start processing the blocking event")
+	}
+	Dispatch(TestAppEvent{appID: "queued", eventType: RunApplication})
+	Dispatch(TestAppEvent{appID: "async", eventType: RunApplication})
+	assert.Equal(t, dispatcher.asyncDispatchCount.Load(), int32(1))
+
+	Stop()
+	err := utils.WaitForCondition(func() bool {
+		return dispatcher.asyncDispatchCount.Load() == 0
+	}, time.Millisecond, time.Second)
+	assert.NilError(t, err)
 }
 
 // Test sending events from multiple senders in parallel,
