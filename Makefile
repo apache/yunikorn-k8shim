@@ -243,6 +243,10 @@ DOCKER := podman
 endif
 endif
 
+ifeq ($(DOCKER),podman)
+export KIND_EXPERIMENTAL_PROVIDER := podman
+endif
+
 # Force Go modules even when checked out inside GOPATH
 GO111MODULE := on
 export GO111MODULE

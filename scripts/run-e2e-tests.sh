@@ -102,7 +102,7 @@ function check_os() {
 function check_docker() {
   check_cmd "${DOCKER}"
   "${DOCKER}" info &> /dev/null
-  exit_on_error "${DOCKER} daemon must be running"
+  exit_on_error "${DOCKER} is not available"
 }
 
 # load an image into the kind cluster
