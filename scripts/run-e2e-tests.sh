@@ -20,6 +20,7 @@ TOOLS_DIRECTORY=tools
 HELM_VERSION=$(make -s print_helm_version)
 KIND_VERSION=$(make -s print_kind_version)
 KUBECTL_VERSION=$(make -s print_kubectl_version)
+DOCKER=$(make -s print_docker)
 HELM=$TOOLS_DIRECTORY/helm-$HELM_VERSION/helm
 KIND=$TOOLS_DIRECTORY/kind-$KIND_VERSION/kind
 KUBECTL=$TOOLS_DIRECTORY/kubectl-$KUBECTL_VERSION/kubectl
@@ -97,13 +98,26 @@ function check_os() {
   fi
 }
 
-# check docker available and up
+# check docker/podman available and up
 function check_docker() {
-  check_cmd "docker"
-  DOCKER_UP=$(docker version | grep "^Server:")
-  if [ -z "${DOCKER_UP}" ]; then
-    echo "docker daemon must be running"
-    return 1
+  check_cmd "${DOCKER}"
+  "${DOCKER}" info &> /dev/null
+  exit_on_error "${DOCKER} is not available"
+}
+
+# load an image into the kind cluster
+function load_image() {
+  IMAGE=$1
+  if [ "${DOCKER}" = "podman" ]; then
+    ARCHIVE=$(mktemp -t yunikorn-image.XXXXXX)
+    "${DOCKER}" save "${IMAGE}" -o "${ARCHIVE}"
+    exit_on_error "failed to export image: ${IMAGE}"
+    "${KIND}" load image-archive "${ARCHIVE}" --name "${CLUSTER_NAME}"
+    RC=$?
+    rm -f "${ARCHIVE}"
+    return ${RC}
+  else
+    "${KIND}" load docker-image "${IMAGE}" --name "${CLUSTER_NAME}"
   fi
 }
 
@@ -133,9 +147,9 @@ function install_cluster() {
   # build docker images from latest code, so that we can install yunikorn with these latest images
   echo "step 3/6: building docker images from latest code"
   check_docker
-  QUIET="--quiet" REGISTRY=local VERSION=latest make image
+  QUIET="--quiet" REGISTRY="${IMAGE_REGISTRY}" VERSION=latest make image
   exit_on_error "build docker images failed"
-  QUIET="--quiet" REGISTRY=local VERSION=latest make webtest_image
+  QUIET="--quiet" REGISTRY="${IMAGE_REGISTRY}" VERSION=latest make webtest_image
   exit_on_error "build test web images failed"
 
   # create K8s cluster
@@ -149,24 +163,24 @@ function install_cluster() {
   echo "cluster node definitions:"
   "${KUBECTL}" describe nodes
 
-  # pre-load yunikorn docker images to kind
+  # pre-load yunikorn images to kind
   echo "step 5/6: pre-load yunikorn images"
-  "${KIND}" load docker-image "local/yunikorn:${SCHEDULER_IMAGE}" --name "${CLUSTER_NAME}"
+  load_image "${IMAGE_REGISTRY}/yunikorn:${SCHEDULER_IMAGE}"
   exit_on_error "pre-load scheduler image failed: ${SCHEDULER_IMAGE}"
-  "${KIND}" load docker-image "local/yunikorn:${ADMISSION_IMAGE}" --name "${CLUSTER_NAME}"
+  load_image "${IMAGE_REGISTRY}/yunikorn:${ADMISSION_IMAGE}"
   exit_on_error "pre-load admission controller image failed: ${ADMISSION_IMAGE}"
-  "${KIND}" load docker-image "local/yunikorn:${WEBTEST_IMAGE}" --name "${CLUSTER_NAME}"
+  load_image "${IMAGE_REGISTRY}/yunikorn:${WEBTEST_IMAGE}"
   exit_on_error "pre-load web image failed: ${WEBTEST_IMAGE}"
 
   echo "step 6/6: installing yunikorn"
   "${HELM}" install yunikorn "${CHART_PATH}" --namespace yunikorn \
-    --set image.repository=local/yunikorn \
+    --set image.repository="${IMAGE_REGISTRY}/yunikorn" \
     --set image.tag="${SCHEDULER_IMAGE}" \
     --set image.pullPolicy=IfNotPresent \
-    --set admissionController.image.repository=local/yunikorn \
+    --set admissionController.image.repository="${IMAGE_REGISTRY}/yunikorn" \
     --set admissionController.image.tag="${ADMISSION_IMAGE}" \
     --set admissionController.image.pullPolicy=IfNotPresent \
-    --set web.image.repository=local/yunikorn \
+    --set web.image.repository="${IMAGE_REGISTRY}/yunikorn" \
     --set web.image.tag="${WEBTEST_IMAGE}" \
     --set web.image.pullPolicy=IfNotPresent \
     --set deadlockDetection.enabled=true \
@@ -190,10 +204,14 @@ function print_usage() {
   NAME=$(basename "$0")
   cat <<EOF
 Usage: ${NAME} -a <action> -n <kind-cluster-name> -v <kind-node-image-version> [-p <chart-path>]
-  <action>                     the action to be executed, must be either "test" or "cleanup".
+  <action>                     the action to be executed, must be either "test", "install" or "cleanup".
   <kind-cluster-name>          the name of the K8s cluster to be created by kind
   <kind-node-image-version>    the kind node image used to provision the K8s cluster, required for "test" action
   <chart-path>                 local path to helm charts path (default is to pull from GitHub master)
+
+Environment:
+  DOCKER                       container engine, "docker" or "podman"; auto-detected by the Makefile
+                               when not set (docker preferred, podman when docker is absent)
 
 Examples:
   ${NAME} -a test -n yk8s -v kindest/node:v1.24.17
@@ -208,6 +226,9 @@ Examples:
 
   Use a local helm chart path:
     ${NAME} -a test -n yk8s -v kindest/node:v1.32.2 -p ../yunikorn-release/helm-charts/yunikorn
+
+  Force podman even when docker is installed:
+    DOCKER=podman ${NAME} -a test -n yk8s -v kindest/node:v1.32.2
 EOF
 }
 
@@ -220,6 +241,11 @@ check_os
 
 CHART_PATH="./build/yunikorn-release/helm-charts/yunikorn"
 GIT_CLONE=true
+IMAGE_REGISTRY="local"
+if [ "${DOCKER}" = "podman" ]; then
+  IMAGE_REGISTRY="localhost/local"
+  export KIND_EXPERIMENTAL_PROVIDER=podman
+fi
 SCHEDULER_IMAGE="scheduler-${DOCKER_ARCH}-latest"
 ADMISSION_IMAGE="admission-${DOCKER_ARCH}-latest"
 WEBTEST_IMAGE="webtest-${DOCKER_ARCH}-latest"
@@ -272,6 +298,8 @@ echo "  chart path         : ${CHART_PATH}"
 echo "  operating system   : ${OS}"
 echo "  processor arch     : ${EXEC_ARCH}"
 echo "  docker arch        : ${DOCKER_ARCH}"
+echo "  docker             : ${DOCKER}"
+echo "  image registry     : ${IMAGE_REGISTRY}"
 echo "  scheduler image    : ${SCHEDULER_IMAGE}"
 echo "  admission image    : ${ADMISSION_IMAGE}"
 echo "  web image          : ${WEBTEST_IMAGE}"

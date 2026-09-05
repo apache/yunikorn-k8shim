@@ -234,6 +234,19 @@ ifeq ($(REGISTRY),)
 REGISTRY := apache
 endif
 
+# Container engine used to build images. Can be overridden with DOCKER=podman.
+ifeq ($(DOCKER),)
+ifneq ($(shell command -v docker 2>/dev/null),)
+DOCKER := docker
+else
+DOCKER := podman
+endif
+endif
+
+ifeq ($(DOCKER),podman)
+export KIND_EXPERIMENTAL_PROVIDER := podman
+endif
+
 # Force Go modules even when checked out inside GOPATH
 GO111MODULE := on
 export GO111MODULE
@@ -259,6 +272,8 @@ print_kind_version:
 	@echo $(KIND_VERSION)
 print_helm_version:
 	@echo $(HELM_VERSION)
+print_docker:
+	@echo $(DOCKER)
 
 # Install tools
 tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(GO_LICENSES_BIN) $(GINKGO_BIN)
@@ -405,7 +420,7 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
@@ -444,7 +459,7 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -471,7 +486,7 @@ sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrument
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(COVERAGE_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_INSTRUMENTED_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -498,7 +513,7 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
@@ -524,7 +539,7 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/admission/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -555,7 +570,7 @@ webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod dock
 	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
 	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/webtest/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/webtest" \
 	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
 	--label "yunikorn-e2e-web-image" \
