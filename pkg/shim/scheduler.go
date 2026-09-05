@@ -252,6 +252,10 @@ func (ss *KubernetesShim) Stop() {
 		ss.phManager.Stop()
 		// stop the dispatcher
 		dispatcher.Stop()
+		// stop the context
+		if ss.context != nil {
+			ss.context.Stop()
+		}
 	})
 	if !stopped {
 		log.Log(log.ShimScheduler).Info("scheduler is already stopped")

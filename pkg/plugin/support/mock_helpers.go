@@ -50,8 +50,13 @@ func SharedDRAManager() *dynamicresources.DefaultDRAManager {
 	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
 		resourceClaimInformer := InformerFactory(ClientSet()).Resource().V1().ResourceClaims().Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(klog.NewKlogr(), resourceClaimInformer, "ResourceClaim", "", nil)
+		// Disable device taint rules in mock helper to prevent goroutine leaks in tests.
+		// When EnableDeviceTaintRules is true, tracker.StartTracker spawns a background goroutine waiting
+		// for informers to sync, which leaks because unit test informers never sync. Existing unit tests
+		// do not exercise device taints or DRA resources. If future tests specifically require device taint
+		// tracking, this should be re-enabled along with a proper shutdown lifecycle.
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
-			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
+			EnableDeviceTaintRules: false,
 			SliceInformer:          InformerFactory(ClientSet()).Resource().V1().ResourceSlices(),
 			ClassInformer:          InformerFactory(ClientSet()).Resource().V1().DeviceClasses(),
 			TaintInformer:          InformerFactory(ClientSet()).Resource().V1beta2().DeviceTaintRules()})
