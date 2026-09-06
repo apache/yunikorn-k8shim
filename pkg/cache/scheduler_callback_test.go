@@ -631,6 +631,17 @@ var _ predicates.PredicateManager = &mockPredicateManager{}
 
 type mockPredicateManager struct{}
 
+func (m *mockPredicateManager) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	return "", nil
+}
+
+func (m *mockPredicateManager) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+	return "", nil
+}
+
+func (m *mockPredicateManager) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
+}
+
 func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
 	return nil
 }

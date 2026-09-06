@@ -370,6 +370,32 @@ func (task *Task) postTaskAllocated() {
 		// once all task related operations are done, release the lock
 		// This is important specially while calling rollbackAllocation, which needs to acquire the context lock, so we cannot hold the task lock while calling it.
 		task.lock.Lock()
+
+		// DRA Bindings
+		if len(pod.Spec.ResourceClaims) > 0 { // Have to make check more robust
+			// before binding pod to node, dra bindings to pod
+			log.Log(log.ShimCacheTask).Debug("dra bindings",
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)))
+			reserve := task.context.Reserve(pod.Name, nodeName)
+			reschedule := true
+			if reserve {
+				reschedule = false
+				preBind := task.context.PreBind(pod.Name, nodeName)
+				if !preBind {
+					reschedule = true
+					task.context.Unreserve(pod.Name, nodeName)
+				}
+			}
+			if reschedule {
+				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodDRABindFailure",
+					fmt.Sprintf("Failed to bind dra for %s on node %s, it will be retried", alias, nodeName))
+				return
+			}
+		}
+
+		// Bind Pod Volumes
+
 		// before binding pod to node, first bind volumes to pod
 		log.Log(log.ShimCacheTask).Debug("bind pod volumes",
 			zap.String("podName", pod.Name),
@@ -691,12 +717,14 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, eventReason, eventReason, eventMsg)
 
-	// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
-	// even if AssumePodVolumes was never reached or already cleaned up internally.
-	task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
+	if len(podCopy.Spec.Volumes) > 0 {
+		// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
+		// even if AssumePodVolumes was never reached or already cleaned up internally.
+		task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
 
-	// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
-	task.context.ForgetPod(allocationKey)
+		// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
+		task.context.ForgetPod(allocationKey)
+	}
 
 	// Notify the core to roll back the allocation to a pending ask.
 	if schedulerAPI := task.context.apiProvider.GetAPIs().SchedulerAPI; schedulerAPI != nil {

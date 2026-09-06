@@ -41,6 +41,10 @@ type AsyncRMCallback struct {
 	stopCtx context.Context
 }
 
+func (callback *AsyncRMCallback) PreFilterPredicates(args *si.PreFilterPredicatesArgs) *si.PreFilterPredicatesResponse {
+	return nil
+}
+
 var _ api.ResourceManagerCallback = &AsyncRMCallback{}
 var _ api.StateDumpPlugin = &AsyncRMCallback{}
 

@@ -58,7 +58,7 @@ var (
 func TestPreemptionPredicatesEmpty(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	pod := &v1.Pod{}
 	node := framework.NewNodeInfo()
@@ -71,7 +71,7 @@ func TestPreemptionPredicatesEmpty(t *testing.T) {
 func TestPreemptionPredicates(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	pod := newResourcePod(framework.Resource{MilliCPU: 500, Memory: 5000000})
 	pod.Name = "smallpod"
@@ -119,7 +119,7 @@ func TestPreemptionPredicates(t *testing.T) {
 func TestEventsToRegister(t *testing.T) {
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	var queueingHintFn fwk.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (fwk.QueueingHint, error) {
 		// illegal sentinel to ensure we called the correct function
@@ -141,7 +141,7 @@ func TestEventsToRegister(t *testing.T) {
 func TestPodFitsHost(t *testing.T) {
 	ep := enabledPlugins(nodename.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 	tests := []struct {
 		pod  *v1.Pod
 		node *v1.Node
@@ -224,7 +224,7 @@ func newPod(host string, hostPortInfos ...string) *v1.Pod {
 func TestPodFitsHostPorts(t *testing.T) {
 	ep := enabledPlugins(nodeports.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -338,7 +338,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 func TestPodFitsSelector(t *testing.T) {
 	ep := enabledPlugins(nodeports.Name, nodeaffinity.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	tests := []struct {
 		pod      *v1.Pod
@@ -1095,7 +1095,7 @@ func TestEnableOptionalKubernetesFeatureGates(t *testing.T) {
 func TestRunGeneralPredicates(t *testing.T) {
 	ep := enabledPlugins(noderesources.Name, nodename.Name, nodeports.Name, nodevolumelimits.CSIName)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	resourceTests := []struct {
 		pod      *v1.Pod
@@ -1171,7 +1171,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 func TestInterPodAffinity(t *testing.T) {
 	ep := enabledPlugins(interpodaffinity.Name, nodeaffinity.Name)
 	handle, lister := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
@@ -2129,13 +2129,13 @@ func TestReserveAlloc(t *testing.T) {
 	// no predicates configured that are run by reservations
 	ep := enabledPlugins()
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 	_, err := predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
-	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager = newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 	_, err = predicateManager.Predicates(pod, nodeInfo, false)
 	assert.NilError(t, err, "error should have been nil, node is schedulable")
 
@@ -2170,7 +2170,7 @@ func TestReserveNodeSelector(t *testing.T) {
 
 	ep := enabledPlugins(nodename.Name, nodeports.Name, podtopologyspread.Name, nodeaffinity.Name)
 	handle, _ := getFrameworkHandle()
-	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep)
+	predicateManager := newPredicateManagerInternal(handle, ep, ep, ep, ep, nil, nil)
 
 	testCases := []struct {
 		name          string
