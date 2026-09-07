@@ -120,14 +120,15 @@ func ShimSchedulerOptions() []goleak.Option {
 }
 
 // shimOwnedOptions returns the pkg/shim entries whose cause is in shim code.
-// One is left: YUNIKORN-3367 fixed the shim shutdown path that leaked the
-// other three.
+//
+// Empty: the burn-down is done. This group started at four entries and both
+// causes have since been fixed on master. YUNIKORN-3367 closed the shim stop
+// channel and always releases the dispatcher and placeholder manager, which
+// removed three; YUNIKORN-3369 aborted the AssumePod retry loop on shutdown,
+// which removed the last one. Nothing the shim leaks is exempt any more, so a
+// new shim-owned leak fails the build rather than being carved out.
 func shimOwnedOptions() []goleak.Option {
-	return []goleak.Option{
-		// AssumePod retry on the RM proxy loop. See YUNIKORN-3369. Keyed on the
-		// callback frame, not the top frame (time.Sleep), which is too broad.
-		goleak.IgnoreAnyFunction("github.com/apache/yunikorn-k8shim/pkg/cache.(*AsyncRMCallback).UpdateAllocation"),
-	}
+	return nil
 }
 
 // coreServiceOptions returns the pkg/shim entries that come from yunikorn-core:
@@ -146,7 +147,11 @@ func coreServiceOptions() []goleak.Option {
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*Scheduler).internalInspectOutstandingRequests"),
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*Scheduler).internalQuotaPreemption"),
 
-		// internalSchedule wedged on an RM reply shutdown never delivers. See YUNIKORN-3365.
+		// internalSchedule wedged on an RM reply shutdown never delivers. See
+		// YUNIKORN-3365. The only intermittent entry: the wedge is a shutdown
+		// race, and it did not reproduce in five consecutive runs against core
+		// 2577453c1aed. Kept because 3365 is still open and a leak that shows up
+		// once in CI is worse than an entry that costs nothing.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*ClusterContext).notifyRMNewAllocation"),
 
 		// Node usage monitor and health checker (Scheduler.StartService). See YUNIKORN-3370.
