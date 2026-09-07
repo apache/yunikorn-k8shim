@@ -26,7 +26,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
 
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -180,6 +179,7 @@ func (c *KubeClientMock) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	return c.updateStatusFn(pod)
 }
 
+// Get returns a pod tracked by the mock, it is a test only helper and not part of KubeClient
 func (c *KubeClientMock) Get(podNamespace string, podName string) (*v1.Pod, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -202,12 +202,6 @@ func (c *KubeClientMock) GetClientSet() kubernetes.Interface {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.clientSet
-}
-
-func (c *KubeClientMock) GetConfigs() *rest.Config {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return nil
 }
 
 func (c *KubeClientMock) GetConfigMap(namespace string, name string) (*v1.ConfigMap, error) {

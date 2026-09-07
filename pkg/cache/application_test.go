@@ -221,7 +221,8 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	mgr.Start()
 	defer mgr.Stop()
 
-	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	mockClient, ok := mockedAPIProvider.GetAPIs().KubeClient.(*client.KubeClientMock)
+	assert.Assert(t, ok, "expecting KubeClientMock")
 	context.apiProvider.GetAPIs().KubeClient = mockClient
 
 	ms := &mockSchedulerAPI{}
@@ -323,7 +324,8 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		return pod, nil
 	})
 
-	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	mockClient, ok := mockedAPIProvider.GetAPIs().KubeClient.(*client.KubeClientMock)
+	assert.Assert(t, ok, "expecting KubeClientMock")
 	context.apiProvider.GetAPIs().KubeClient = mockClient
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	mgr.Start()

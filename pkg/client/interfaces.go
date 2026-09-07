@@ -21,7 +21,8 @@ package client
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 type KubeClient interface {
@@ -40,21 +41,23 @@ type KubeClient interface {
 	// Update the status of a pod
 	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
 
-	// Get a pod
-	Get(podNamespace string, podName string) (*v1.Pod, error)
-
 	// minimal expose this, only informers factory needs it
 	GetClientSet() kubernetes.Interface
-
-	GetConfigs() *rest.Config
 
 	GetConfigMap(namespace string, name string) (*v1.ConfigMap, error)
 }
 
+// NewKubeClient creates the scheduler client: it carries the scheduling actions and backs
+// the informers. The kubernetes.qps and kubernetes.burst policy from the scheduler
+// configuration applies, so the client must be created after the configmaps are loaded.
 func NewKubeClient(kc string) KubeClient {
-	return newSchedulerKubeClient(kc)
+	schedulerConf := conf.GetSchedulerConf()
+	return newKubeClient(kc, schedulerConf.KubeQPS, schedulerConf.KubeBurst, userAgentScheduler)
 }
 
-func NewBootstrapKubeClient(kc string) KubeClient {
-	return newBootstrapSchedulerKubeClient(kc)
+// NewAdmissionControllerKubeClient creates the admission controller client. It runs on the
+// client-go defaults: its traffic is three small informers and the occasional webhook or
+// secret write.
+func NewAdmissionControllerKubeClient(kc string) KubeClient {
+	return newKubeClient(kc, 0, 0, userAgentAdmissionController)
 }

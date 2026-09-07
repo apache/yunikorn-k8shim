@@ -89,8 +89,14 @@ type APIFactory struct {
 	lock     *locking.RWMutex
 }
 
-func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedInformerFactory, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
+// NewAPIFactory creates the clients shared by the shim.
+func NewAPIFactory(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, testMode bool) (*APIFactory, error) {
 	kubeClient := NewKubeClient(configs.KubeConfig)
+
+	// resync is disabled (period 0): the shim relies on the watch stream for updates; a
+	// periodic resync only replays the local cache into the handlers, which at scale is
+	// pure no-op churn
+	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
 	namespaceInformerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(configs.Namespace))
 	// init informers
 	// volume informers are also used to get the Listers for the predicates

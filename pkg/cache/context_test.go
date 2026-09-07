@@ -31,6 +31,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
@@ -1849,6 +1850,70 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	condition.Status = v1.ConditionFalse
 	updated = context.updatePodCondition(task, &condition)
 	assert.Equal(t, true, updated)
+}
+
+// recordedEvent is the type and the reason of an event captured by the eventTypeRecorder
+type recordedEvent struct {
+	eventType string
+	reason    string
+}
+
+// eventTypeRecorder records the type and the reason of every event it receives
+type eventTypeRecorder struct {
+	recorded []recordedEvent
+}
+
+func (r *eventTypeRecorder) Eventf(_ runtime.Object, _ runtime.Object, eventtype, reason, _, _ string, _ ...interface{}) {
+	r.recorded = append(r.recorded, recordedEvent{eventType: eventtype, reason: reason})
+}
+
+// an unschedulable pod must be reported as a Warning: the type decides if the event survives the
+// kubernetes.eventLevel filter
+func TestHandleContainerStateUpdateEventType(t *testing.T) {
+	testCases := []struct {
+		name  string
+		state si.UpdateContainerSchedulingStateRequest_SchedulingState
+	}{
+		{"skipped", si.UpdateContainerSchedulingStateRequest_SKIPPED},
+		{"failed", si.UpdateContainerSchedulingStateRequest_FAILED},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := &eventTypeRecorder{}
+			events.SetRecorder(recorder)
+			defer events.SetRecorder(events.NewMockedRecorder())
+
+			context := initContextForTest()
+			context.AddApplication(&AddApplicationRequest{
+				Metadata: ApplicationMetadata{
+					ApplicationID: appID1,
+					QueueName:     queueNameA,
+					User:          testUser,
+				},
+			})
+			task := context.AddTask(&AddTaskRequest{
+				Metadata: TaskMetadata{
+					ApplicationID: appID1,
+					TaskID:        taskUID1,
+					Pod:           newPodHelper("pod-test-00001", namespace, taskUID1, "", appID1, v1.PodPending),
+				},
+			})
+			// the pod condition, and with it the event, is only updated while the task is scheduling
+			task.sm.SetState(TaskStates().Scheduling)
+
+			context.HandleContainerStateUpdate(&si.UpdateContainerSchedulingStateRequest{
+				ApplicationID: appID1,
+				AllocationKey: taskUID1,
+				State:         tc.state,
+				Reason:        "reason",
+			})
+
+			assert.Equal(t, 1, len(recorder.recorded), "one event expected")
+			assert.Equal(t, "PodUnschedulable", recorder.recorded[0].reason, "unexpected event reason")
+			assert.Equal(t, v1.EventTypeWarning, recorder.recorded[0].eventType, "unexpected event type")
+		})
+	}
 }
 
 func TestGetExistingAllocation(t *testing.T) {

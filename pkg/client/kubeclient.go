@@ -37,34 +37,58 @@ import (
 
 type SchedulerKubeClient struct {
 	clientSet *kubernetes.Clientset
-	configs   *rest.Config
 }
 
-func newBootstrapSchedulerKubeClient(kc string) SchedulerKubeClient {
+// Every client identifies the concern it serves in its user agent so that the traffic can be
+// attributed on the API server side. That is all the concern is used for.
+const (
+	userAgentScheduler           = "yunikorn-scheduler"
+	userAgentEvents              = "yunikorn-scheduler/events"
+	userAgentBootstrap           = "yunikorn-bootstrap"
+	userAgentAdmissionController = "yunikorn-admission-controller"
+)
+
+// clientRateLimit normalises the configured qps and burst into the values set on the REST
+// config. A negative qps creates no client side limiter, a qps of 0 leaves client-go on its
+// defaults (5 QPS / 10 burst). For a positive qps client-go requires a positive burst, so an
+// unset burst defaults to the qps.
+func clientRateLimit(qps, burst int) (float32, int) {
+	if burst <= 0 {
+		burst = max(0, qps)
+	}
+	return float32(max(-1, qps)), burst
+}
+
+// newRestConfig creates a REST config for a single purpose client, see clientRateLimit for
+// the way the configured qps and burst are applied.
+func newRestConfig(kc string, qps, burst int, concern string) *rest.Config {
 	config := CreateRestConfigOrDie(kc)
+	config.UserAgent = concern
+	config.QPS, config.Burst = clientRateLimit(qps, burst)
+
+	log.Log(log.ShimClient).Info("creating Kubernetes client",
+		zap.String("concern", concern),
+		zap.Float32("qps", config.QPS),
+		zap.Int("burst", config.Burst))
+	return config
+}
+
+func newClientSetOrDie(config *rest.Config) *kubernetes.Clientset {
 	configuredClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
 	}
-	return SchedulerKubeClient{
-		clientSet: configuredClient,
-		configs:   config,
-	}
+	return configuredClient
 }
 
-func newSchedulerKubeClient(kc string) SchedulerKubeClient {
-	schedulerConf := conf.GetSchedulerConf()
-
-	config := CreateRestConfigOrDie(kc)
-	config.QPS = float32(schedulerConf.KubeQPS)
-	config.Burst = schedulerConf.KubeBurst
-	configuredClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Log(log.ShimClient).Fatal("failed to get Clientset", zap.Error(err))
-	}
+// newKubeClient creates a client for a single concern. Beside the pod writes the scheduler
+// client also backs the volume binder and the predicate framework handle, so the configured
+// QPS and burst are an opt-in policy cap on those paths as well.
+// The QPS and burst are passed in by the caller: the values from the configuration singleton
+// can only be read after UpdateConfigMaps has run.
+func newKubeClient(kc string, qps, burst int, concern string) SchedulerKubeClient {
 	return SchedulerKubeClient{
-		clientSet: configuredClient,
-		configs:   config,
+		clientSet: newClientSetOrDie(newRestConfig(kc, qps, burst, concern)),
 	}
 }
 
@@ -102,10 +126,6 @@ func CreateRestConfig(kc string) (*rest.Config, error) {
 
 func (nc SchedulerKubeClient) GetClientSet() kubernetes.Interface {
 	return nc.clientSet
-}
-
-func (nc SchedulerKubeClient) GetConfigs() *rest.Config {
-	return nc.configs
 }
 
 func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
@@ -158,18 +178,6 @@ func (nc SchedulerKubeClient) GetConfigMap(namespace string, name string) (*v1.C
 		return nil, err
 	}
 	return configmap, nil
-}
-
-func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod, error) {
-	pod, err := nc.clientSet.CoreV1().Pods(podNamespace).Get(context.Background(), podName, apis.GetOptions{})
-	if err != nil {
-		log.Log(log.ShimClient).Warn("failed to get pod",
-			zap.String("namespace", pod.Namespace),
-			zap.String("podName", pod.Name),
-			zap.Error(err))
-		return nil, err
-	}
-	return pod, nil
 }
 
 func (nc SchedulerKubeClient) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {

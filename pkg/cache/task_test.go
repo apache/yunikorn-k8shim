@@ -615,6 +615,38 @@ func TestHandleSubmitTaskEvent(t *testing.T) {
 	assert.Assert(t, allocRequest.Allocations[0].PreemptionPolicy.AllowPreemptOther)
 }
 
+// a failed task must be reported as a Warning: the type decides if the event survives the
+// kubernetes.eventLevel filter
+func TestBeforeTaskFailEventType(t *testing.T) {
+	recorder := &eventTypeRecorder{}
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
+	mockedContext, mockedAPIProvider := initContextAndAPIProviderForTest()
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod-test-00001",
+			UID:  "UID-00001",
+		},
+	}
+	app := NewApplication("app01", "root.default",
+		"bob", testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+	task := NewTask("task01", app, mockedContext, pod)
+	task.sm.SetState(TaskStates().Scheduling)
+
+	err := task.handle(NewFailTaskEvent(app.GetApplicationID(), task.GetTaskID(), "task failed"))
+	assert.NilError(t, err, "failed to handle FailTask event")
+	assert.Equal(t, task.GetTaskState(), TaskStates().Failed)
+
+	assert.Equal(t, 1, len(recorder.recorded), "one event expected")
+	assert.Equal(t, "TaskFailed", recorder.recorded[0].reason, "unexpected event reason")
+	assert.Equal(t, v1.EventTypeWarning, recorder.recorded[0].eventType, "unexpected event type")
+}
+
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {
 	const (
 		podUID    = "UID-00001"
