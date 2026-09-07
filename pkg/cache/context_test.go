@@ -2684,3 +2684,89 @@ func assertListerPods(pods []*v1.Pod, count int) bool {
 	}
 	return count == counted
 }
+
+func TestTerminatedOrphanedForeignPodNotAdopted(t *testing.T) {
+	testCases := []struct {
+		name          string
+		terminalPhase v1.PodPhase
+	}{
+		{"Succeeded", v1.PodSucceeded},
+		{"Failed", v1.PodFailed},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			context, apiProvider := initContextAndAPIProviderForTest()
+			dispatcher.Start()
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+
+			apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+				for _, node := range request.Nodes {
+					dispatcher.Dispatch(CachedSchedulerNodeEvent{
+						NodeID: node.NodeID,
+						Event:  NodeAccepted,
+					})
+				}
+				return nil
+			})
+
+			// 1. Add two foreign pods assigned to Host1 before Host1 is added:
+			//    - pod 1: will terminate while orphaned
+			//    - pod 2: remains running (live control)
+			deadPod := newPodHelper("dead-foreign-pod", "default", uid1, Host1, "", v1.PodRunning)
+			deadPod.Spec.SchedulerName = "default-scheduler"
+			context.AddPod(deadPod)
+
+			livePod := newPodHelper("live-foreign-pod", "default", uid2, Host1, "", v1.PodRunning)
+			livePod.Spec.SchedulerName = "default-scheduler"
+			context.AddPod(livePod)
+
+			assert.Assert(t, context.schedulerCache.IsPodOrphaned(uid1), "deadPod should be marked as orphaned")
+			assert.Assert(t, context.schedulerCache.IsPodOrphaned(uid2), "livePod should be marked as orphaned")
+			assert.Assert(t, context.schedulerCache.GetPod(uid1) != nil, "deadPod should be in cache")
+			assert.Assert(t, context.schedulerCache.GetPod(uid2) != nil, "livePod should be in cache")
+			assert.Equal(t, apiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(0))
+
+			// 2. deadPod terminates while still orphaned
+			deadPodTerminated := deadPod.DeepCopy()
+			deadPodTerminated.Status.Phase = tc.terminalPhase
+			context.UpdatePod(deadPod, deadPodTerminated)
+
+			// Invariant: Terminated orphaned pod must be purged; live orphaned pod must remain
+			assert.Assert(t, context.schedulerCache.GetPod(uid1) == nil, "terminated orphaned pod must be removed from cache")
+			assert.Assert(t, !context.schedulerCache.IsPodOrphaned(uid1), "terminated orphaned pod must not remain in orphan map")
+			assert.Assert(t, context.schedulerCache.GetPod(uid2) != nil, "live orphaned pod must remain in cache")
+			assert.Assert(t, context.schedulerCache.IsPodOrphaned(uid2), "live orphaned pod must remain in orphan map")
+			assert.Equal(t, apiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(0),
+				"orphaned pod termination must not send release request to core")
+
+			// 3. Node Host1 is now registered
+			node := v1.Node{
+				ObjectMeta: apis.ObjectMeta{
+					Name:      Host1,
+					Namespace: "default",
+					UID:       uid1,
+				},
+				Status: v1.NodeStatus{
+					Allocatable: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceCPU:    resource.MustParse("2"),
+						v1.ResourceMemory: resource.MustParse("2048Mi"),
+					},
+				},
+			}
+			context.addNode(&node)
+
+			// Invariant: Core must receive EXACTLY 1 allocation (for the live pod), not the dead pod
+			assert.Equal(t, apiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(1),
+				"only the live orphaned pod must be adopted on node registration")
+
+			// Invariant: The shim NodeInfo predicate cache must ONLY contain the live pod
+			nodeInfo := context.schedulerCache.GetNode(Host1)
+			assert.Assert(t, nodeInfo != nil, "node must exist in scheduler cache")
+			pods := nodeInfo.GetPods()
+			assert.Equal(t, len(pods), 1, "nodeInfo should only contain the live adopted pod")
+			assert.Equal(t, pods[0].GetPod().UID, types.UID(uid2), "nodeInfo pod must match livePod UID")
+		})
+	}
+}

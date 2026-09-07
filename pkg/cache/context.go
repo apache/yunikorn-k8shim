@@ -454,20 +454,18 @@ func (ctx *Context) updateForeignPod(oldPod, pod *v1.Pod) {
 		return
 	}
 
-	// conditions for release:
-	//   1. pod was previously assigned
-	//   2. pod is now in a terminated state
-	//   3. pod references a known node
+	// When an assigned foreign pod terminates:
+	//   1. Always remove it from schedulerCache to prevent phantom adoption if the node registers later.
+	//   2. Only trigger allocation release in the core if the pod was assigned to a known node (not orphaned).
 	if oldPod != nil && utils.IsPodTerminated(pod) {
-		if !ctx.schedulerCache.IsPodOrphaned(string(pod.UID)) {
+		isOrphaned := ctx.schedulerCache.IsPodOrphaned(string(pod.UID))
+		ctx.schedulerCache.RemovePod(pod)
+		if !isOrphaned {
 			log.Log(log.ShimContext).Debug("pod terminated, trigger foreign resource update",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),
 				zap.String("podStatusBefore", podStatusBefore),
 				zap.String("podStatusCurrent", string(pod.Status.Phase)))
-			// this means pod is terminated
-			// remove from the scheduler cache and create release request to remove foreign allocation from the core
-			ctx.schedulerCache.RemovePod(pod)
 			releaseReq := common.CreateReleaseRequestForForeignPod(string(pod.UID), constants.DefaultPartition)
 			if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(releaseReq); err != nil {
 				log.Log(log.ShimContext).Error("failed to remove foreign allocation from the core",
