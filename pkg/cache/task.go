@@ -392,8 +392,15 @@ func (task *Task) postTaskAllocated() {
 			task.lock.Unlock()
 			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
 				fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
+
+			// delete the cycle state
+			task.context.schedulerCache.DeleteCycleState(pod)
 			return
 		}
+
+		// delete the cycle state
+		task.context.schedulerCache.DeleteCycleState(pod)
+
 		log.Log(log.ShimCacheTask).Debug("bind pod",
 			zap.String("podName", pod.Name),
 			zap.String("podUID", string(pod.UID)))
