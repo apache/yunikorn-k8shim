@@ -39,6 +39,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -760,7 +761,7 @@ func (k *KubeCtl) UpdateConfigMap(cMap *v1.ConfigMap, namespace string) (*v1.Con
 }
 
 func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struct{}, eventHandler cache.ResourceEventHandler) error {
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace))
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(k.clientSet, 0, informers.WithNamespace(namespace), informers.WithTransform(stripManagedFields()))
 	informerFactory.Start(stopChan)
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
 	_, err := configMapInformer.Informer().AddEventHandler(eventHandler)
@@ -776,6 +777,17 @@ func (k *KubeCtl) StartConfigMapInformer(namespace string, stopChan <-chan struc
 	}
 
 	return nil
+}
+
+// stripManagedFields removes the managed fields from objects received by the informers as we do not need them.
+// If any future code relies on the managed fields to be available this might need adjustments.
+func stripManagedFields() cache.TransformFunc {
+	return func(in any) (any, error) {
+		if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+			obj.SetManagedFields(nil)
+		}
+		return in, nil
+	}
 }
 
 func (k *KubeCtl) DeleteConfigMap(cName string, namespace string) error {
@@ -810,8 +822,8 @@ func (k *KubeCtl) CreateDeployment(deployment *appsv1.Deployment, namespace stri
 	return k.clientSet.AppsV1().Deployments(namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }
 
-func (k *KubeCtl) CreateStatefulSet(stetafulSet *appsv1.StatefulSet, namespace string) (*appsv1.StatefulSet, error) {
-	return k.clientSet.AppsV1().StatefulSets(namespace).Create(context.TODO(), stetafulSet, metav1.CreateOptions{})
+func (k *KubeCtl) CreateStatefulSet(statefulSet *appsv1.StatefulSet, namespace string) (*appsv1.StatefulSet, error) {
+	return k.clientSet.AppsV1().StatefulSets(namespace).Create(context.TODO(), statefulSet, metav1.CreateOptions{})
 }
 
 func (k *KubeCtl) CreateReplicaSet(replicaSet *appsv1.ReplicaSet, namespace string) (*appsv1.ReplicaSet, error) {
