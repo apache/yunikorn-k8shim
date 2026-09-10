@@ -203,6 +203,26 @@ func TestSchedulerStopStopsAPIFactory(t *testing.T) {
 	shim.Stop()
 }
 
+func TestSchedulingLoopsShutdownOnStop(t *testing.T) {
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	assert.Check(t, cluster.started.Load(), "cluster should be started")
+
+	// Ensure both scheduling loops are active
+	err := utils.WaitForCondition(func() bool {
+		return utils.CountGoroutines("(*KubernetesShim).doScheduling") == 2
+	}, 10*time.Millisecond, 5*time.Second)
+	assert.NilError(t, err, "both scheduling loops should be running after cluster start")
+
+	// Verify stop terminates both scheduling loops
+	cluster.stop()
+	err = utils.WaitForCondition(func() bool {
+		return utils.CountGoroutines("(*KubernetesShim).doScheduling") == 0
+	}, 10*time.Millisecond, 5*time.Second)
+	assert.NilError(t, err, "both scheduling loops should terminate when scheduler is stopped")
+}
+
 func TestNewCallbackWithCancel(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	shimCtx := cache.NewContext(mockedAPIProvider)

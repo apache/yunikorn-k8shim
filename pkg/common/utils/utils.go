@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -298,6 +299,21 @@ func WaitForCondition(eval func() bool, interval time.Duration, timeout time.Dur
 		}
 
 		time.Sleep(interval)
+	}
+}
+
+// CountGoroutines returns the number of active goroutines whose stack trace contains the given pattern.
+func CountGoroutines(pattern string) int {
+	if pattern == "" {
+		return 0
+	}
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			return strings.Count(string(buf[:n]), pattern)
+		}
+		buf = make([]byte, 2*len(buf))
 	}
 }
 
