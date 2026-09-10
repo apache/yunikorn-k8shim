@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/informers"
 	informersv1 "k8s.io/client-go/informers/core/v1"
 	schedulinginformersv1 "k8s.io/client-go/informers/scheduling/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -40,7 +42,7 @@ type Informers struct {
 func NewInformers(kubeClient client.KubeClient, namespace string) *Informers {
 	stopChan := make(chan struct{})
 
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(namespace))
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(kubeClient.GetClientSet(), 0, informers.WithNamespace(namespace), informers.WithTransform(stripManagedFields()))
 	informerFactory.Start(stopChan)
 
 	result := &Informers{
@@ -51,6 +53,17 @@ func NewInformers(kubeClient client.KubeClient, namespace string) *Informers {
 	}
 
 	return result
+}
+
+// stripManagedFields removes the managed fields from objects received by the informers as we do not need them.
+// If any future code relies on the managed fields to be available this might need adjustments.
+func stripManagedFields() cache.TransformFunc {
+	return func(in any) (any, error) {
+		if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+			obj.SetManagedFields(nil)
+		}
+		return in, nil
+	}
 }
 
 func (i *Informers) Start() {
