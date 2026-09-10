@@ -2770,3 +2770,11 @@ func TestTerminatedOrphanedForeignPodNotAdopted(t *testing.T) {
 		})
 	}
 }
+
+func TestContextStop(t *testing.T) {
+	context := NewContext(client.NewMockedAPIProvider(false))
+	assert.Assert(t, context.resourceSliceTracker != nil)
+
+	context.Stop()
+	assert.Assert(t, context.resourceSliceTracker == nil)
+}

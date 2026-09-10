@@ -72,15 +72,16 @@ var (
 
 // context maintains scheduling state, like apps and apps' tasks.
 type Context struct {
-	applications   map[string]*Application        // apps
-	schedulerCache *schedulercache.SchedulerCache // external cache
-	apiProvider    client.APIProvider             // apis to interact with api-server, scheduler-core, etc
-	predManager    predicates.PredicateManager    // K8s predicates
-	namespace      string                         // yunikorn namespace
-	configMaps     []*v1.ConfigMap                // cached yunikorn configmaps
-	lock           *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
-	txnID          atomic.Uint64                  // transaction ID counter
-	klogger        klog.Logger
+	applications         map[string]*Application        // apps
+	schedulerCache       *schedulercache.SchedulerCache // external cache
+	apiProvider          client.APIProvider             // apis to interact with api-server, scheduler-core, etc
+	predManager          predicates.PredicateManager    // K8s predicates
+	namespace            string                         // yunikorn namespace
+	configMaps           []*v1.ConfigMap                // cached yunikorn configmaps
+	lock                 *locking.RWMutex               // lock - used not only for context data but also to ensure that multiple event types are not executed concurrently
+	txnID                atomic.Uint64                  // transaction ID counter
+	klogger              klog.Logger
+	resourceSliceTracker *tracker.Tracker
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -127,6 +128,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil
 		}
+		ctx.resourceSliceTracker = resourceSliceTracker
 		sharedDRAManager = dynamicresources.NewDRAManager(context.TODO(), resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
 
@@ -136,6 +138,18 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	}
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, csiManager, sharedDRAManager), plugins.NewInTreeRegistry(), config)
 	return ctx
+}
+
+// Stop ends all background activity managed by Context.
+func (ctx *Context) Stop() {
+	ctx.lock.Lock()
+	t := ctx.resourceSliceTracker
+	ctx.resourceSliceTracker = nil
+	ctx.lock.Unlock()
+
+	if t != nil {
+		t.Stop()
+	}
 }
 
 func (ctx *Context) AddSchedulingEventHandlers() error {
