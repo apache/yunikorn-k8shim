@@ -68,10 +68,12 @@ type Application struct {
 
 const transitionErr = "no transition"
 
+// String is called from paths that already hold the application lock, so it must stay
+// lock-free. It reads only fields fixed at construction plus the state machine, which
+// guards its own current state.
 func (app *Application) String() string {
-	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s,"+
-		" totalNumOfTasks: %d, currentState: %s",
-		app.applicationID, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
+	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s, currentState: %s",
+		app.applicationID, app.queue, app.partition, app.GetApplicationState())
 }
 
 func NewApplication(appID, queueName, user string, groups []string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
@@ -334,6 +336,13 @@ func (app *Application) getNonTerminatedTaskAlias() []string {
 }
 
 func (app *Application) AreAllTasksTerminated() bool {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.areAllTasksTerminated()
+}
+
+// areAllTasksTerminated must be called while the application lock is held.
+func (app *Application) areAllTasksTerminated() bool {
 	return len(app.getNonTerminatedTaskAlias()) == 0
 }
 
@@ -431,6 +440,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 func (app *Application) handleSubmitApplicationEvent() error {
 	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
+		zap.Int("totalNumOfTasks", len(app.taskMap)),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 
 	if err := app.schedulerAPI.UpdateApplication(
@@ -774,7 +784,7 @@ func (app *Application) flushReleaseableTasks() {
 	tasks := app.releaseableTasks
 	app.releaseableTasks = nil
 
-	if app.AreAllTasksTerminated() {
+	if app.areAllTasksTerminated() {
 		app.removeFromSchedulerCore()
 		if app.context != nil {
 			app.context.removeApplication(app.applicationID)
