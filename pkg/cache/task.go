@@ -22,11 +22,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/looplab/fsm"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -50,6 +52,11 @@ var retryBackoff = wait.Backoff{
 	Cap:      30 * time.Second,
 }
 
+const (
+	deleteTaskPodRetryInitialDelay = 100 * time.Millisecond
+	deleteTaskPodRetryMaxDelay     = 30 * time.Second
+)
+
 type Task struct {
 	taskID        string
 	alias         string
@@ -61,6 +68,8 @@ type Task struct {
 	placeholder   bool
 	originator    bool
 	sm            *fsm.FSM
+
+	deletePodRequested atomic.Bool
 
 	// mutable resources, require locking
 	allocationKey   string
@@ -192,7 +201,103 @@ func (task *Task) GetNodeName() string {
 }
 
 func (task *Task) DeleteTaskPod() error {
-	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.GetTaskPod())
+	// A single owner is responsible for the complete delete lifecycle. A nil
+	// return for an existing owner means the Task already owns this idempotent
+	// delete command; it does not mean Kubernetes has accepted the DELETE. Keep
+	// the claim after DELETE is accepted so duplicate release events do not start
+	// another deletion while the informer-driven completion is still pending.
+	if !task.deletePodRequested.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	// Keep all retries bound to the Pod observed by the original release.
+	pod := task.GetTaskPod().DeepCopy()
+	err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
+	if isDeleteTaskPodNonRetryable(err) {
+		// No retry owner remains. Permit a later explicit release event to try
+		// again without automatically looping on the same permanent error.
+		task.deletePodRequested.Store(false)
+	} else if shouldRetryDeleteTaskPod(err) {
+		task.retryDeleteTaskPod(pod)
+	}
+	return err
+}
+
+func shouldRetryDeleteTaskPod(err error) bool {
+	if err == nil || apierrors.IsNotFound(err) {
+		return false
+	}
+	if isDeleteTaskPodNonRetryable(err) {
+		return false
+	}
+	// Keep unknown errors retryable for now: transport failures may not have a
+	// structured Kubernetes status, and generic conflicts are not necessarily
+	// UID precondition failures.
+	return true
+}
+
+func isDeleteTaskPodNonRetryable(err error) bool {
+	return apierrors.IsForbidden(err) ||
+		apierrors.IsInvalid(err) ||
+		apierrors.IsBadRequest(err) ||
+		apierrors.IsMethodNotSupported(err)
+}
+
+func (task *Task) retryDeleteTaskPod(pod *v1.Pod) {
+	go func() {
+		delay := deleteTaskPodRetryInitialDelay
+		for {
+			timer := time.NewTimer(delay)
+			<-timer.C
+
+			if task.isTerminated() {
+				log.Log(log.ShimCacheTask).Debug("stopping task pod deletion re-drive for terminal task",
+					zap.String("namespace", pod.Namespace),
+					zap.String("podName", pod.Name),
+					zap.String("podUID", string(pod.UID)))
+				return
+			}
+
+			err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
+			if err == nil {
+				log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
+					zap.String("namespace", pod.Namespace),
+					zap.String("podName", pod.Name),
+					zap.String("podUID", string(pod.UID)))
+				return
+			}
+			if apierrors.IsNotFound(err) {
+				log.Log(log.ShimCacheTask).Info("task pod already absent on deletion re-drive",
+					zap.String("namespace", pod.Namespace),
+					zap.String("podName", pod.Name),
+					zap.String("podUID", string(pod.UID)))
+				return
+			}
+			if !shouldRetryDeleteTaskPod(err) {
+				// This worker no longer owns an unfinished retryable operation.
+				// Release the claim so a later explicit request can try again.
+				task.deletePodRequested.Store(false)
+				log.Log(log.ShimCacheTask).Warn("stopping task pod deletion re-drive after non-retryable delete error",
+					zap.String("namespace", pod.Namespace),
+					zap.String("podName", pod.Name),
+					zap.String("podUID", string(pod.UID)),
+					zap.Error(err))
+				return
+			}
+
+			log.Log(log.ShimCacheTask).Warn("failed to re-drive task pod deletion",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)),
+				zap.Error(err))
+			if delay < deleteTaskPodRetryMaxDelay {
+				delay *= 2
+				if delay > deleteTaskPodRetryMaxDelay {
+					delay = deleteTaskPodRetryMaxDelay
+				}
+			}
+		}
+	}()
 }
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
