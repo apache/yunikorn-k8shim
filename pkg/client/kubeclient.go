@@ -36,7 +36,7 @@ import (
 )
 
 type SchedulerKubeClient struct {
-	clientSet *kubernetes.Clientset
+	clientSet kubernetes.Interface
 	configs   *rest.Config
 }
 
@@ -138,7 +138,16 @@ func (nc SchedulerKubeClient) Create(ctx context.Context, pod *v1.Pod) (*v1.Pod,
 }
 
 func (nc SchedulerKubeClient) Delete(ctx context.Context, pod *v1.Pod) error {
-	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, apis.DeleteOptions{}); err != nil {
+	if pod.UID == "" {
+		return fmt.Errorf("cannot delete pod %s/%s without UID", pod.Namespace, pod.Name)
+	}
+	uid := pod.UID
+	deleteOptions := apis.DeleteOptions{
+		Preconditions: &apis.Preconditions{
+			UID: &uid,
+		},
+	}
+	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, deleteOptions); err != nil {
 		if !errors.IsNotFound(err) {
 			log.Log(log.ShimClient).Warn("failed to delete pod",
 				zap.String("namespace", pod.Namespace),
