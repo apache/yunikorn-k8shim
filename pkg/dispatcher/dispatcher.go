@@ -47,10 +47,11 @@ const (
 )
 
 type dispatcherRun struct {
-	stopChan     chan struct{}
-	doneChan     chan struct{}
-	stopComplete chan struct{}
-	stopping     bool
+	// Buffered notification lets async senders retry promptly when the loop dequeues.
+	spaceAvailable chan struct{}
+	stopChan       chan struct{}
+	doneChan       chan struct{}
+	stopping       bool
 }
 
 // Dispatcher is the central dispatcher that dispatches scheduling events.
@@ -170,14 +171,14 @@ func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
 	case p.eventChan <- event:
 		return nil
 	default:
-		p.asyncDispatch(event, run.stopChan)
+		p.asyncDispatch(event, run)
 		return nil
 	}
 }
 
-// async-dispatch retries enqueueing the event in every 3 seconds until dispatchTimeout
-// it's only called when the event channel is full.
-func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, stopChan chan struct{}) {
+// asyncDispatch retries when queue space is available, checking dispatchTimeout
+// at asyncDispatchCheckInterval. It is only called when the event channel is full.
+func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, run *dispatcherRun) {
 	count := p.asyncDispatchCount.Add(1)
 	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
@@ -188,18 +189,19 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, stopChan chan s
 	}
 	go func(beginTime time.Time) {
 		defer p.asyncDispatchCount.Add(-1)
+		timer := time.NewTimer(p.asyncDispatchCheckInterval)
+		defer timer.Stop()
 		for {
-			select {
-			case <-stopChan:
+			enqueued, err := p.tryEnqueue(event, run)
+			if err != nil || enqueued {
 				return
-			default:
 			}
 			select {
-			case <-stopChan:
+			case <-run.stopChan:
 				return
-			case p.eventChan <- event:
-				return
-			case <-time.After(p.asyncDispatchCheckInterval):
+			case <-run.spaceAvailable:
+				// The consumer freed space; retry under the lifecycle lock.
+			case <-timer.C:
 				elapseTime := time.Since(beginTime)
 				if elapseTime >= p.dispatchTimeout {
 					log.Log(log.ShimDispatcher).Error("dispatch timeout",
@@ -208,9 +210,26 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, stopChan chan s
 				}
 				log.Log(log.ShimDispatcher).Warn("event channel is full, keep waiting...",
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
+				timer.Reset(p.asyncDispatchCheckInterval)
 			}
 		}
 	}(time.Now())
+}
+
+// tryEnqueue coordinates async admission with Stop. Never wait for channel space
+// while holding the lock, since Stop needs the write lock to signal cancellation.
+func (p *Dispatcher) tryEnqueue(event events.SchedulingEvent, run *dispatcherRun) (bool, error) {
+	p.lifecycleLock.RLock()
+	defer p.lifecycleLock.RUnlock()
+	if p.currentRun != run || run.stopping {
+		return false, fmt.Errorf("dispatcher is not running")
+	}
+	select {
+	case p.eventChan <- event:
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (p *Dispatcher) drain() {
@@ -222,6 +241,8 @@ func (p *Dispatcher) drain() {
 	log.Log(log.ShimDispatcher).Info("dispatcher is draining out")
 }
 
+// Start starts the dispatcher. If a previous run is stopping, it waits for that
+// worker to exit, even after a Stop timeout, before starting another run.
 func Start() {
 	log.Log(log.ShimDispatcher).Info("starting the dispatcher")
 	if !getDispatcher().start() {
@@ -229,14 +250,16 @@ func Start() {
 	}
 }
 
+// start waits for a stopping run to actually exit, even if Stop has timed out.
+// This preserves sequential event handling across dispatcher restarts.
 func (p *Dispatcher) start() bool {
 	for {
 		p.lifecycleLock.Lock()
 		if p.currentRun == nil {
 			run := &dispatcherRun{
-				stopChan:     make(chan struct{}),
-				doneChan:     make(chan struct{}),
-				stopComplete: make(chan struct{}),
+				spaceAvailable: make(chan struct{}, 1),
+				stopChan:       make(chan struct{}),
+				doneChan:       make(chan struct{}),
 			}
 			p.currentRun = run
 			go p.run(run)
@@ -247,14 +270,22 @@ func (p *Dispatcher) start() bool {
 			p.lifecycleLock.Unlock()
 			return false
 		}
-		stopComplete := p.currentRun.stopComplete
+		doneChan := p.currentRun.doneChan
 		p.lifecycleLock.Unlock()
-		<-stopComplete
+		<-doneChan
 	}
 }
 
 func (p *Dispatcher) run(run *dispatcherRun) {
-	defer close(run.doneChan)
+	defer func() {
+		p.lifecycleLock.Lock()
+		defer p.lifecycleLock.Unlock()
+		// Only the worker can retire its run. A Stop timeout is not completion.
+		if p.currentRun == run {
+			p.currentRun = nil
+		}
+		close(run.doneChan)
+	}()
 	for {
 		select {
 		case <-run.stopChan:
@@ -268,6 +299,10 @@ func (p *Dispatcher) run(run *dispatcherRun) {
 			log.Log(log.ShimDispatcher).Info("shutting down event channel")
 			return
 		case event := <-p.eventChan:
+			select {
+			case run.spaceAvailable <- struct{}{}:
+			default:
+			}
 			p.handleEvent(event)
 		}
 	}
@@ -302,38 +337,21 @@ func (p *Dispatcher) stop() {
 		return
 	}
 
-	if run.stopping {
-		stopComplete := run.stopComplete
-		p.lifecycleLock.Unlock()
-		<-stopComplete
-		return
+	if !run.stopping {
+		run.stopping = true
+		close(run.stopChan)
 	}
-
-	run.stopping = true
-	close(run.stopChan)
 	stopTimeout := p.stopTimeout
 	p.lifecycleLock.Unlock()
 
-	timedOut := false
+	// Each caller waits outside the lifecycle lock, subject to its own timeout.
+	// Keep currentRun until the worker exits so Start cannot overlap handlers.
 	timer := time.NewTimer(stopTimeout)
 	defer timer.Stop()
 	select {
 	case <-run.doneChan:
-	case <-timer.C:
-		timedOut = true
-		log.Log(log.ShimDispatcher).Info("dispatcher did not stop in time")
-	}
-
-	p.lifecycleLock.Lock()
-	if p.currentRun == run {
-		p.currentRun = nil
-	}
-	close(run.stopComplete)
-	p.lifecycleLock.Unlock()
-
-	if timedOut {
-		log.Log(log.ShimDispatcher).Warn("dispatcher event processing did not stop properly")
-	} else {
 		log.Log(log.ShimDispatcher).Info("dispatcher stopped successfully")
+	case <-timer.C:
+		log.Log(log.ShimDispatcher).Warn("dispatcher event processing did not stop properly")
 	}
 }
