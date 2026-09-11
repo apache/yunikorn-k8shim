@@ -155,7 +155,7 @@ func (m *MockedAPIProvider) MockDeleteWithContextFn(dfn func(ctx context.Context
 
 func (m *MockedAPIProvider) MockCreateFn(cfn func(pod *v1.Pod) (*v1.Pod, error)) {
 	if mock, ok := m.clients.KubeClient.(*KubeClientMock); ok {
-		mock.createFn = cfn
+		mock.MockCreateFn(cfn)
 	}
 }
 

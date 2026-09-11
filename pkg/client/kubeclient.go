@@ -133,8 +133,8 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 	return nil
 }
 
-func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
-	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, apis.CreateOptions{})
+func (nc SchedulerKubeClient) Create(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(ctx, pod, apis.CreateOptions{})
 }
 
 func (nc SchedulerKubeClient) Delete(ctx context.Context, pod *v1.Pod) error {

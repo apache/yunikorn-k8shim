@@ -31,7 +31,7 @@ type KubeClient interface {
 	Bind(pod *v1.Pod, hostID string) error
 
 	// Create a pod
-	Create(pod *v1.Pod) (*v1.Pod, error)
+	Create(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 
 	// Delete a pod from a host
 	Delete(ctx context.Context, pod *v1.Pod) error

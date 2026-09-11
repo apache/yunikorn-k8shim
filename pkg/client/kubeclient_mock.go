@@ -37,7 +37,7 @@ import (
 type KubeClientMock struct {
 	bindFn         func(pod *v1.Pod, hostID string) error
 	deleteFn       func(ctx context.Context, pod *v1.Pod) error
-	createFn       func(pod *v1.Pod) (*v1.Pod, error)
+	createFn       func(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 	updateFn       func(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
 	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
 	getFn          func(podName string) (*v1.Pod, error)
@@ -73,7 +73,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 				zap.String("PodName", pod.Name))
 			return nil
 		},
-		createFn: func(pod *v1.Pod) (*v1.Pod, error) {
+		createFn: func(_ context.Context, pod *v1.Pod) (*v1.Pod, error) {
 			if err {
 				return pod, fmt.Errorf("error creating pod")
 			}
@@ -157,7 +157,9 @@ func (c *KubeClientMock) MockDeleteWithContextFn(dfn func(ctx context.Context, p
 }
 
 func (c *KubeClientMock) MockCreateFn(cfn func(pod *v1.Pod) (*v1.Pod, error)) {
-	c.createFn = cfn
+	c.createFn = func(_ context.Context, pod *v1.Pod) (*v1.Pod, error) {
+		return cfn(pod)
+	}
 }
 
 func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
@@ -166,11 +168,11 @@ func (c *KubeClientMock) Bind(pod *v1.Pod, hostID string) error {
 	return c.bindFn(pod, hostID)
 }
 
-func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
+func (c *KubeClientMock) Create(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.pods[getPodKey(pod)] = pod
-	return c.createFn(pod)
+	return c.createFn(ctx, pod)
 }
 
 func (c *KubeClientMock) UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
