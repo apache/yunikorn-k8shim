@@ -723,6 +723,7 @@ func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicate
 		return &si.PreFilterPredicatesResponse{
 			FeasibleNodes: make(map[string]*si.Empty),
 			Success:       false,
+			ErrorMessage:  ErrorPodNotFound.Error(),
 		}
 	}
 	// if pod exists in cache, try to run predicates
@@ -740,6 +741,7 @@ func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicate
 	return &si.PreFilterPredicatesResponse{
 		FeasibleNodes: make(map[string]*si.Empty),
 		Success:       false,
+		ErrorMessage:  err.Error(),
 	}
 }
 
@@ -763,11 +765,11 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	if cycleState == nil {
 		return ErrorCycleStateNotFound
 	}
-	plugin, err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
+	err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
 	if err != nil {
-		err = errors.Join(fmt.Errorf("failed plugin: '%s'", plugin), err)
+		return err
 	}
-	return err
+	return nil
 }
 
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (int, bool) {

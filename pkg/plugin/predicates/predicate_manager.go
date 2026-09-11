@@ -50,7 +50,7 @@ type PredicateManager interface {
 	PreFilter(pod *v1.Pod, allocate bool) (feasibleNodes map[string]*si.Empty, cycleState *framework.CycleState, error error)
 	// Filter Predicates checks if a pod can fit on a node.
 	// Returns the name of the predicate plugin that failed (may be empty) and any error encountered.
-	Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (plugin string, error error)
+	Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (error error)
 	// PreemptionPredicates checks if a pod can be scheduled on the node by preempting victims.
 	// Returns the victim index that allows the pod to fit, or -1 if none.
 	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int)
@@ -147,7 +147,7 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
 		p.removePodFromNodeNoFail(preemptingNode, victims[i])
-		status, _ := p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, preemptingNode)
+		status := p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, preemptingNode)
 		if status.IsSuccess() {
 			return i
 		}
@@ -216,7 +216,7 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.Error(err))
-			return fwk.AsStatus(errors.Join(fmt.Errorf("running PreFilter plugin %q: ", plugin), err)), map[string]*si.Empty{}
+			return fwk.AsStatus(fmt.Errorf("PreFilter plugin %q failed", plugin)), map[string]*si.Empty{}
 		}
 		mergedPreFilterResults = mergedPreFilterResults.Merge(nodes)
 	}
@@ -231,23 +231,22 @@ func (p *predicateManagerImpl) runPreFilterPlugins(ctx context.Context, cycleSta
 	return nil, feasibleNodes
 }
 
-func (p *predicateManagerImpl) Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (string, error) {
+func (p *predicateManagerImpl) Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) error {
 	ctx := context.Background()
 
 	var status *fwk.Status
-	var plugin string
 	if allocate {
-		status, plugin = p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, node)
+		status = p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, node)
 	} else {
-		status, plugin = p.runFilterPlugins(ctx, *p.reservationFilters, cycleState, pod, node)
+		status = p.runFilterPlugins(ctx, *p.reservationFilters, cycleState, pod, node)
 	}
 	if !status.IsSuccess() {
-		return plugin, errors.New(status.Message())
+		return errors.New(status.Message())
 	}
-	return "", nil
+	return nil
 }
 
-func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []fwk.FilterPlugin, cycleState *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) (*fwk.Status, string) {
+func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []fwk.FilterPlugin, cycleState *framework.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
 	skipPlugins := cycleState.GetSkipFilterPlugins()
 	for _, pl := range plugins {
 		plugin := pl.Name()
@@ -261,17 +260,17 @@ func (p *predicateManagerImpl) runFilterPlugins(ctx context.Context, plugins []f
 			if !status.IsRejected() {
 				// Filter plugins are not supposed to return any status other than
 				// Success or Unschedulable.
-				status = fwk.NewStatus(fwk.Error, fmt.Sprintf("running %q filter plugin for pod %q: %v", plugin, pod.Name, status.Message()))
 				log.Log(log.ShimPredicates).Error("failed running Filter plugin",
 					zap.String("pluginName", plugin),
 					zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 					zap.String("message", status.Message()))
-				return status, plugin
+				status = fwk.NewStatus(fwk.Error, fmt.Sprintf("Filter plugin %q failed", plugin))
+				return status
 			}
-			return status, plugin
+			return status
 		}
 	}
-	return fwk.NewStatus(fwk.Success), ""
+	return fwk.NewStatus(fwk.Success)
 }
 
 // EnableOptionalKubernetesFeatureGates ensures that any optional Kubernetes feature gates that YuniKorn supports are
