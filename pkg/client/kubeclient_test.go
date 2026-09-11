@@ -118,6 +118,9 @@ func TestSchedulerKubeClientDeleteRejectsEmptyUID(t *testing.T) {
 	if err == nil {
 		t.Fatal("Delete with an empty Pod UID succeeded, want error")
 	}
+	if !apierrors.IsBadRequest(err) {
+		t.Errorf("Delete with an empty Pod UID: got %T (%v), want Kubernetes BadRequest", err, err)
+	}
 	if !strings.Contains(err.Error(), "cannot delete pod ns/victim without UID") {
 		t.Errorf("Delete error: got %q, want a clear empty-UID error", err)
 	}

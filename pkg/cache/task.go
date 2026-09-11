@@ -213,6 +213,15 @@ func (task *Task) DeleteTaskPod() error {
 	// Keep all retries bound to the Pod observed by the original release.
 	pod := task.GetTaskPod().DeepCopy()
 	err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
+	if task.isDeleteTaskPodResolved(pod, err) {
+		// Preserve the existing NotFound return behavior, but a Conflict
+		// positively reconciled against current state no longer represents an
+		// outstanding delete obligation at the Task command boundary.
+		if apierrors.IsConflict(err) {
+			return nil
+		}
+		return err
+	}
 	if isDeleteTaskPodNonRetryable(err) {
 		// No retry owner remains. Permit a later explicit release event to try
 		// again without automatically looping on the same permanent error.
@@ -221,6 +230,24 @@ func (task *Task) DeleteTaskPod() error {
 		task.retryDeleteTaskPod(pod)
 	}
 	return err
+}
+
+func (task *Task) isDeleteTaskPodResolved(pod *v1.Pod, deleteErr error) bool {
+	if deleteErr == nil || apierrors.IsNotFound(deleteErr) {
+		return true
+	}
+	if !apierrors.IsConflict(deleteErr) {
+		return false
+	}
+
+	currentPod, err := task.context.apiProvider.GetAPIs().KubeClient.Get(pod.Namespace, pod.Name)
+	if apierrors.IsNotFound(err) {
+		return true
+	}
+	if err != nil || currentPod == nil || currentPod.UID == "" {
+		return false
+	}
+	return currentPod.UID != pod.UID
 }
 
 func shouldRetryDeleteTaskPod(err error) bool {
@@ -259,18 +286,24 @@ func (task *Task) retryDeleteTaskPod(pod *v1.Pod) {
 			}
 
 			err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-			if err == nil {
-				log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
-					zap.String("namespace", pod.Namespace),
-					zap.String("podName", pod.Name),
-					zap.String("podUID", string(pod.UID)))
-				return
-			}
-			if apierrors.IsNotFound(err) {
-				log.Log(log.ShimCacheTask).Info("task pod already absent on deletion re-drive",
-					zap.String("namespace", pod.Namespace),
-					zap.String("podName", pod.Name),
-					zap.String("podUID", string(pod.UID)))
+			if task.isDeleteTaskPodResolved(pod, err) {
+				switch {
+				case err == nil:
+					log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
+						zap.String("namespace", pod.Namespace),
+						zap.String("podName", pod.Name),
+						zap.String("podUID", string(pod.UID)))
+				case apierrors.IsNotFound(err):
+					log.Log(log.ShimCacheTask).Info("task pod already absent on deletion re-drive",
+						zap.String("namespace", pod.Namespace),
+						zap.String("podName", pod.Name),
+						zap.String("podUID", string(pod.UID)))
+				default:
+					log.Log(log.ShimCacheTask).Info("task pod deletion Conflict resolved on re-drive",
+						zap.String("namespace", pod.Namespace),
+						zap.String("podName", pod.Name),
+						zap.String("podUID", string(pod.UID)))
+				}
 				return
 			}
 			if !shouldRetryDeleteTaskPod(err) {

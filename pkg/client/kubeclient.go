@@ -139,7 +139,7 @@ func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
 
 func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
 	if pod.UID == "" {
-		return fmt.Errorf("cannot delete pod %s/%s without UID", pod.Namespace, pod.Name)
+		return errors.NewBadRequest(fmt.Sprintf("cannot delete pod %s/%s without UID", pod.Namespace, pod.Name))
 	}
 	uid := pod.UID
 	deleteOptions := apis.DeleteOptions{
