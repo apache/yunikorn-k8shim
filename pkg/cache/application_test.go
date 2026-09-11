@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -1631,6 +1633,60 @@ func TestTryAddReleasableTaskDedupe(t *testing.T) {
 	assert.Assert(t, app.tryAddReleasableTask(task))
 	assert.Assert(t, app.tryAddReleasableTask(task))
 	assert.Equal(t, len(app.releaseableTasks), 1)
+}
+
+func TestApplicationString(t *testing.T) {
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	assert.Equal(t, app.String(), fmt.Sprintf("applicationID: %s, queue: root.a, partition: %s, currentState: %s",
+		appID, constants.DefaultPartition, ApplicationStates().New))
+}
+
+// TestTaskMapReadersAreRaceFree covers the readers that run without the application lock while
+// the pod informer adds tasks under it. Both readers used to walk taskMap unsynchronised.
+func TestTaskMapReadersAreRaceFree(t *testing.T) {
+	readers := []struct {
+		name string
+		read func(app *Application)
+	}{
+		{"AreAllTasksTerminated", func(app *Application) { _ = app.AreAllTasksTerminated() }},
+		{"String", func(app *Application) { _ = app.String() }},
+	}
+
+	for _, reader := range readers {
+		t.Run(reader.name, func(t *testing.T) {
+			context := initContextForTest()
+			app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+			context.addApplicationToContext(app)
+
+			const taskCount = 200
+			start := make(chan struct{})
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			go func() {
+				defer wg.Done()
+				<-start
+				for i := 0; i < taskCount; i++ {
+					taskID := fmt.Sprintf("task-%d", i)
+					pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
+					app.addTask(NewTask(taskID, app, context, pod))
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				for i := 0; i < taskCount; i++ {
+					reader.read(app)
+				}
+			}()
+
+			close(start)
+			wg.Wait()
+
+			assert.Equal(t, len(app.GetNewTasks()), taskCount)
+			assert.Assert(t, !app.AreAllTasksTerminated())
+		})
+	}
 }
 
 func (ctx *Context) addApplicationToContext(app *Application) {
