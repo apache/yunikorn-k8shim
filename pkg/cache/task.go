@@ -69,7 +69,10 @@ type Task struct {
 	originator    bool
 	sm            *fsm.FSM
 
-	deletePodRequested atomic.Bool
+	// podDeleteClaimed suppresses duplicate deletion lifecycles. It remains set
+	// after accepted/resolved deletion or a terminal stop, and is released on
+	// non-retryable failure.
+	podDeleteClaimed atomic.Bool
 
 	// mutable resources, require locking
 	allocationKey   string
@@ -206,14 +209,14 @@ func (task *Task) DeleteTaskPod() error {
 	// delete command; it does not mean Kubernetes has accepted the DELETE. Keep
 	// the claim after DELETE is accepted so duplicate release events do not start
 	// another deletion while the informer-driven completion is still pending.
-	if !task.deletePodRequested.CompareAndSwap(false, true) {
+	if !task.podDeleteClaimed.CompareAndSwap(false, true) {
 		return nil
 	}
 
 	// Keep all retries bound to the Pod observed by the original release.
 	pod := task.GetTaskPod().DeepCopy()
 	err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-	if task.isDeleteTaskPodResolved(pod, err) {
+	if task.reconcileTaskPodDeletion(pod, err) {
 		// Preserve the existing NotFound return behavior, but a Conflict
 		// positively reconciled against current state no longer represents an
 		// outstanding delete obligation at the Task command boundary.
@@ -225,14 +228,18 @@ func (task *Task) DeleteTaskPod() error {
 	if isDeleteTaskPodNonRetryable(err) {
 		// No retry owner remains. Permit a later explicit release event to try
 		// again without automatically looping on the same permanent error.
-		task.deletePodRequested.Store(false)
+		task.podDeleteClaimed.Store(false)
 	} else if shouldRetryDeleteTaskPod(err) {
-		task.retryDeleteTaskPod(pod)
+		task.startTaskPodDeleteRetries(pod)
 	}
 	return err
 }
 
-func (task *Task) isDeleteTaskPodResolved(pod *v1.Pod, deleteErr error) bool {
+// reconcileTaskPodDeletion returns true when no further DELETE attempts are needed.
+// On Conflict it performs a Kubernetes GET to check whether the original UID is
+// absent or replaced; errors or unusable identities remain unresolved.
+// A true result does not complete the Task or confirm release to scheduler-core.
+func (task *Task) reconcileTaskPodDeletion(pod *v1.Pod, deleteErr error) bool {
 	if deleteErr == nil || apierrors.IsNotFound(deleteErr) {
 		return true
 	}
@@ -250,6 +257,8 @@ func (task *Task) isDeleteTaskPodResolved(pod *v1.Pod, deleteErr error) bool {
 	return currentPod.UID != pod.UID
 }
 
+// shouldRetryDeleteTaskPod classifies the DELETE error only; callers must first
+// reconcile the deletion obligation separately.
 func shouldRetryDeleteTaskPod(err error) bool {
 	if err == nil || apierrors.IsNotFound(err) {
 		return false
@@ -270,7 +279,11 @@ func isDeleteTaskPodNonRetryable(err error) bool {
 		apierrors.IsMethodNotSupported(err)
 }
 
-func (task *Task) retryDeleteTaskPod(pod *v1.Pod) {
+// startTaskPodDeleteRetries starts a goroutine retrying the captured original Pod
+// identity with capped exponential backoff and no retry-count limit. It stops on
+// resolved deletion, a non-retryable error, or a terminal Task.
+// The caller must already hold podDeleteClaimed.
+func (task *Task) startTaskPodDeleteRetries(pod *v1.Pod) {
 	go func() {
 		delay := deleteTaskPodRetryInitialDelay
 		for {
@@ -286,7 +299,7 @@ func (task *Task) retryDeleteTaskPod(pod *v1.Pod) {
 			}
 
 			err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-			if task.isDeleteTaskPodResolved(pod, err) {
+			if task.reconcileTaskPodDeletion(pod, err) {
 				switch {
 				case err == nil:
 					log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
@@ -309,7 +322,7 @@ func (task *Task) retryDeleteTaskPod(pod *v1.Pod) {
 			if !shouldRetryDeleteTaskPod(err) {
 				// This worker no longer owns an unfinished retryable operation.
 				// Release the claim so a later explicit request can try again.
-				task.deletePodRequested.Store(false)
+				task.podDeleteClaimed.Store(false)
 				log.Log(log.ShimCacheTask).Warn("stopping task pod deletion re-drive after non-retryable delete error",
 					zap.String("namespace", pod.Namespace),
 					zap.String("podName", pod.Name),

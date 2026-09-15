@@ -1144,7 +1144,7 @@ func TestDeleteTaskPodConflictWithReplacementStopsRetry(t *testing.T) {
 
 	assert.Equal(t, int32(1), deleteAttempts.Load(), "replacement should stop DELETE re-drive")
 	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
-	assert.Assert(t, task.deletePodRequested.Load(), "replacement should retain delete ownership")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "replacement should retain delete ownership")
 	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "replacement classification synthesized Task completion")
 	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
 		"replacement classification synthesized a core release confirmation")
@@ -1191,7 +1191,7 @@ func TestDeleteTaskPodConflictWithNotFoundStopsRetry(t *testing.T) {
 
 	assert.Equal(t, int32(1), deleteAttempts.Load(), "NotFound should stop DELETE re-drive")
 	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
-	assert.Assert(t, task.deletePodRequested.Load(), "NotFound should retain delete ownership")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "NotFound should retain delete ownership")
 	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "NotFound classification synthesized Task completion")
 	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
 		"NotFound classification synthesized a core release confirmation")
@@ -1272,7 +1272,7 @@ func TestDeleteTaskPodRetryWorkerConflictWithReplacementStopsRetry(t *testing.T)
 
 	assert.Equal(t, int32(2), deleteAttempts.Load(), "replacement should stop retry worker after its Conflict")
 	assert.Equal(t, int32(1), getAttempts.Load(), "retry-worker Conflict should be classified with exactly one GET")
-	assert.Assert(t, task.deletePodRequested.Load(), "replacement should retain retry-worker delete ownership")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "replacement should retain retry-worker delete ownership")
 	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "retry-worker reconciliation synthesized Task completion")
 	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
 		"retry-worker reconciliation synthesized a core release confirmation")
@@ -1341,7 +1341,7 @@ func testDeleteTaskPodConflictAllowsRetry(t *testing.T, getPod *v1.Pod, getErr e
 
 	assert.Equal(t, int32(2), deleteAttempts.Load(), "unresolved Conflict should allow one automatic retry")
 	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
-	assert.Assert(t, task.deletePodRequested.Load(), "unresolved Conflict should retain delete ownership")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "unresolved Conflict should retain delete ownership")
 	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "Conflict reconciliation synthesized Task completion")
 	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
 		"Conflict reconciliation synthesized a core release confirmation")
@@ -1379,7 +1379,7 @@ func TestDeleteTaskPodPermanentErrorReleasesOwnership(t *testing.T) {
 			assert.Assert(t, err != nil, "first DELETE should return the permanent error")
 			assert.Equal(t, int32(1), attempts.Load(), "permanent error should not start an automatic retry")
 			assert.Assert(t, !shouldRetryDeleteTaskPod(err), "permanent error was classified as retryable")
-			assert.Assert(t, !task.deletePodRequested.Load(), "permanent error retained delete ownership")
+			assert.Assert(t, !task.podDeleteClaimed.Load(), "permanent error retained delete ownership")
 			select {
 			case <-unexpectedDelete:
 				t.Fatal("permanent error triggered an automatic retry")
@@ -1389,7 +1389,7 @@ func TestDeleteTaskPodPermanentErrorReleasesOwnership(t *testing.T) {
 			err = task.DeleteTaskPod()
 			assert.NilError(t, err, "later explicit DELETE should acquire released ownership")
 			assert.Equal(t, int32(2), attempts.Load(), "later explicit DELETE was suppressed")
-			assert.Assert(t, task.deletePodRequested.Load(), "successful DELETE should retain ownership")
+			assert.Assert(t, task.podDeleteClaimed.Load(), "successful DELETE should retain ownership")
 		})
 	}
 
@@ -1417,7 +1417,7 @@ func TestDeleteTaskPodPermanentErrorReleasesOwnership(t *testing.T) {
 			t.Fatal("retry worker did not receive the permanent error")
 		}
 		err = utils.WaitForCondition(func() bool {
-			return !task.deletePodRequested.Load()
+			return !task.podDeleteClaimed.Load()
 		}, time.Millisecond, time.Second)
 		assert.NilError(t, err, "retry worker did not release delete ownership")
 		assert.Equal(t, int32(2), attempts.Load(), "permanent worker error triggered another automatic retry")
@@ -1425,7 +1425,7 @@ func TestDeleteTaskPodPermanentErrorReleasesOwnership(t *testing.T) {
 		err = task.DeleteTaskPod()
 		assert.NilError(t, err, "later explicit DELETE should acquire ownership released by the worker")
 		assert.Equal(t, int32(3), attempts.Load(), "later explicit DELETE was suppressed after worker failure")
-		assert.Assert(t, task.deletePodRequested.Load(), "successful DELETE should retain ownership")
+		assert.Assert(t, task.podDeleteClaimed.Load(), "successful DELETE should retain ownership")
 	})
 }
 
@@ -1516,7 +1516,7 @@ func TestDeleteTaskPodTerminalTaskStopsRetry(t *testing.T) {
 	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
 	}
 	assert.Equal(t, int32(1), attempts.Load(), "terminal Task did not stop deletion retry")
-	assert.Assert(t, task.deletePodRequested.Load(), "terminal Task should retain delete ownership")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "terminal Task should retain delete ownership")
 }
 
 // setShortBindBackoff shrinks the bind retry backoff so tests do not wait for the
