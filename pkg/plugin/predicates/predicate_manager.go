@@ -51,7 +51,7 @@ type PredicateManager interface {
 	Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (error error)
 	// PreemptionPredicates checks if a pod can be scheduled on the node by preempting victims.
 	// Returns the victim index that allows the pod to fit, or -1 if none.
-	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int)
+	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int, filterErrors map[string]int32)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -67,7 +67,7 @@ type predicateManagerImpl struct {
 	sharedLister          fwk.SharedLister
 }
 
-func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) int {
+func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (int, map[string]int32) {
 	ctx := context.Background()
 
 	// clone node so that we can modify it here for predicate checks
@@ -83,18 +83,21 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
 	for i := 0; i < startIndex && i < len(victims); i++ {
 		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
-			return -1
+			return -1, nil
 		}
 	}
 
+	pluginErrors := make(map[string]int32)
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
 		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
-			return -1
+			return -1, nil
 		}
 		status := p.runFilterPlugins(ctx, *p.allocationFilters, stateCopy, pod, preemptingNode)
 		if status.IsSuccess() {
-			return i
+			return i, nil
+		} else {
+			pluginErrors[status.Message()]++
 		}
 	}
 
@@ -102,7 +105,7 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	log.Log(log.ShimPredicates).Debug("Filter checks failed during preemption check, no fit",
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", node.Node().Name))
-	return -1
+	return -1, pluginErrors
 }
 
 func (p *predicateManagerImpl) removePod(ctx context.Context, node fwk.NodeInfo, state *framework.CycleState, podToSchedule *v1.Pod, victim *v1.Pod) error {

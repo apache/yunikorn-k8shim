@@ -765,8 +765,8 @@ func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *frame
 	return nil
 }
 
-func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) int {
-	return 0
+func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (int, map[string]int32) {
+	return 0, nil
 }
 
 func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCallback, *Context) {
