@@ -756,9 +756,10 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	return err
 }
 
-func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (int, bool) {
+func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) *si.PreemptionPredicatesResponse {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
+	var pluginErrors map[string]int32
 	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
 		// if pod exists in cache, try to run predicates
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
@@ -774,13 +775,21 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 				}
 
 				// check predicates for a match
-				if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
-					return index, true
+				var index int
+				if index, pluginErrors = ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+					return &si.PreemptionPredicatesResponse{
+						Success: true,
+						Index:   int32(index), // nolint:gosec
+					}
 				}
 			}
 		}
 	}
-	return -1, false
+	return &si.PreemptionPredicatesResponse{
+		Success:      false,
+		Index:        -1,
+		ErrorMessage: pluginErrors,
+	}
 }
 
 // call volume binder to bind pod volumes if necessary,

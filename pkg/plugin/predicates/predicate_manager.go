@@ -53,7 +53,7 @@ type PredicateManager interface {
 	Filter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, allocate bool) (plugin string, error error)
 	// PreemptionPredicates checks if a pod can be scheduled on the node by preempting victims.
 	// Returns the victim index that allows the pod to fit, or -1 if none.
-	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int)
+	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int, filterErrors map[string]int32)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -133,7 +133,7 @@ func buildClusterEvents(actionMap map[fwk.EventResource]fwk.ActionType, queueing
 	return events
 }
 
-func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) int {
+func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (int, map[string]int32) {
 	ctx := context.Background()
 
 	// clone node so that we can modify it here for predicate checks
@@ -144,12 +144,15 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 		p.removePodFromNodeNoFail(preemptingNode, victims[i])
 	}
 
+	pluginErrors := make(map[string]int32)
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
 		p.removePodFromNodeNoFail(preemptingNode, victims[i])
 		status, _ := p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, preemptingNode)
 		if status.IsSuccess() {
-			return i
+			return i, nil
+		} else {
+			pluginErrors[status.Message()]++
 		}
 	}
 
@@ -157,7 +160,7 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	log.Log(log.ShimPredicates).Debug("Filter checks failed during preemption check, no fit",
 		zap.String("podUID", string(pod.UID)),
 		zap.String("nodeID", node.Node().Name))
-	return -1
+	return -1, pluginErrors
 }
 
 func (p *predicateManagerImpl) removePodFromNodeNoFail(node fwk.NodeInfo, pod *v1.Pod) {
