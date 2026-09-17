@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gotest.tools/v3/assert"
-	is "gotest.tools/v3/assert/cmp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -518,14 +517,11 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 	}
 }
 
-//nolint:funlen
-func TestGetNonTerminatedTaskAlias(t *testing.T) {
+func TestAreAllTasksTerminated(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.addApplicationToContext(app)
 	// app doesn't have any task
-	res := app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
 	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	pod1 := &v1.Pod{
@@ -558,30 +554,17 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	app.taskMap[taskID2] = task2
 	task2.sm.SetState(TaskStates().Pending)
 	// check the tasks both in non-terminated states
-	// res should return both task's alias
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 2)
 	assert.Equal(t, app.AreAllTasksTerminated(), false)
-	assert.Assert(t, is.Contains(res, "/test-00001"))
-	assert.Assert(t, is.Contains(res, "/test-00002"))
 
 	// set two tasks to terminated states
 	task1.sm.SetState(TaskStates().Rejected)
 	task2.sm.SetState(TaskStates().Rejected)
-	// check the tasks both in terminated states
-	// res should retuen empty
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
 	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	// set two tasks to one is terminated, another is non-terminated
 	task1.sm.SetState(TaskStates().Rejected)
 	task2.sm.SetState(TaskStates().Allocated)
-	// check the task, should only return task2's alias
-	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, app.AreAllTasksTerminated(), false)
-	assert.Equal(t, len(res), 1)
-	assert.Equal(t, res[0], "/test-00002")
 }
 
 func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {

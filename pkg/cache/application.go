@@ -325,16 +325,6 @@ func (app *Application) GetTags() map[string]string {
 	return app.tags
 }
 
-func (app *Application) getNonTerminatedTaskAlias() []string {
-	var nonTerminatedTaskAlias []string
-	for _, task := range app.taskMap {
-		if !task.isTerminated() {
-			nonTerminatedTaskAlias = append(nonTerminatedTaskAlias, task.alias)
-		}
-	}
-	return nonTerminatedTaskAlias
-}
-
 func (app *Application) AreAllTasksTerminated() bool {
 	app.lock.RLock()
 	defer app.lock.RUnlock()
@@ -343,7 +333,12 @@ func (app *Application) AreAllTasksTerminated() bool {
 
 // areAllTasksTerminated must be called while the application lock is held.
 func (app *Application) areAllTasksTerminated() bool {
-	return len(app.getNonTerminatedTaskAlias()) == 0
+	for _, task := range app.taskMap {
+		if !task.isTerminated() {
+			return false
+		}
+	}
+	return true
 }
 
 // SetState is only for testing
