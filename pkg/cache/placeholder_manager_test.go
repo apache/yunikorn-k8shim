@@ -223,8 +223,7 @@ func TestCleanUp(t *testing.T) {
 	app := NewApplication(pmAppID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	mockedContext.applications[pmAppID] = app
-	res := app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
+	assert.Equal(t, len(app.taskMap), 0)
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -282,8 +281,7 @@ func TestCleanUp(t *testing.T) {
 	task4 := NewTask(taskID4, app, mockedContext, pod4)
 	task4.placeholder = true
 	app.taskMap[taskID4] = task4
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 4)
+	assert.Equal(t, len(app.taskMap), 4)
 
 	deletePod := make([]string, 0)
 	mockedAPIProvider := client.NewMockedAPIProvider(false)

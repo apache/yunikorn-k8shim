@@ -23,15 +23,16 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gotest.tools/v3/assert"
-	is "gotest.tools/v3/assert/cmp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	k8sEvents "k8s.io/client-go/tools/events"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -516,14 +517,11 @@ func assertAppState(t *testing.T, app *Application, expectedState string, durati
 	}
 }
 
-//nolint:funlen
-func TestGetNonTerminatedTaskAlias(t *testing.T) {
+func TestAreAllTasksTerminated(t *testing.T) {
 	context := initContextForTest()
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.addApplicationToContext(app)
 	// app doesn't have any task
-	res := app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
 	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	pod1 := &v1.Pod{
@@ -556,30 +554,17 @@ func TestGetNonTerminatedTaskAlias(t *testing.T) {
 	app.taskMap[taskID2] = task2
 	task2.sm.SetState(TaskStates().Pending)
 	// check the tasks both in non-terminated states
-	// res should return both task's alias
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 2)
 	assert.Equal(t, app.AreAllTasksTerminated(), false)
-	assert.Assert(t, is.Contains(res, "/test-00001"))
-	assert.Assert(t, is.Contains(res, "/test-00002"))
 
 	// set two tasks to terminated states
 	task1.sm.SetState(TaskStates().Rejected)
 	task2.sm.SetState(TaskStates().Rejected)
-	// check the tasks both in terminated states
-	// res should retuen empty
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
 	assert.Equal(t, app.AreAllTasksTerminated(), true)
 
 	// set two tasks to one is terminated, another is non-terminated
 	task1.sm.SetState(TaskStates().Rejected)
 	task2.sm.SetState(TaskStates().Allocated)
-	// check the task, should only return task2's alias
-	res = app.getNonTerminatedTaskAlias()
 	assert.Equal(t, app.AreAllTasksTerminated(), false)
-	assert.Equal(t, len(res), 1)
-	assert.Equal(t, res[0], "/test-00002")
 }
 
 func TestSetTaskGroupsAndSchedulingPolicy(t *testing.T) {
@@ -1631,6 +1616,60 @@ func TestTryAddReleasableTaskDedupe(t *testing.T) {
 	assert.Assert(t, app.tryAddReleasableTask(task))
 	assert.Assert(t, app.tryAddReleasableTask(task))
 	assert.Equal(t, len(app.releaseableTasks), 1)
+}
+
+func TestApplicationString(t *testing.T) {
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	assert.Equal(t, app.String(), fmt.Sprintf("applicationID: %s, queue: root.a, partition: %s, currentState: %s",
+		appID, constants.DefaultPartition, ApplicationStates().New))
+}
+
+// TestTaskMapReadersAreRaceFree covers the readers that run without the application lock while
+// the pod informer adds tasks under it. Both readers used to walk taskMap unsynchronised.
+func TestTaskMapReadersAreRaceFree(t *testing.T) {
+	readers := []struct {
+		name string
+		read func(app *Application)
+	}{
+		{"AreAllTasksTerminated", func(app *Application) { _ = app.AreAllTasksTerminated() }},
+		{"String", func(app *Application) { _ = app.String() }},
+	}
+
+	for _, reader := range readers {
+		t.Run(reader.name, func(t *testing.T) {
+			context := initContextForTest()
+			app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+			context.addApplicationToContext(app)
+
+			const taskCount = 200
+			start := make(chan struct{})
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			go func() {
+				defer wg.Done()
+				<-start
+				for i := 0; i < taskCount; i++ {
+					taskID := fmt.Sprintf("task-%d", i)
+					pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
+					app.addTask(NewTask(taskID, app, context, pod))
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				for i := 0; i < taskCount; i++ {
+					reader.read(app)
+				}
+			}()
+
+			close(start)
+			wg.Wait()
+
+			assert.Equal(t, len(app.GetNewTasks()), taskCount)
+			assert.Assert(t, !app.AreAllTasksTerminated())
+		})
+	}
 }
 
 func (ctx *Context) addApplicationToContext(app *Application) {
