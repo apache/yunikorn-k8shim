@@ -22,7 +22,7 @@ go 1.26.0
 
 require (
 	github.com/apache/yunikorn-core v0.0.0-20260903142729-2577453c1aed
-	github.com/apache/yunikorn-scheduler-interface v0.0.0-20260902114836-aee56d9f5e48
+	github.com/apache/yunikorn-scheduler-interface v0.0.0-20260917064053-bd4e35e972a4
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.3
