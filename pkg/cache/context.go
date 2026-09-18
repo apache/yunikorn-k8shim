@@ -752,10 +752,7 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 		return ErrorCycleStateNotFound
 	}
 	err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (int, bool) {
