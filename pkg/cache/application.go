@@ -64,9 +64,7 @@ type Application struct {
 	originatingTask            *Task // Original Pod which creates the requests
 	releaseableTasks           []*Task
 	context                    *Context
-	// set by a state transition that needs the application dropped from the context; handle()
-	// performs the removal once it has released the application lock
-	removeFromContext bool
+	removeFromContext          bool // handle() does the removal: it needs the context lock
 }
 
 const transitionErr = "no transition"
@@ -121,7 +119,8 @@ func (app *Application) runTransition(ev events.ApplicationEvent) (*Context, err
 	//    to protect the transition phase.
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
-	//    because the lock is already held here.
+	//    because the lock is already held here. A lock that is ordered after
+	//    this one, the task lock, is safe for a callback to take.
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
