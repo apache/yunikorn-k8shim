@@ -1683,10 +1683,7 @@ func TestAcceptRemovesApplicationUnderContextLock(t *testing.T) {
 	for i := 0; i < appCount; i++ {
 		app := NewApplication(fmt.Sprintf("app-%d", i), "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 		context.addApplicationToContext(app)
-		taskID := fmt.Sprintf("task-%d", i)
-		pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
-		task := NewTask(taskID, app, context, pod)
-		app.addTask(task)
+		task := addTaskHelper(context, app, fmt.Sprintf("task-%d", i))
 		assert.NilError(t, app.handle(NewSubmitApplicationEvent(app.applicationID)))
 		assert.NilError(t, task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)))
 		apps = append(apps, app)
@@ -1728,14 +1725,8 @@ func TestDeferredReleaseReadsTaskFieldsUnderTaskLock(t *testing.T) {
 	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 	context.addApplicationToContext(app)
 
-	newTaskHelper := func(taskID string) *Task {
-		pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
-		task := NewTask(taskID, app, context, pod)
-		app.addTask(task)
-		return task
-	}
-	deferred := newTaskHelper("task-deferred")
-	newTaskHelper("task-running")
+	deferred := addTaskHelper(context, app, "task-deferred")
+	addTaskHelper(context, app, "task-running")
 
 	assert.NilError(t, app.handle(NewSubmitApplicationEvent(app.applicationID)))
 	assert.NilError(t, deferred.handle(NewSimpleTaskEvent(app.applicationID, deferred.taskID, CompleteTask)))
@@ -1762,6 +1753,13 @@ func TestDeferredReleaseReadsTaskFieldsUnderTaskLock(t *testing.T) {
 	assert.NilError(t, acceptErr)
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Accepted)
 	assert.Assert(t, context.GetApplication(app.applicationID) != nil, "app with a live task must stay in the cache")
+}
+
+func addTaskHelper(context *Context, app *Application, taskID string) *Task {
+	pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
+	task := NewTask(taskID, app, context, pod)
+	app.addTask(task)
+	return task
 }
 
 func (ctx *Context) addApplicationToContext(app *Application) {

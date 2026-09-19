@@ -101,18 +101,18 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 }
 
 func (app *Application) handle(ev events.ApplicationEvent) error {
-	removeFrom, err := app.handleEvent(ev)
+	removeFrom, err := app.runTransition(ev)
 	// Context.RemoveApplication takes the context lock, which every other path takes before
-	// the application lock, so the removal can only run once handleEvent has released it.
+	// the application lock, so the removal can only run once runTransition has released it.
 	if removeFrom != nil {
 		removeFrom.RemoveApplication(app.applicationID)
 	}
 	return err
 }
 
-// handleEvent runs the event through the state machine under the application lock and reports
-// the context the transition asked to remove the application from, if any.
-func (app *Application) handleEvent(ev events.ApplicationEvent) (*Context, error) {
+// runTransition runs the event through the state machine while holding the application lock and
+// reports the context the transition asked to remove the application from, if any.
+func (app *Application) runTransition(ev events.ApplicationEvent) (*Context, error) {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
