@@ -671,7 +671,8 @@ func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
 
 	// adding and removing a node invalidates all three lists, so every round leaves the readers
 	// with nothing cached to share
-	for i := 0; i < 5; i++ {
+	const rounds = 5
+	for i := 0; i < rounds; i++ {
 		cache.UpdateNode(node2)
 		assertConcurrentReads(t, cache, 2)
 		cache.RemoveNode(node2)
@@ -679,12 +680,18 @@ func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
 	}
 }
 
+type nodeListSizes struct {
+	all                 int
+	withAffinity        int
+	withReqAntiAffinity int
+}
+
 // assertConcurrentReads populates the cached node lists the way the predicate shared lister does:
 // from several goroutines at once, holding nothing but the read lock.
-func assertConcurrentReads(t *testing.T, cache *SchedulerCache, nodes int) {
+func assertConcurrentReads(t *testing.T, cache *SchedulerCache, expectedNodes int) {
 	t.Helper()
 	const readers = 8
-	counts := make([][3]int, readers)
+	seen := make([]nodeListSizes, readers)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for i := 0; i < readers; i++ {
@@ -694,18 +701,20 @@ func assertConcurrentReads(t *testing.T, cache *SchedulerCache, nodes int) {
 			<-start
 			cache.LockForReads()
 			defer cache.UnlockForReads()
-			counts[i] = [3]int{
-				len(cache.GetNodesInfo()),
-				len(cache.GetNodesInfoPodsWithAffinity()),
-				len(cache.GetNodesInfoPodsWithReqAntiAffinity()),
+			seen[i] = nodeListSizes{
+				all:                 len(cache.GetNodesInfo()),
+				withAffinity:        len(cache.GetNodesInfoPodsWithAffinity()),
+				withReqAntiAffinity: len(cache.GetNodesInfoPodsWithReqAntiAffinity()),
 			}
 		}()
 	}
 	close(start)
 	wg.Wait()
 
-	for _, got := range counts {
-		assert.Equal(t, [3]int{nodes, 1, 1}, got, "reader saw a different set of node lists")
+	// host1 holds the only pod, and a required anti-affinity term counts as affinity as well
+	want := nodeListSizes{all: expectedNodes, withAffinity: 1, withReqAntiAffinity: 1}
+	for _, got := range seen {
+		assert.Equal(t, want, got, "reader saw a different set of node lists")
 	}
 }
 
