@@ -20,6 +20,7 @@ package external
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -252,12 +253,12 @@ func TestUpdateNode(t *testing.T) {
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
 
 	cache.RemoveNode(newNode)
-	assert.Equal(t, 0, len(cache.nodesInfo), "nodesInfo list size")
+	assert.Assert(t, cache.nodesInfo.Load() == nil, "nodesInfo list was not invalidated")
 }
 
 func TestGetNodesInfo(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	assert.Assert(t, cache.nodesInfo == nil)
+	assert.Assert(t, cache.nodesInfo.Load() == nil)
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      host1,
@@ -269,7 +270,7 @@ func TestGetNodesInfo(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(node)
-	assert.Assert(t, cache.nodesInfo == nil)
+	assert.Assert(t, cache.nodesInfo.Load() == nil)
 	nodesInfo := cache.GetNodesInfo()
 	expectHost(t, host1, nodesInfo)
 
@@ -296,13 +297,13 @@ func TestGetNodesInfo(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(newNode)
-	assert.Assert(t, cache.nodesInfo == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfo.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfo()
 	expectHost1AndHost2(t, nodesInfo)
 
 	// remove
 	cache.RemoveNode(node)
-	assert.Assert(t, cache.nodesInfo == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfo.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfo()
 	expectHost(t, host2, nodesInfo)
 }
@@ -310,7 +311,7 @@ func TestGetNodesInfo(t *testing.T) {
 //nolint:funlen
 func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil)
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      host1,
@@ -322,7 +323,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(node)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil)
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -354,7 +355,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -371,13 +372,13 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 			NodeName: host2,
 		},
 	}, true)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost1AndHost2(t, nodesInfo)
 
 	// remove node
 	cache.RemoveNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -393,7 +394,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(updatedNode)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -415,13 +416,13 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.AssumePod(pod2, true)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
 	// remove pod
 	cache.RemovePod(pod2)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -440,7 +441,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod3, true)
 	cache.updatePod(pod3)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity != nil, "node list was invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "node list was invalidated")
 
 	// add & update pod w/ affinity
 	pod4 := &v1.Pod{
@@ -463,13 +464,13 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod4, true)
 	cache.updatePod(pod4)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
 }
 
 //nolint:funlen
 func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil)
 	node := &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      host1,
@@ -481,7 +482,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(node)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil)
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -515,7 +516,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -534,13 +535,13 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 			NodeName: host2,
 		},
 	}, true)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost1AndHost2(t, nodesInfo)
 
 	// remove node
 	cache.RemoveNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "nodesInfo list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -556,7 +557,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(updatedNode)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -580,13 +581,13 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.AssumePod(pod2, true)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
 	// remove pod
 	cache.RemovePod(pod2)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -605,7 +606,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod3, true)
 	cache.updatePod(pod3)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity != nil, "node list was invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "node list was invalidated")
 
 	// add & update pod w/ anti-affinity
 	pod4 := &v1.Pod{
@@ -630,7 +631,82 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod4, true)
 	cache.updatePod(pod4)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
+}
+
+func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host1,
+			Namespace: "default",
+			UID:       nodeUID1,
+		},
+	})
+	cache.AssumePod(&v1.Pod{
+		TypeMeta: apis.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: apis.ObjectMeta{
+			Name: podName1,
+			UID:  podUID1,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+				},
+			},
+			NodeName: host1,
+		},
+	}, true)
+	node2 := &v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      host2,
+			Namespace: "default",
+			UID:       nodeUID2,
+		},
+	}
+
+	// adding and removing a node invalidates all three lists, so every round leaves the readers
+	// with nothing cached to share
+	for i := 0; i < 5; i++ {
+		cache.UpdateNode(node2)
+		assertConcurrentReads(t, cache, 2)
+		cache.RemoveNode(node2)
+		assertConcurrentReads(t, cache, 1)
+	}
+}
+
+// assertConcurrentReads populates the cached node lists the way the predicate shared lister does:
+// from several goroutines at once, holding nothing but the read lock.
+func assertConcurrentReads(t *testing.T, cache *SchedulerCache, nodes int) {
+	t.Helper()
+	const readers = 8
+	counts := make([][3]int, readers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			cache.LockForReads()
+			defer cache.UnlockForReads()
+			counts[i] = [3]int{
+				len(cache.GetNodesInfo()),
+				len(cache.GetNodesInfoPodsWithAffinity()),
+				len(cache.GetNodesInfoPodsWithReqAntiAffinity()),
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	for _, got := range counts {
+		assert.Equal(t, [3]int{nodes, 1, 1}, got, "reader saw a different set of node lists")
+	}
 }
 
 func TestUpdateNonExistNode(t *testing.T) {
