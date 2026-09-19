@@ -64,6 +64,9 @@ type Application struct {
 	originatingTask            *Task // Original Pod which creates the requests
 	releaseableTasks           []*Task
 	context                    *Context
+	// set by a state transition that needs the application dropped from the context; handle()
+	// performs the removal once it has released the application lock
+	removeFromContext bool
 }
 
 const transitionErr = "no transition"
@@ -98,6 +101,18 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 }
 
 func (app *Application) handle(ev events.ApplicationEvent) error {
+	removeFrom, err := app.handleEvent(ev)
+	// Context.RemoveApplication takes the context lock, which every other path takes before
+	// the application lock, so the removal can only run once handleEvent has released it.
+	if removeFrom != nil {
+		removeFrom.RemoveApplication(app.applicationID)
+	}
+	return err
+}
+
+// handleEvent runs the event through the state machine under the application lock and reports
+// the context the transition asked to remove the application from, if any.
+func (app *Application) handleEvent(ev events.ApplicationEvent) (*Context, error) {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -110,11 +125,16 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
+	var removeFrom *Context
+	if app.removeFromContext {
+		app.removeFromContext = false
+		removeFrom = app.context
+	}
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != transitionErr {
-		return err
+		return removeFrom, err
 	}
-	return nil
+	return removeFrom, nil
 }
 
 func (app *Application) canHandle(ev events.ApplicationEvent) bool {
@@ -781,14 +801,12 @@ func (app *Application) flushReleaseableTasks() {
 
 	if app.areAllTasksTerminated() {
 		app.removeFromSchedulerCore()
-		if app.context != nil {
-			app.context.removeApplication(app.applicationID)
-		}
+		app.removeFromContext = true
 		return
 	}
 
 	for _, task := range tasks {
-		task.releaseAllocation(true)
+		task.forceReleaseAllocation()
 	}
 }
 

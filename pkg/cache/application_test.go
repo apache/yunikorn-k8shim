@@ -1672,6 +1672,98 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	}
 }
 
+// TestAcceptRemovesApplicationUnderContextLock covers the removal of an application that has no
+// live task left by the time the core accepts it. The delete used to run under the application
+// lock only, while the scheduling loop lists the applications on every tick.
+func TestAcceptRemovesApplicationUnderContextLock(t *testing.T) {
+	context := initContextForTest()
+
+	const appCount = 50
+	apps := make([]*Application, 0, appCount)
+	for i := 0; i < appCount; i++ {
+		app := NewApplication(fmt.Sprintf("app-%d", i), "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+		context.addApplicationToContext(app)
+		taskID := fmt.Sprintf("task-%d", i)
+		pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
+		task := NewTask(taskID, app, context, pod)
+		app.addTask(task)
+		assert.NilError(t, app.handle(NewSubmitApplicationEvent(app.applicationID)))
+		assert.NilError(t, task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)))
+		apps = append(apps, app)
+	}
+
+	start := make(chan struct{})
+	acceptErrs := make([]error, appCount)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for i, app := range apps {
+			acceptErrs[i] = app.handle(NewSimpleApplicationEvent(app.applicationID, AcceptApplication))
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < appCount; i++ {
+			context.GetAllApplications()
+		}
+	}()
+
+	close(start)
+	wg.Wait()
+
+	for _, err := range acceptErrs {
+		assert.NilError(t, err)
+	}
+	assert.Equal(t, len(context.GetAllApplications()), 0)
+}
+
+// TestDeferredReleaseReadsTaskFieldsUnderTaskLock covers the release replay that runs when the
+// application still has live tasks. It read the task fields that the core callback writes when
+// an allocation lands, without holding the task lock.
+func TestDeferredReleaseReadsTaskFieldsUnderTaskLock(t *testing.T) {
+	context := initContextForTest()
+	app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	context.addApplicationToContext(app)
+
+	newTaskHelper := func(taskID string) *Task {
+		pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
+		task := NewTask(taskID, app, context, pod)
+		app.addTask(task)
+		return task
+	}
+	deferred := newTaskHelper("task-deferred")
+	newTaskHelper("task-running")
+
+	assert.NilError(t, app.handle(NewSubmitApplicationEvent(app.applicationID)))
+	assert.NilError(t, deferred.handle(NewSimpleTaskEvent(app.applicationID, deferred.taskID, CompleteTask)))
+	assert.Equal(t, len(app.releaseableTasks), 1)
+
+	start := make(chan struct{})
+	var acceptErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		acceptErr = app.handle(NewSimpleApplicationEvent(app.applicationID, AcceptApplication))
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		deferred.setAllocationKey("alloc-01")
+	}()
+
+	close(start)
+	wg.Wait()
+
+	assert.NilError(t, acceptErr)
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Accepted)
+	assert.Assert(t, context.GetApplication(app.applicationID) != nil, "app with a live task must stay in the cache")
+}
+
 func (ctx *Context) addApplicationToContext(app *Application) {
 	app.setContext(ctx)
 	ctx.lock.Lock()
