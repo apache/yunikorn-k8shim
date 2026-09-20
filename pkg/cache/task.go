@@ -216,7 +216,10 @@ func (task *Task) DeleteTaskPod() error {
 	// Keep all retries bound to the Pod observed by the original release.
 	pod := task.GetTaskPod().DeepCopy()
 	err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-	if task.reconcileTaskPodDeletion(pod, err) {
+	// Resolution here only means no further DELETE attempts are needed.
+	// Task completion and core release confirmation remain informer-driven.
+	noFurtherDeleteNeeded := task.reconcileTaskPodDeletion(pod, err)
+	if noFurtherDeleteNeeded {
 		// Preserve the existing NotFound return behavior, but a Conflict
 		// positively reconciled against current state no longer represents an
 		// outstanding delete obligation at the Task command boundary.
@@ -236,17 +239,20 @@ func (task *Task) DeleteTaskPod() error {
 }
 
 // reconcileTaskPodDeletion returns true when no further DELETE attempts are needed.
-// On Conflict it performs a Kubernetes GET to check whether the original UID is
-// absent or replaced; errors or unusable identities remain unresolved.
-// A true result does not complete the Task or confirm release to scheduler-core.
+// On Conflict it reconciles the original Pod identity against live Kubernetes state.
 func (task *Task) reconcileTaskPodDeletion(pod *v1.Pod, deleteErr error) bool {
 	if deleteErr == nil || apierrors.IsNotFound(deleteErr) {
 		return true
 	}
-	if !apierrors.IsConflict(deleteErr) {
-		return false
+	if apierrors.IsConflict(deleteErr) {
+		return task.reconcilePodDeleteConflict(pod)
 	}
+	return false
+}
 
+// reconcilePodDeleteConflict returns true only when live Kubernetes state proves
+// that the original Pod UID is absent or replaced.
+func (task *Task) reconcilePodDeleteConflict(pod *v1.Pod) bool {
 	currentPod, err := task.context.apiProvider.GetAPIs().KubeClient.Get(pod.Namespace, pod.Name)
 	if apierrors.IsNotFound(err) {
 		return true
@@ -279,6 +285,15 @@ func isDeleteTaskPodNonRetryable(err error) bool {
 		apierrors.IsMethodNotSupported(err)
 }
 
+// nextDeleteTaskPodRetryDelay doubles the delay, capped at the retry maximum.
+func nextDeleteTaskPodRetryDelay(delay time.Duration) time.Duration {
+	delay *= 2
+	if delay > deleteTaskPodRetryMaxDelay {
+		return deleteTaskPodRetryMaxDelay
+	}
+	return delay
+}
+
 // startTaskPodDeleteRetries starts a goroutine retrying the captured original Pod
 // identity with capped exponential backoff and no retry-count limit. It stops on
 // resolved deletion, a non-retryable error, or a terminal Task.
@@ -299,7 +314,8 @@ func (task *Task) startTaskPodDeleteRetries(pod *v1.Pod) {
 			}
 
 			err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-			if task.reconcileTaskPodDeletion(pod, err) {
+			noFurtherDeleteNeeded := task.reconcileTaskPodDeletion(pod, err)
+			if noFurtherDeleteNeeded {
 				switch {
 				case err == nil:
 					log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
@@ -337,10 +353,7 @@ func (task *Task) startTaskPodDeleteRetries(pod *v1.Pod) {
 				zap.String("podUID", string(pod.UID)),
 				zap.Error(err))
 			if delay < deleteTaskPodRetryMaxDelay {
-				delay *= 2
-				if delay > deleteTaskPodRetryMaxDelay {
-					delay = deleteTaskPodRetryMaxDelay
-				}
+				delay = nextDeleteTaskPodRetryDelay(delay)
 			}
 		}
 	}()
