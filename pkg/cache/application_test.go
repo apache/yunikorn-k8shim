@@ -1678,3 +1678,62 @@ func (ctx *Context) addApplicationToContext(app *Application) {
 	defer ctx.lock.Unlock()
 	ctx.applications[app.applicationID] = app
 }
+
+// Acceptance and task completion can race. Every deferred release must be
+// drained or sent directly, without losing or duplicating a task.
+func TestDeferredReleasesConcurrentWithAccept(t *testing.T) {
+	ctx := initContextForTest()
+	provider, ok := ctx.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok)
+	app := NewApplication("concurrent-release-app", "root.default", "user", nil, nil, newMockSchedulerAPI())
+	app.sm.SetState(ApplicationStates().Submitted)
+	// Keep the app alive so acceptance flushes task releases instead of removing it.
+	app.addTask(NewTask("live-task", app, ctx, &v1.Pod{}))
+	var mu sync.Mutex
+	released := make(map[string]int)
+	provider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, release := range request.Releases.AllocationsToRelease {
+			released[release.AllocationKey]++
+		}
+		return nil
+	})
+	const taskCount = 32
+	tasks := make([]*Task, taskCount)
+	for i := range tasks {
+		tasks[i] = NewTask(fmt.Sprintf("task-%d", i), app, ctx, &v1.Pod{})
+		app.addTask(tasks[i])
+	}
+	// Ensure the flush path is exercised even if acceptance wins the race below.
+	assert.NilError(t, tasks[0].handle(NewSimpleTaskEvent(app.applicationID, tasks[0].taskID, CompleteTask)))
+	start := make(chan struct{})
+	done := make(chan error, taskCount)
+	for _, task := range tasks[1:] {
+		go func() {
+			<-start
+			done <- task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask))
+		}()
+	}
+	go func() {
+		<-start
+		done <- app.handle(NewSimpleApplicationEvent(app.applicationID, AcceptApplication))
+	}()
+	close(start)
+	deadline := time.After(5 * time.Second)
+	for range taskCount {
+		select {
+		case err := <-done:
+			assert.NilError(t, err)
+		case <-deadline:
+			t.Fatal("acceptance and task completion did not finish")
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, len(released), taskCount)
+	for _, task := range tasks {
+		assert.Equal(t, released[task.taskID], 1)
+	}
+	assert.Equal(t, len(app.releaseableTasks), 0)
+}

@@ -62,8 +62,12 @@ type Application struct {
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
 	originatingTask            *Task // Original Pod which creates the requests
-	releaseableTasks           []*Task
 	context                    *Context
+
+	// releaseableTasksLock protects the deferred queue independently of app.lock.
+	// Never acquire app.lock or a task lock while holding this mutex.
+	releaseableTasksLock locking.Mutex
+	releaseableTasks     []*Task
 }
 
 const transitionErr = "no transition"
@@ -748,8 +752,8 @@ func (app *Application) removeCompletedTasks() {
 }
 
 func (app *Application) tryAddReleasableTask(task *Task) bool {
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	app.releaseableTasksLock.Lock()
+	defer app.releaseableTasksLock.Unlock()
 
 	current := app.sm.Current()
 	if current == ApplicationStates().New ||
@@ -767,17 +771,21 @@ func (app *Application) tryAddReleasableTask(task *Task) bool {
 }
 
 func (app *Application) clearReleaseableTasks() {
+	app.releaseableTasksLock.Lock()
+	defer app.releaseableTasksLock.Unlock()
 	app.releaseableTasks = nil
 }
 
 // flushReleaseableTasks replays deferred task releases after the application has been accepted
 // by the scheduler core. Must be called while the application lock is held.
 func (app *Application) flushReleaseableTasks() {
-	if len(app.releaseableTasks) == 0 {
-		return
-	}
+	app.releaseableTasksLock.Lock()
 	tasks := app.releaseableTasks
 	app.releaseableTasks = nil
+	app.releaseableTasksLock.Unlock()
+	if len(tasks) == 0 {
+		return
+	}
 
 	if app.areAllTasksTerminated() {
 		app.removeFromSchedulerCore()
@@ -788,7 +796,9 @@ func (app *Application) flushReleaseableTasks() {
 	}
 
 	for _, task := range tasks {
-		task.releaseAllocation(true)
+		task.lock.Lock()
+		task.releaseAllocation(task.GetTaskState(), true)
+		task.lock.Unlock()
 	}
 }
 

@@ -418,9 +418,9 @@ func callbacks(states *TStates) fsm.Callbacks {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			task.postTaskBound()
 		},
-		beforeHook(TaskFail): func(_ context.Context, event *fsm.Event) {
+		TaskFail.String(): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
-			task.beforeTaskFail()
+			task.afterTaskFail(event.Src)
 		},
 		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
@@ -432,11 +432,15 @@ func callbacks(states *TStates) fsm.Callbacks {
 			}
 			allocationKey := eventArgs[0]
 			nodeID := eventArgs[1]
-			task.beforeTaskAllocated(event.Src, allocationKey, nodeID)
+			task.beforeTaskAllocated(allocationKey, nodeID)
 		},
-		beforeHook(CompleteTask): func(_ context.Context, event *fsm.Event) {
+		TaskAllocated.String(): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
-			task.beforeTaskCompleted()
+			task.afterTaskAllocated(event.Src)
+		},
+		CompleteTask.String(): func(_ context.Context, event *fsm.Event) {
+			task := event.Args[0].(*Task) //nolint:errcheck
+			task.afterTaskCompleted(event.Src)
 		},
 		SubmitTask.String(): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck

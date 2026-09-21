@@ -435,26 +435,22 @@ func (task *Task) postTaskAllocated() {
 	}(pod, alias, nodeName, allocationKey)
 }
 
-// beforeTaskAllocated is called before handling the TaskAllocated event.
-// This sets the allocation information returned by the core in the task.
-// In some cases, the task is canceled (e.g. pod deleted) before we process the allocation
-// from the core. Those task will already be in the Completed state.
-// If we find the task is already in Completed state while handling TaskAllocated
-// event, we need to explicitly release this allocation because it is no
-// longer valid.
-func (task *Task) beforeTaskAllocated(eventSrc string, allocationKey string, nodeID string) {
-	// task is allocated on a node with a allocationKey set the details in the task here to allow referencing later.
+// beforeTaskAllocated records the allocation before entering Allocated, where
+// postTaskAllocated starts binding the pod.
+func (task *Task) beforeTaskAllocated(allocationKey string, nodeID string) {
 	task.allocationKey = allocationKey
 	task.nodeName = nodeID
-	// If the task is Completed the pod was deleted on K8s but the core was not aware yet.
-	// Notify the core to release this allocation to avoid resource leak.
-	// The ask is not relevant at this point.
+}
+
+// afterTaskAllocated releases late allocations for deleted pods. This must be an
+// after-event callback: Completed -> Completed does not enter a new state.
+func (task *Task) afterTaskAllocated(eventSrc string) {
 	if eventSrc == TaskStates().Completed {
 		log.Log(log.ShimCacheTask).Info("task is already completed, invalidate the allocation",
 			zap.String("currentTaskState", eventSrc),
-			zap.String("allocationKey", allocationKey),
-			zap.String("allocatedNode", nodeID))
-		task.releaseAllocation(false)
+			zap.String("allocationKey", task.allocationKey),
+			zap.String("allocatedNode", task.nodeName))
+		task.releaseAllocation(eventSrc, false)
 	}
 }
 
@@ -479,21 +475,17 @@ func (task *Task) postTaskRejected() {
 		fmt.Sprintf("task %s failed because it is rejected by scheduler", task.alias)))
 }
 
-// beforeTaskFail releases the allocation or ask from scheduler core
-// this is done as a before hook because the releaseAllocation() call needs to
-// send different requests to scheduler-core, depending on current task state
-func (task *Task) beforeTaskFail() {
+// afterTaskFail releases the allocation after the FSM has dropped its locks.
+func (task *Task) afterTaskFail(eventSrc string) {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
-	task.releaseAllocation(false)
+	task.releaseAllocation(eventSrc, false)
 }
 
-// beforeTaskCompleted releases the allocation or ask from scheduler core
-// this is done as a before hook because the releaseAllocation() call needs to
-// send different requests to scheduler-core, depending on current task state
-func (task *Task) beforeTaskCompleted() {
-	task.releaseAllocation(false)
+// afterTaskCompleted releases the allocation after the FSM has dropped its locks.
+func (task *Task) afterTaskCompleted(eventSrc string) {
+	task.releaseAllocation(eventSrc, false)
 
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
 		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
@@ -501,10 +493,12 @@ func (task *Task) beforeTaskCompleted() {
 }
 
 // releaseAllocation sends the release request for the Allocation to the core.
-func (task *Task) releaseAllocation(force bool) {
+// The caller must hold task.lock, without holding the FSM locks. eventSrc is the
+// pre-transition state for task events, or the current state for deferred releases.
+func (task *Task) releaseAllocation(eventSrc string, force bool) {
 	terminationType := common.GetTerminationTypeFromString(task.terminationType)
 
-	if !force && task.shouldAppRelease() {
+	if !force && task.application.tryAddReleasableTask(task) {
 		log.Log(log.ShimCacheTask).Info("not releasing task right now, app has not been accepted",
 			zap.String("appState", task.application.sm.Current()))
 		return
@@ -517,7 +511,7 @@ func (task *Task) releaseAllocation(force bool) {
 			zap.String("taskID", task.taskID),
 			zap.String("taskAlias", task.alias),
 			zap.String("allocationKey", task.allocationKey),
-			zap.String("task", task.GetTaskState()),
+			zap.String("task", eventSrc),
 			zap.String("terminationType", string(terminationType)))
 
 		// send an AllocationReleaseRequest
@@ -525,15 +519,15 @@ func (task *Task) releaseAllocation(force bool) {
 		s := TaskStates()
 
 		// check if the task is in a state where it has not been allocated yet
-		if task.GetTaskState() != s.New && task.GetTaskState() != s.Pending &&
-			task.GetTaskState() != s.Scheduling && task.GetTaskState() != s.Rejected {
+		if eventSrc != s.New && eventSrc != s.Pending &&
+			eventSrc != s.Scheduling && eventSrc != s.Rejected {
 			// task is in a state where it might have been allocated
 			if task.allocationKey == "" {
 				log.Log(log.ShimCacheTask).Warn("BUG: task allocationKey is empty on release",
 					zap.String("applicationID", task.applicationID),
 					zap.String("taskID", task.taskID),
 					zap.String("taskAlias", task.alias),
-					zap.String("taskState", task.GetTaskState()))
+					zap.String("taskState", eventSrc))
 			}
 		}
 
@@ -553,12 +547,6 @@ func (task *Task) releaseAllocation(force bool) {
 			log.Log(log.ShimCacheTask).Debug("failed to send scheduling request to scheduler", zap.Error(err))
 		}
 	}
-}
-
-func (task *Task) shouldAppRelease() bool {
-	task.lock.Unlock()
-	defer task.lock.Lock()
-	return task.application.tryAddReleasableTask(task)
 }
 
 // some sanity checks before sending task for scheduling,
