@@ -64,6 +64,7 @@ type Application struct {
 	originatingTask            *Task // Original Pod which creates the requests
 	releaseableTasks           []*Task
 	context                    *Context
+	removeFromContext          bool // handle() does the removal: it needs the context lock
 }
 
 const transitionErr = "no transition"
@@ -98,6 +99,18 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 }
 
 func (app *Application) handle(ev events.ApplicationEvent) error {
+	removeFrom, err := app.runTransition(ev)
+	// Context.RemoveApplication takes the context lock, which every other path takes before
+	// the application lock, so the removal can only run once runTransition has released it.
+	if removeFrom != nil {
+		removeFrom.RemoveApplication(app.applicationID)
+	}
+	return err
+}
+
+// runTransition runs the event through the state machine while holding the application lock and
+// reports the context the transition asked to remove the application from, if any.
+func (app *Application) runTransition(ev events.ApplicationEvent) (*Context, error) {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -106,15 +119,21 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    to protect the transition phase.
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
-	//    because the lock is already held here.
+	//    because the lock is already held here. A lock that is ordered after
+	//    this one, the task lock, is safe for a callback to take.
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
+	var removeFrom *Context
+	if app.removeFromContext {
+		app.removeFromContext = false
+		removeFrom = app.context
+	}
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != transitionErr {
-		return err
+		return removeFrom, err
 	}
-	return nil
+	return removeFrom, nil
 }
 
 func (app *Application) canHandle(ev events.ApplicationEvent) bool {
@@ -781,14 +800,12 @@ func (app *Application) flushReleaseableTasks() {
 
 	if app.areAllTasksTerminated() {
 		app.removeFromSchedulerCore()
-		if app.context != nil {
-			app.context.removeApplication(app.applicationID)
-		}
+		app.removeFromContext = true
 		return
 	}
 
 	for _, task := range tasks {
-		task.releaseAllocation(true)
+		task.forceReleaseAllocation()
 	}
 }
 

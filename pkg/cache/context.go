@@ -1137,10 +1137,6 @@ func (ctx *Context) getApplication(appID string) *Application {
 func (ctx *Context) RemoveApplication(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
-	ctx.removeApplication(appID)
-}
-
-func (ctx *Context) removeApplication(appID string) {
 	if _, exist := ctx.applications[appID]; !exist {
 		log.Log(log.ShimContext).Debug("Attempted to remove non-existent application", zap.String("appID", appID))
 		return

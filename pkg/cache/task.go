@@ -555,6 +555,14 @@ func (task *Task) releaseAllocation(force bool) {
 	}
 }
 
+// forceReleaseAllocation releases the allocation for callers that do not already hold the task
+// lock. The application lock is taken before the task lock on every path that holds both.
+func (task *Task) forceReleaseAllocation() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.releaseAllocation(true)
+}
+
 func (task *Task) shouldAppRelease() bool {
 	task.lock.Unlock()
 	defer task.lock.Lock()
