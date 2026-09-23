@@ -144,14 +144,30 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 	if strings.Compare(pod.Spec.SchedulerName, constants.SchedulerName) != 0 {
 		return ""
 	}
+	appID := GetApplicationIDValue(pod)
 
-	// Application ID can be defined in multiple places
-	// The application ID is determined by the following order.
-	// 1. Label: constants.CanonicalLabelApplicationID
-	// 2. Annotation: constants.AnnotationApplicationID
-	// 3. Label: constants.LabelApplicationID
-	// 4. Label: constants.SparkLabelAppID
+	// does appID end with '-uniqueautogen' if it does replace suffix with pod UID
+	if before, ok := strings.CutSuffix(appID, uniqueAutogenSuffix); ok {
+		appID = fmt.Sprintf("%s-%s", before, string(pod.UID))
+	}
 
+	// if app ID is not empty, return it
+	if appID != "" {
+		return appID
+	}
+
+	// Standard deployment mode, so we need a valid Application ID to proceed. Generate one now.
+	return GenerateApplicationID(pod.Namespace, conf.GetSchedulerConf().GenerateUniqueAppIds, string(pod.UID))
+}
+
+// GetApplicationIDValue retrieves the application ID from the pod based on the predefined order
+// Application ID can be defined in multiple places
+// The application ID is determined by the following order.
+// 1. Label: constants.CanonicalLabelApplicationID
+// 2. Annotation: constants.AnnotationApplicationID
+// 3. Label: constants.LabelApplicationID
+// 4. Label: constants.SparkLabelAppID
+func GetApplicationIDValue(pod *v1.Pod) string {
 	appID := GetPodLabelValue(pod, constants.CanonicalLabelApplicationID)
 
 	if appID == "" {
@@ -170,22 +186,11 @@ func GetApplicationIDFromPod(pod *v1.Pod) string {
 			}
 		}
 	}
-
-	// does appID end with '-uniqueautogen'?
-	if strings.HasSuffix(appID, uniqueAutogenSuffix) {
-		// replace suffix with pod UID
-		appID = fmt.Sprintf("%s-%s", strings.TrimSuffix(appID, uniqueAutogenSuffix), string(pod.UID))
-	}
-
-	// if app ID is not empty, return it
-	if appID != "" {
-		return appID
-	}
-
-	// Standard deployment mode, so we need a valid Application ID to proceed. Generate one now.
-	return GenerateApplicationID(pod.Namespace, conf.GetSchedulerConf().GenerateUniqueAppIds, string(pod.UID))
+	return appID
 }
 
+// GetIgnoredLabelAnnotationInPod returns the labels and annotations keys and values that set a different value than
+// the one currently used. Reporting inconsistencies for values that can be set in multiple ways.
 func GetIgnoredLabelAnnotationInPod(pod *v1.Pod, currentValue string, labelKeys []string, annotationKeys []string) (map[string]string, map[string]string) {
 	ignoredLabel := make(map[string]string, 0)
 	ignoredAnnotation := make(map[string]string, 0)
