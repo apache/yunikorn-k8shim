@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 16 // total number of active informers
+	noOfInformers = 1 // only ConfigMapInformer is started via explicit Run(); main factory informers are started via InformerFactory.Start()
 )
 
 func TestWaitForSync(t *testing.T) {
@@ -83,10 +83,6 @@ func getClients() *Clients {
 		PriorityClassInformer:         test.NewMockPriorityClassInformer(),
 		PVCInformer:                   NewMockedPersistentVolumeClaimInformer(),
 		PVInformer:                    NewMockedPersistentVolumeInformer(),
-		ReplicaSetInformer:            NewMockedReplicaSetInformer(),
-		ReplicationControllerInformer: NewMockedReplicationControllerInformer(),
-		ServiceInformer:               NewMockedServiceInformer(),
-		StatefulSetInformer:           NewMockedStatefulSetInformer(),
 		StorageClassInformer:          NewMockedStorageClassInformer(),
 		VolumeAttachmentInformer:      test.NewMockVolumeAttachmentInformer(),
 	}

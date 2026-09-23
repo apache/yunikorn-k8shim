@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"k8s.io/client-go/informers"
-	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
 	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
@@ -56,11 +55,7 @@ type Clients struct {
 	StorageClassInformer          storageInformerV1.StorageClassInformer
 	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
 	PVInformer                    coreInformerV1.PersistentVolumeInformer
-	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
 	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
-	ServiceInformer               coreInformerV1.ServiceInformer
-	StatefulSetInformer           appsInformerV1.StatefulSetInformer
-	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
 	VolumeAttachmentInformer      storageInformerV1.VolumeAttachmentInformer
 
 	// volume binder handles PV/PVC related operations
@@ -81,10 +76,6 @@ func (c *Clients) WaitForSync() {
 			c.PriorityClassInformer.Informer().HasSynced() &&
 			c.PVCInformer.Informer().HasSynced() &&
 			c.PVInformer.Informer().HasSynced() &&
-			c.ReplicaSetInformer.Informer().HasSynced() &&
-			c.ReplicationControllerInformer.Informer().HasSynced() &&
-			c.ServiceInformer.Informer().HasSynced() &&
-			c.StatefulSetInformer.Informer().HasSynced() &&
 			c.StorageClassInformer.Informer().HasSynced() &&
 			c.VolumeAttachmentInformer.Informer().HasSynced() {
 			return
@@ -100,19 +91,7 @@ func (c *Clients) WaitForSync() {
 
 func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.ConfigMapInformer.Informer().Run(stopCh)
-	go c.CSIDriverInformer.Informer().Run(stopCh)
-	go c.CSINodeInformer.Informer().Run(stopCh)
-	go c.CSIStorageCapacityInformer.Informer().Run(stopCh)
-	go c.NamespaceInformer.Informer().Run(stopCh)
-	go c.NodeInformer.Informer().Run(stopCh)
-	go c.PodInformer.Informer().Run(stopCh)
-	go c.PriorityClassInformer.Informer().Run(stopCh)
-	go c.PVCInformer.Informer().Run(stopCh)
-	go c.PVInformer.Informer().Run(stopCh)
-	go c.ReplicaSetInformer.Informer().Run(stopCh)
-	go c.ReplicationControllerInformer.Informer().Run(stopCh)
-	go c.ServiceInformer.Informer().Run(stopCh)
-	go c.StatefulSetInformer.Informer().Run(stopCh)
-	go c.StorageClassInformer.Informer().Run(stopCh)
-	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
+	if c.InformerFactory != nil {
+		c.InformerFactory.Start(stopCh)
+	}
 }

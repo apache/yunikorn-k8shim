@@ -37,7 +37,7 @@ import (
 
 type Type int
 
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet", "VolumeAttachment"}
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "VolumeAttachment"}
 
 const (
 	PodInformerHandlers Type = iota
@@ -51,10 +51,6 @@ const (
 	CSIStorageCapacityInformerHandlers
 	NamespaceInformerHandlers
 	PriorityClassInformerHandlers
-	ServiceInformerHandlers
-	ReplicationControllerInformerHandlers
-	ReplicaSetInformerHandlers
-	StatefulSetInformerHandlers
 	VolumeAttachmentInformerHandlers
 )
 
@@ -106,10 +102,6 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	csiStorageCapacityInformer := informerFactory.Storage().V1().CSIStorageCapacities()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
-	serviceInformer := informerFactory.Core().V1().Services()
-	replicationControllerInformer := informerFactory.Core().V1().ReplicationControllers()
-	replicaSetInformer := informerFactory.Apps().V1().ReplicaSets()
-	statefulSetInformer := informerFactory.Apps().V1().StatefulSets()
 	volumeAttachmentInformer := informerFactory.Storage().V1().VolumeAttachments()
 
 	var capacityCheck = volumebinding.CapacityCheck{
@@ -151,10 +143,6 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 			CSIStorageCapacityInformer:    csiStorageCapacityInformer,
 			NamespaceInformer:             namespaceInformer,
 			PriorityClassInformer:         priorityClassInformer,
-			ServiceInformer:               serviceInformer,
-			ReplicationControllerInformer: replicationControllerInformer,
-			ReplicaSetInformer:            replicaSetInformer,
-			StatefulSetInformer:           statefulSetInformer,
 			VolumeAttachmentInformer:      volumeAttachmentInformer,
 			VolumeBinder:                  volumeBinder,
 		},
