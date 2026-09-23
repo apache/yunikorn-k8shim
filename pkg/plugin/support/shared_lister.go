@@ -30,6 +30,18 @@ type sharedListerImpl struct {
 	storageInfos fwk.StorageInfoLister
 }
 
+func (s sharedListerImpl) PodGroups() fwk.PodGroupLister {
+	return nil
+}
+
+func (s sharedListerImpl) CompositePodGroupStates() fwk.CompositePodGroupStateLister {
+	return nil
+}
+
+func (s sharedListerImpl) CompositePodGroups() fwk.CompositePodGroupLister {
+	return nil
+}
+
 func (s sharedListerImpl) PodGroupStates() fwk.PodGroupStateLister {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return nil

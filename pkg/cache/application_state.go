@@ -30,6 +30,10 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
+const (
+	Failed = "Failed"
+)
+
 var applicationStatesOnce sync.Once
 
 // ----------------------------------------------
@@ -353,7 +357,7 @@ func ApplicationStates() *AStates {
 			Completed: "Completed",
 			Killing:   "Killing",
 			Killed:    "Killed",
-			Failed:    "Failed",
+			Failed:    Failed,
 			Failing:   "Failing",
 			Resuming:  "Resuming",
 		}

@@ -27,6 +27,18 @@ type SharedListerMock struct {
 	storageLister *StorageInfoListerMock
 }
 
+func (s *SharedListerMock) PodGroups() fwk.PodGroupLister {
+	return nil
+}
+
+func (s *SharedListerMock) CompositePodGroupStates() fwk.CompositePodGroupStateLister {
+	return nil
+}
+
+func (s *SharedListerMock) CompositePodGroups() fwk.CompositePodGroupLister {
+	return nil
+}
+
 func (s *SharedListerMock) PodGroupStates() fwk.PodGroupStateLister {
 	return nil
 }

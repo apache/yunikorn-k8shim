@@ -254,7 +254,7 @@ func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
 		assert.Assert(t, val.IsValid(), fmt.Sprintf("Field not valid: %s", name))
 
 		// If it's a pointer, dereference it
-		if val.Kind() == reflect.Ptr {
+		if val.Kind() == reflect.Pointer {
 			if val.IsNil() {
 				return nil
 			}

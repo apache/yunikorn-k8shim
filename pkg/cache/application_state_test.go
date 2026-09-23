@@ -27,11 +27,15 @@ import (
 )
 
 const (
-	TestCreateName = "Create test"
-	TestEventName  = "Event return test"
-	TestArgsName   = "Default args return test"
-	TestAppIDName  = "AppID return test"
-	TestStateName  = "State return test"
+	TestCreateName   = "Create test"
+	TestEventName    = "Event return test"
+	TestArgsName     = "Default args return test"
+	TestAppIDName    = "AppID return test"
+	TestStateName    = "State return test"
+	testAppId001     = "testAppId001"
+	testTask001      = "testTask001"
+	testErrorMessage = "test error msg"
+	testTaskId001    = "testTaskId001"
 )
 
 func TestNewSimpleApplicationEvent(t *testing.T) {
@@ -42,7 +46,7 @@ func TestNewSimpleApplicationEvent(t *testing.T) {
 		wantID    string
 		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", SubmitApplication, "testAppId001", SubmitApplication},
+		{TestCreateName, testAppId001, SubmitApplication, testAppId001, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -64,7 +68,7 @@ func TestSimpleApplicationEventGetEvent(t *testing.T) {
 		event     ApplicationEventType
 		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", SubmitApplication, SubmitApplication},
+		{TestEventName, testAppId001, SubmitApplication, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -85,7 +89,7 @@ func TestSimpleApplicationEventGetArgs(t *testing.T) {
 		event ApplicationEventType
 		want  int
 	}{
-		{TestArgsName, "testAppId001", SubmitApplication, 0},
+		{TestArgsName, testAppId001, SubmitApplication, 0},
 	}
 
 	for _, tt := range tests {
@@ -106,7 +110,7 @@ func TestSimpleApplicationEventGetApplicationID(t *testing.T) {
 		event  ApplicationEventType
 		wantID string
 	}{
-		{TestAppIDName, "testAppId001", SubmitApplication, "testAppId001"},
+		{TestAppIDName, testAppId001, SubmitApplication, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -128,7 +132,7 @@ func TestNewApplicationEvent(t *testing.T) {
 		wantID, wantMsg string
 		wantEvent       ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testTask001", SubmitApplication, "testAppId001", "testTask001", SubmitApplication},
+		{TestCreateName, testAppId001, testTask001, SubmitApplication, testAppId001, testTask001, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -150,7 +154,7 @@ func TestApplicationEventGetEvent(t *testing.T) {
 		event      ApplicationEventType
 		want       ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testTask001", SubmitApplication, SubmitApplication},
+		{TestEventName, testAppId001, testTask001, SubmitApplication, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -173,7 +177,7 @@ func TestApplicationEventGetArgs(t *testing.T) {
 		isString   []bool
 		wantArg    []string
 	}{
-		{TestArgsName, "testAppId001", "testTask001", SubmitApplication, 1, []bool{true}, []string{"testTask001"}},
+		{TestArgsName, testAppId001, testTask001, SubmitApplication, 1, []bool{true}, []string{testTask001}},
 	}
 
 	for _, tt := range tests {
@@ -205,7 +209,7 @@ func TestApplicationEventGetApplicationID(t *testing.T) {
 		event      ApplicationEventType
 		wantID     string
 	}{
-		{TestAppIDName, "testAppId001", "testTask001", SubmitApplication, "testAppId001"},
+		{TestAppIDName, testAppId001, testTask001, SubmitApplication, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -229,7 +233,7 @@ func TestNewApplicationStatusChangeEvent(t *testing.T) {
 		wantEvent ApplicationEventType
 		wantState string
 	}{
-		{TestCreateName, "testAppId001", SubmitApplication, "SubmitApplication", "testAppId001", SubmitApplication, "SubmitApplication"},
+		{TestCreateName, testAppId001, SubmitApplication, SubmitApplication.String(), testAppId001, SubmitApplication, "SubmitApplication"},
 	}
 
 	for _, tt := range tests {
@@ -253,7 +257,7 @@ func TestApplicationStatusChangeEventGetEvent(t *testing.T) {
 		state     string
 		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", SubmitApplication, "SubmitApplication", SubmitApplication},
+		{TestEventName, testAppId001, SubmitApplication, SubmitApplication.String(), SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -275,7 +279,7 @@ func TestApplicationStatusChangeEventGetArgs(t *testing.T) {
 		state   string
 		wantLen int
 	}{
-		{TestArgsName, "testAppId001", SubmitApplication, "SubmitApplication", 0},
+		{TestArgsName, testAppId001, SubmitApplication, SubmitApplication.String(), 0},
 	}
 
 	for _, tt := range tests {
@@ -297,7 +301,7 @@ func TestApplicationStatusChangeEventGetApplicationID(t *testing.T) {
 		state     string
 		wantAppID string
 	}{
-		{TestAppIDName, "testAppId001", SubmitApplication, "SubmitApplication", "testAppId001"},
+		{TestAppIDName, testAppId001, SubmitApplication, SubmitApplication.String(), testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -319,7 +323,7 @@ func TestApplicationStatusChangeEventGetState(t *testing.T) {
 		state     string
 		wantState string
 	}{
-		{TestStateName, "testAppId001", SubmitApplication, "SubmitApplication", "SubmitApplication"},
+		{TestStateName, testAppId001, SubmitApplication, "SubmitApplication", "SubmitApplication"},
 	}
 
 	for _, tt := range tests {
@@ -340,7 +344,7 @@ func TestNewSubmitApplicationEvent(t *testing.T) {
 		wantID    string
 		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", SubmitApplication},
+		{TestCreateName, testAppId001, testAppId001, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -361,7 +365,7 @@ func TestSubmitApplicationEventGetEvent(t *testing.T) {
 		appID     string
 		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", SubmitApplication},
+		{TestEventName, testAppId001, SubmitApplication},
 	}
 
 	for _, tt := range tests {
@@ -381,7 +385,7 @@ func TestSubmitApplicationEventGetArgs(t *testing.T) {
 		appID   string
 		wantLen int
 	}{
-		{TestArgsName, "testAppId001", 0},
+		{TestArgsName, testAppId001, 0},
 	}
 
 	for _, tt := range tests {
@@ -401,7 +405,7 @@ func TestSubmitApplicationEventGetApplicationID(t *testing.T) {
 		appID  string
 		wantID string
 	}{
-		{TestAppIDName, "testAppId001", "testAppId001"},
+		{TestAppIDName, testAppId001, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -422,7 +426,7 @@ func TestNewRunApplicationEvent(t *testing.T) {
 		wantID    string
 		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", RunApplication},
+		{TestCreateName, testAppId001, testAppId001, RunApplication},
 	}
 
 	for _, tt := range tests {
@@ -443,7 +447,7 @@ func TestRunApplicationEventGetEvent(t *testing.T) {
 		appID     string
 		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", RunApplication},
+		{TestEventName, testAppId001, RunApplication},
 	}
 
 	for _, tt := range tests {
@@ -463,7 +467,7 @@ func TestRunApplicationEventGetArgs(t *testing.T) {
 		appID   string
 		wantLen int
 	}{
-		{TestArgsName, "testAppId001", 0},
+		{TestArgsName, testAppId001, 0},
 	}
 
 	for _, tt := range tests {
@@ -483,7 +487,7 @@ func TestRunApplicationEventGetApplicationID(t *testing.T) {
 		appID  string
 		wantID string
 	}{
-		{TestAppIDName, "testAppId001", "testAppId001"},
+		{TestAppIDName, testAppId001, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -504,7 +508,7 @@ func TestNewFailApplicationEvent(t *testing.T) {
 		wantID, wantErrorMsg string
 		wantEvent            ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "test error msg", "testAppId001", "test error msg", FailApplication},
+		{TestCreateName, testAppId001, testErrorMessage, testAppId001, testErrorMessage, FailApplication},
 	}
 
 	for _, tt := range tests {
@@ -525,7 +529,7 @@ func TestFailApplicationEventGetEvent(t *testing.T) {
 		appID, errorMsg string
 		wantEvent       ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "test error msg", FailApplication},
+		{TestEventName, testAppId001, testErrorMessage, FailApplication},
 	}
 
 	for _, tt := range tests {
@@ -547,7 +551,7 @@ func TestFailApplicationEventGetArgs(t *testing.T) {
 		castOk          []bool
 		wantArg         []string
 	}{
-		{TestArgsName, "testAppId001", "test error msg", 1, []bool{true}, []string{"test error msg"}},
+		{TestArgsName, testAppId001, testErrorMessage, 1, []bool{true}, []string{testErrorMessage}},
 	}
 
 	for _, tt := range tests {
@@ -577,7 +581,7 @@ func TestFailApplicationEventGetApplicationID(t *testing.T) {
 		appID, errorMsg string
 		wantID          string
 	}{
-		{TestAppIDName, "testAppId001", "test error msg", "testAppId001"},
+		{TestAppIDName, testAppId001, testErrorMessage, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -598,7 +602,7 @@ func TestNewUpdateApplicationReservationEvent(t *testing.T) {
 		wantID    string
 		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", UpdateReservation},
+		{TestCreateName, testAppId001, testAppId001, UpdateReservation},
 	}
 
 	for _, tt := range tests {
@@ -617,7 +621,7 @@ func TestUpdateApplicationReservationEventGetEvent(t *testing.T) {
 		appID     string
 		wantEvent ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", UpdateReservation},
+		{TestEventName, testAppId001, UpdateReservation},
 	}
 
 	for _, tt := range tests {
@@ -637,7 +641,7 @@ func TestUpdateApplicationReservationEventGetArgs(t *testing.T) {
 		appID   string
 		wantLen int
 	}{
-		{TestArgsName, "testAppId001", 0},
+		{TestArgsName, testAppId001, 0},
 	}
 
 	for _, tt := range tests {
@@ -657,7 +661,7 @@ func TestUpdateApplicationReservationEventGetApplicationID(t *testing.T) {
 		appID  string
 		wantID string
 	}{
-		{TestAppIDName, "testAppId001", "testAppId001"},
+		{TestAppIDName, testAppId001, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -679,7 +683,7 @@ func TestNewReleaseAppAllocationEvent(t *testing.T) {
 		wantID, wantAllocationKey, wantType string
 		wantEvent                           ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001", "testTaskId001", "TIMEOUT", ReleaseAppAllocation},
+		{TestCreateName, testAppId001, testTaskId001, si.TerminationType_TIMEOUT, testAppId001, testTaskId001, "TIMEOUT", ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
@@ -701,7 +705,7 @@ func TestReleaseAppAllocationEventGetEvent(t *testing.T) {
 		terminationType      si.TerminationType
 		wantEvent            ApplicationEventType
 	}{
-		{TestEventName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, ReleaseAppAllocation},
+		{TestEventName, testAppId001, testTaskId001, si.TerminationType_TIMEOUT, ReleaseAppAllocation},
 	}
 
 	for _, tt := range tests {
@@ -724,7 +728,7 @@ func TestReleaseAppAllocationEventGetArgs(t *testing.T) {
 		castOk               []bool
 		wantArg              []string
 	}{
-		{TestArgsName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, 2, []bool{true, true}, []string{"testTaskId001", "TIMEOUT"}},
+		{TestArgsName, testAppId001, testTaskId001, si.TerminationType_TIMEOUT, 2, []bool{true, true}, []string{testTaskId001, "TIMEOUT"}},
 	}
 
 	for _, tt := range tests {
@@ -755,7 +759,7 @@ func TestReleaseAppAllocationEventGetApplicationID(t *testing.T) {
 		terminationType      si.TerminationType
 		wantID               string
 	}{
-		{TestAppIDName, "testAppId001", "testTaskId001", si.TerminationType_TIMEOUT, "testAppId001"},
+		{TestAppIDName, testAppId001, testTaskId001, si.TerminationType_TIMEOUT, testAppId001},
 	}
 
 	for _, tt := range tests {
@@ -776,7 +780,7 @@ func TestNewResumingApplicationEvent(t *testing.T) {
 		wantID    string
 		wantEvent ApplicationEventType
 	}{
-		{TestCreateName, "testAppId001", "testAppId001", ResumingApplication},
+		{TestCreateName, testAppId001, testAppId001, ResumingApplication},
 	}
 
 	for _, tt := range tests {

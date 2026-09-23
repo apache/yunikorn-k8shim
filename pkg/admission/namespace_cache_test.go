@@ -32,7 +32,10 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 )
 
-const testNS = "test-ns"
+const (
+	testNS  = "test-ns"
+	trueStr = "true"
+)
 
 func TestFlags(t *testing.T) {
 	cache, nsErr := NewNamespaceCache(nil)
@@ -100,7 +103,7 @@ func TestNamespaceHandlers(t *testing.T) {
 
 	// validate OnUpdate
 	ns2 := ns.DeepCopy()
-	ns2.Annotations = map[string]string{constants.AnnotationEnableYuniKorn: "true",
+	ns2.Annotations = map[string]string{constants.AnnotationEnableYuniKorn: trueStr,
 		constants.AnnotationGenerateAppID: "false"}
 
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
@@ -113,7 +116,7 @@ func TestNamespaceHandlers(t *testing.T) {
 	assert.Equal(t, FALSE, cache.generateAppID(testNS), "generate should have been set to false")
 
 	ns2 = ns.DeepCopy()
-	ns2.Annotations = map[string]string{constants.AnnotationGenerateAppID: "true"}
+	ns2.Annotations = map[string]string{constants.AnnotationGenerateAppID: trueStr}
 
 	_, err = nsInterface.Update(context.Background(), ns2, metav1.UpdateOptions{})
 	assert.NilError(t, err)
@@ -168,8 +171,8 @@ func TestGetAnnotations(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testNS,
 					Annotations: map[string]string{
-						constants.AnnotationEnableYuniKorn: "true",
-						constants.AnnotationGenerateAppID:  "true",
+						constants.AnnotationEnableYuniKorn: trueStr,
+						constants.AnnotationGenerateAppID:  trueStr,
 					},
 				},
 			},
@@ -180,7 +183,7 @@ func TestGetAnnotations(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testNS,
 					Annotations: map[string]string{
-						constants.AnnotationGenerateAppID:  "true",
+						constants.AnnotationGenerateAppID:  trueStr,
 						constants.AnnotationEnableYuniKorn: "false",
 					},
 				},

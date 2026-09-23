@@ -36,7 +36,7 @@ func TestList(t *testing.T) {
 	nodes, err := lister.List()
 	assert.NilError(t, err, "List failed")
 	assert.Assert(t, nodes != nil, "nodes was nil")
-	assert.Equal(t, 2, len(nodes), "wrong length")
+	assert.Equal(t, 3, len(nodes), "wrong length")
 	m := make(map[string]fwk.NodeInfo)
 	for _, node := range nodes {
 		m[node.Node().Name] = node
@@ -45,6 +45,8 @@ func TestList(t *testing.T) {
 	assert.Assert(t, ok, "host0001 missing")
 	_, ok = m["host0002"]
 	assert.Assert(t, ok, "host0002 missing")
+	_, ok = m["host0003"]
+	assert.Assert(t, ok, "host0003 missing")
 }
 
 func TestGet(t *testing.T) {
@@ -76,6 +78,15 @@ func TestHavePodsWithRequiredAntiAffinityList(t *testing.T) {
 	assert.Equal(t, "host0002", nodes[0].Node().Name, "wrong name for node")
 }
 
+func TestHavePodsWithRequiredNonHostScopedAntiAffinityList(t *testing.T) {
+	lister := initLister(t)
+	nodes, err := lister.HavePodsWithRequiredNonHostScopedAntiAffinityList()
+	assert.NilError(t, err, "HavePodsWithRequiredNonHostScopedAntiAffinityList failed")
+	assert.Assert(t, nodes != nil, "nodes was nil")
+	assert.Equal(t, 1, len(nodes), "wrong length")
+	assert.Equal(t, "host0003", nodes[0].Node().Name, "wrong name for node")
+}
+
 func initLister(t *testing.T) *nodeInfoListerImpl {
 	cache := external.NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	lister, ok := NewSharedLister(cache).NodeInfos().(*nodeInfoListerImpl)
@@ -95,9 +106,17 @@ func initLister(t *testing.T) *nodeInfoListerImpl {
 			UID:       "Node-UID-00002",
 		},
 	})
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "host0003",
+			Namespace: "default",
+			UID:       "Node-UID-00003",
+		},
+	})
 
 	cache.GetNode("host0001").PodsWithAffinity = append(cache.GetNode("host0001").PodsWithAffinity, &framework.PodInfo{})
 	cache.GetNode("host0002").PodsWithRequiredAntiAffinity = append(cache.GetNode("host0002").PodsWithRequiredAntiAffinity, &framework.PodInfo{})
+	cache.GetNode("host0003").PodsWithRequiredNonHostScopedAntiAffinity = append(cache.GetNode("host0003").PodsWithRequiredNonHostScopedAntiAffinity, &framework.PodInfo{})
 
 	return lister
 }

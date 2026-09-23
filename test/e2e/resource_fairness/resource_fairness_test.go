@@ -133,7 +133,7 @@ var _ = Describe("FairScheduling:", func() {
 
 		// Submit one blocked pod for each app in random order. Each requests 0.1 qCPU and 0.05 qMem.
 		By("Submitting additional blocked pod for each app")
-		randOrder := rand.Perm(3)
+		randOrder := rand.Perm(3) // #nosec G404
 		for _, i := range randOrder {
 			cpuPct, memPct, appID := 0.1, 0.05, apps[i]
 			reqCPU, reqMem := int64(cpuPct*float64(maxCPU)), int64(memPct*float64(maxMem))

@@ -33,6 +33,7 @@ linters:
         - shadow
     goconst:
       min-occurrences: 5
+      ignore-tests: true
     funlen:
       lines: 120
       statements: 80

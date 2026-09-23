@@ -42,6 +42,10 @@ func (n nodeInfoListerImpl) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeIn
 	return n.cache.GetNodesInfoPodsWithReqAntiAffinity(), nil
 }
 
+func (n *nodeInfoListerImpl) HavePodsWithRequiredNonHostScopedAntiAffinityList() ([]fwk.NodeInfo, error) {
+	return n.cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity(), nil
+}
+
 func (n nodeInfoListerImpl) Get(nodeName string) (fwk.NodeInfo, error) {
 	nodes := n.cache.GetNodesInfoMap()
 	node, ok := nodes[nodeName]
