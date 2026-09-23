@@ -73,17 +73,17 @@ func TestRun(t *testing.T) {
 
 func getClients() *Clients {
 	return &Clients{
-		ConfigMapInformer:             test.NewMockedConfigMapInformer(),
-		CSIDriverInformer:             NewMockedCSIDriverInformer(),
-		CSINodeInformer:               NewMockedCSINodeInformer(),
-		CSIStorageCapacityInformer:    NewMockedCSIStorageCapacityInformer(),
-		NamespaceInformer:             test.NewMockNamespaceInformer(false),
-		NodeInformer:                  test.NewMockedNodeInformer(),
-		PodInformer:                   test.NewMockedPodInformer(),
-		PriorityClassInformer:         test.NewMockPriorityClassInformer(),
-		PVCInformer:                   NewMockedPersistentVolumeClaimInformer(),
-		PVInformer:                    NewMockedPersistentVolumeInformer(),
-		StorageClassInformer:          NewMockedStorageClassInformer(),
-		VolumeAttachmentInformer:      test.NewMockVolumeAttachmentInformer(),
+		ConfigMapInformer:          test.NewMockedConfigMapInformer(),
+		CSIDriverInformer:          NewMockedCSIDriverInformer(),
+		CSINodeInformer:            NewMockedCSINodeInformer(),
+		CSIStorageCapacityInformer: NewMockedCSIStorageCapacityInformer(),
+		NamespaceInformer:          test.NewMockNamespaceInformer(false),
+		NodeInformer:               test.NewMockedNodeInformer(),
+		PodInformer:                test.NewMockedPodInformer(),
+		PriorityClassInformer:      test.NewMockPriorityClassInformer(),
+		PVCInformer:                NewMockedPersistentVolumeClaimInformer(),
+		PVInformer:                 NewMockedPersistentVolumeInformer(),
+		StorageClassInformer:       NewMockedStorageClassInformer(),
+		VolumeAttachmentInformer:   test.NewMockVolumeAttachmentInformer(),
 	}
 }

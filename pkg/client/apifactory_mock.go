@@ -523,7 +523,6 @@ func NewMockedCSIStorageCapacityInformer() *MockedCSIStorageCapacityInformer {
 	}
 }
 
-
 func (m *MockedAPIProvider) SetVolumeBinder(binder volumebinding.SchedulerVolumeBinder) {
 	m.clients.VolumeBinder = binder
 }

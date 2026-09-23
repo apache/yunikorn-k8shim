@@ -45,18 +45,18 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	ConfigMapInformer             coreInformerV1.ConfigMapInformer
-	CSIDriverInformer             storageInformerV1.CSIDriverInformer
-	CSINodeInformer               storageInformerV1.CSINodeInformer
-	CSIStorageCapacityInformer    storageInformerV1.CSIStorageCapacityInformer
-	NamespaceInformer             coreInformerV1.NamespaceInformer
-	NodeInformer                  coreInformerV1.NodeInformer
-	PodInformer                   coreInformerV1.PodInformer
-	StorageClassInformer          storageInformerV1.StorageClassInformer
-	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
-	PVInformer                    coreInformerV1.PersistentVolumeInformer
-	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
-	VolumeAttachmentInformer      storageInformerV1.VolumeAttachmentInformer
+	ConfigMapInformer          coreInformerV1.ConfigMapInformer
+	CSIDriverInformer          storageInformerV1.CSIDriverInformer
+	CSINodeInformer            storageInformerV1.CSINodeInformer
+	CSIStorageCapacityInformer storageInformerV1.CSIStorageCapacityInformer
+	NamespaceInformer          coreInformerV1.NamespaceInformer
+	NodeInformer               coreInformerV1.NodeInformer
+	PodInformer                coreInformerV1.PodInformer
+	StorageClassInformer       storageInformerV1.StorageClassInformer
+	PVCInformer                coreInformerV1.PersistentVolumeClaimInformer
+	PVInformer                 coreInformerV1.PersistentVolumeInformer
+	PriorityClassInformer      schedulingInformerV1.PriorityClassInformer
+	VolumeAttachmentInformer   storageInformerV1.VolumeAttachmentInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
