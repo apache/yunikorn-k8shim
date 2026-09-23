@@ -285,13 +285,15 @@ func isDeleteTaskPodNonRetryable(err error) bool {
 		apierrors.IsMethodNotSupported(err)
 }
 
-// nextDeleteTaskPodRetryDelay doubles the delay, capped at the retry maximum.
-func nextDeleteTaskPodRetryDelay(delay time.Duration) time.Duration {
-	delay *= 2
-	if delay > deleteTaskPodRetryMaxDelay {
-		return deleteTaskPodRetryMaxDelay
+func taskPodDeleteRetryBackoff() wait.Backoff {
+	return wait.Backoff{
+		Duration: deleteTaskPodRetryInitialDelay,
+		Factor:   2,
+		Cap:      deleteTaskPodRetryMaxDelay,
+		// Nine growth steps reach the cap. DelayFunc keeps returning the capped
+		// delay afterward; Steps does not limit the number of DELETE attempts.
+		Steps: 9,
 	}
-	return delay
 }
 
 // startTaskPodDeleteRetries starts a goroutine retrying the captured original Pod
@@ -299,64 +301,65 @@ func nextDeleteTaskPodRetryDelay(delay time.Duration) time.Duration {
 // resolved deletion, a non-retryable error, or a terminal Task.
 // The caller must already hold podDeleteClaimed.
 func (task *Task) startTaskPodDeleteRetries(pod *v1.Pod) {
-	go func() {
-		delay := deleteTaskPodRetryInitialDelay
-		for {
-			timer := time.NewTimer(delay)
-			<-timer.C
+	go task.runTaskPodDeleteRetries(pod, taskPodDeleteRetryBackoff())
+}
 
-			if task.isTerminated() {
-				log.Log(log.ShimCacheTask).Debug("stopping task pod deletion re-drive for terminal task",
+func (task *Task) runTaskPodDeleteRetries(pod *v1.Pod, backoff wait.Backoff) {
+	// Wait before the first attempt and after each callback. Background preserves
+	// the existing lifecycle: only terminal, resolved, or non-retryable results stop it.
+	err := backoff.DelayFunc().Until(context.Background(), false, true, func(context.Context) (bool, error) {
+		if task.isTerminated() {
+			log.Log(log.ShimCacheTask).Debug("stopping task pod deletion re-drive for terminal task",
+				zap.String("namespace", pod.Namespace),
+				zap.String("podName", pod.Name),
+				zap.String("podUID", string(pod.UID)))
+			return true, nil
+		}
+
+		err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
+		noFurtherDeleteNeeded := task.reconcileTaskPodDeletion(pod, err)
+		if noFurtherDeleteNeeded {
+			switch {
+			case err == nil:
+				log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
 					zap.String("namespace", pod.Namespace),
 					zap.String("podName", pod.Name),
 					zap.String("podUID", string(pod.UID)))
-				return
-			}
-
-			err := task.context.apiProvider.GetAPIs().KubeClient.Delete(pod)
-			noFurtherDeleteNeeded := task.reconcileTaskPodDeletion(pod, err)
-			if noFurtherDeleteNeeded {
-				switch {
-				case err == nil:
-					log.Log(log.ShimCacheTask).Info("task pod deletion accepted on re-drive",
-						zap.String("namespace", pod.Namespace),
-						zap.String("podName", pod.Name),
-						zap.String("podUID", string(pod.UID)))
-				case apierrors.IsNotFound(err):
-					log.Log(log.ShimCacheTask).Info("task pod already absent on deletion re-drive",
-						zap.String("namespace", pod.Namespace),
-						zap.String("podName", pod.Name),
-						zap.String("podUID", string(pod.UID)))
-				default:
-					log.Log(log.ShimCacheTask).Info("task pod deletion Conflict resolved on re-drive",
-						zap.String("namespace", pod.Namespace),
-						zap.String("podName", pod.Name),
-						zap.String("podUID", string(pod.UID)))
-				}
-				return
-			}
-			if !shouldRetryDeleteTaskPod(err) {
-				// This worker no longer owns an unfinished retryable operation.
-				// Release the claim so a later explicit request can try again.
-				task.podDeleteClaimed.Store(false)
-				log.Log(log.ShimCacheTask).Warn("stopping task pod deletion re-drive after non-retryable delete error",
+			case apierrors.IsNotFound(err):
+				log.Log(log.ShimCacheTask).Info("task pod already absent on deletion re-drive",
 					zap.String("namespace", pod.Namespace),
 					zap.String("podName", pod.Name),
-					zap.String("podUID", string(pod.UID)),
-					zap.Error(err))
-				return
+					zap.String("podUID", string(pod.UID)))
+			default:
+				log.Log(log.ShimCacheTask).Info("task pod deletion Conflict resolved on re-drive",
+					zap.String("namespace", pod.Namespace),
+					zap.String("podName", pod.Name),
+					zap.String("podUID", string(pod.UID)))
 			}
-
-			log.Log(log.ShimCacheTask).Warn("failed to re-drive task pod deletion",
+			return true, nil
+		}
+		if !shouldRetryDeleteTaskPod(err) {
+			// This worker no longer owns an unfinished retryable operation.
+			// Release the claim so a later explicit request can try again.
+			task.podDeleteClaimed.Store(false)
+			log.Log(log.ShimCacheTask).Warn("stopping task pod deletion re-drive after non-retryable delete error",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),
 				zap.String("podUID", string(pod.UID)),
 				zap.Error(err))
-			if delay < deleteTaskPodRetryMaxDelay {
-				delay = nextDeleteTaskPodRetryDelay(delay)
-			}
+			return true, nil
 		}
-	}()
+
+		log.Log(log.ShimCacheTask).Warn("failed to re-drive task pod deletion",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name),
+			zap.String("podUID", string(pod.UID)),
+			zap.Error(err))
+		return false, nil
+	})
+	if err != nil {
+		log.Log(log.ShimCacheTask).Error("unexpected task pod deletion retry loop error", zap.Error(err))
+	}
 }
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
