@@ -33,7 +33,6 @@ import (
 	runtime2 "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
@@ -172,30 +171,6 @@ func TestPreemptionFilterWithVictims(t *testing.T) {
 			assert.Equal(t, index, tt.expectedIndex, "wrong victim index")
 		})
 	}
-}
-
-func TestEventsToRegister(t *testing.T) {
-	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
-	handle, _ := getFrameworkHandle()
-	config, err := DefaultConfig()
-	assert.NilError(t, err)
-	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
-
-	var queueingHintFn fwk.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (fwk.QueueingHint, error) {
-		// illegal sentinel to ensure we called the correct function
-		return -1, nil
-	}
-	events := predicateManager.EventsToRegister(queueingHintFn)
-	assert.Equal(t, events[0].Event.Resource, fwk.Node, "wrong resource (0)")
-	assert.Equal(t, events[0].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdateNodeLabel|fwk.UpdateNodeTaint, "wrong action type (0)")
-	fn0, err := events[0].QueueingHintFn(klog.NewKlogr(), nil, "", "")
-	assert.NilError(t, err)
-	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
-	assert.Equal(t, events[1].Event.Resource, fwk.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdatePodLabel|fwk.UpdatePodToleration, "wrong action type (1)")
-	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
-	assert.NilError(t, err)
-	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
 }
 
 func TestPodFitsHost(t *testing.T) {

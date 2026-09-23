@@ -68,14 +68,14 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 	// Create an informer to list/watch events from the test framework namespace.
 	_, controller := cache.NewInformerWithOptions(cache.InformerOptions{
 		ListerWatcher: &cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				ls, err := c.CoreV1().Events(ns).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				ls, err := c.CoreV1().Events(ns).List(ctx, options)
 				return ls, err
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 				// Signal parent goroutine that watching has begun.
 				defer informerStartedGuard.Do(func() { close(informerStartedChan) })
-				w, err := c.CoreV1().Events(ns).Watch(context.TODO(), options)
+				w, err := c.CoreV1().Events(ns).Watch(ctx, options)
 				return w, err
 			},
 		},
