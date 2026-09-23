@@ -44,6 +44,20 @@ type frameworkHandle struct {
 	sharedDRAManager      fwk.SharedDRAManager
 }
 
+func (p frameworkHandle) RunReservePluginsReserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) *fwk.Status {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
+func (p frameworkHandle) RunReservePluginsUnreserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+}
+
+func (p frameworkHandle) MutableSnapshotSharedLister() fwk.MutableSnapshotSharedLister {
+	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
+	return nil
+}
+
 func (p frameworkHandle) AddPodInPreBind(uid types.UID, cancel context.CancelCauseFunc) {
 	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 }
@@ -72,7 +86,6 @@ func (p frameworkHandle) SharedCSIManager() fwk.CSIManager {
 }
 
 func (p frameworkHandle) ProfileName() string {
-	log.Log(log.ShimFramework).Fatal("BUG: Should not be used by plugins")
 	return ""
 }
 

@@ -37,6 +37,10 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/admission/pki"
 )
 
+const (
+	operations = "operations"
+)
+
 var (
 	cacert1    *x509.Certificate
 	cacert2    *x509.Certificate
@@ -319,13 +323,13 @@ func TestCheckValidatingWebhook(t *testing.T) {
 		{name: "WrongRuleCount", expected: "rule count", mutator: func(h *arv1.ValidatingWebhookConfiguration) {
 			h.Webhooks[0].Rules = []arv1.RuleWithOperations{}
 		}},
-		{name: "WrongOpCount", expected: "operations", mutator: func(h *arv1.ValidatingWebhookConfiguration) {
+		{name: "WrongOpCount", expected: operations, mutator: func(h *arv1.ValidatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Operations = []arv1.OperationType{}
 		}},
-		{name: "MissingCreateOp", expected: "operations", mutator: func(h *arv1.ValidatingWebhookConfiguration) {
+		{name: "MissingCreateOp", expected: operations, mutator: func(h *arv1.ValidatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Operations[0] = arv1.Connect
 		}},
-		{name: "MissingUpdateOp", expected: "operations", mutator: func(h *arv1.ValidatingWebhookConfiguration) {
+		{name: "MissingUpdateOp", expected: operations, mutator: func(h *arv1.ValidatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Operations[1] = arv1.Connect
 		}},
 		{name: "MissingAPIGroups", expected: "api groups", mutator: func(h *arv1.ValidatingWebhookConfiguration) {
@@ -422,10 +426,10 @@ func TestCheckMutatingWebhook(t *testing.T) {
 		{name: "WrongRuleCount", expected: "rule count", mutator: func(h *arv1.MutatingWebhookConfiguration) {
 			h.Webhooks[0].Rules = []arv1.RuleWithOperations{}
 		}},
-		{name: "WrongOpCount", expected: "operations", mutator: func(h *arv1.MutatingWebhookConfiguration) {
+		{name: "WrongOpCount", expected: operations, mutator: func(h *arv1.MutatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Operations = []arv1.OperationType{}
 		}},
-		{name: "MissingCreateOp", expected: "operations", mutator: func(h *arv1.MutatingWebhookConfiguration) {
+		{name: "MissingCreateOp", expected: operations, mutator: func(h *arv1.MutatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Operations[0] = arv1.Connect
 		}},
 		{name: "MissingAPIGroups", expected: "api groups", mutator: func(h *arv1.MutatingWebhookConfiguration) {

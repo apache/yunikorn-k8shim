@@ -39,7 +39,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
-	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
@@ -122,8 +121,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
 			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
 			SliceInformer:          informerFactory.Resource().V1().ResourceSlices(),
-			ClassInformer:          informerFactory.Resource().V1().DeviceClasses(),
-			TaintInformer:          informerFactory.Resource().V1beta2().DeviceTaintRules()})
+			TaintInformer:          informerFactory.Resource().V1().DeviceTaintRules()})
 		if err != nil {
 			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil
@@ -704,11 +702,6 @@ func (ctx *Context) setConfigMap(index int, configMap *v1.ConfigMap) map[string]
 		return nil
 	}
 	return schedulerconf.FlattenConfigMaps(ctx.configMaps)
-}
-
-// EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	return ctx.predManager.EventsToRegister(queueingHintFn)
 }
 
 // PreFilter evaluates given prefilter based predicates based on current context
