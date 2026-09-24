@@ -27,7 +27,6 @@ import (
 	schedv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/informers"
 	k8fake "k8s.io/client-go/kubernetes/fake"
-	appsv1 "k8s.io/client-go/listers/apps/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
@@ -520,78 +519,6 @@ func (m *MockedCSIStorageCapacityInformer) Lister() storagev1.CSIStorageCapacity
 
 func NewMockedCSIStorageCapacityInformer() *MockedCSIStorageCapacityInformer {
 	return &MockedCSIStorageCapacityInformer{
-		informer: &test.SharedInformerMock{},
-	}
-}
-
-type MockedServiceInformer struct {
-	informer cache.SharedIndexInformer
-}
-
-func (m *MockedServiceInformer) Informer() cache.SharedIndexInformer {
-	return m.informer
-}
-
-func (m *MockedServiceInformer) Lister() corev1.ServiceLister {
-	return nil
-}
-
-func NewMockedServiceInformer() *MockedServiceInformer {
-	return &MockedServiceInformer{
-		informer: &test.SharedInformerMock{},
-	}
-}
-
-type MockedReplicationControllerInformer struct {
-	informer cache.SharedIndexInformer
-}
-
-func (m *MockedReplicationControllerInformer) Informer() cache.SharedIndexInformer {
-	return m.informer
-}
-
-func (m *MockedReplicationControllerInformer) Lister() corev1.ReplicationControllerLister {
-	return nil
-}
-
-func NewMockedReplicationControllerInformer() *MockedReplicationControllerInformer {
-	return &MockedReplicationControllerInformer{
-		informer: &test.SharedInformerMock{},
-	}
-}
-
-type MockedReplicaSetInformer struct {
-	informer cache.SharedIndexInformer
-}
-
-func (m *MockedReplicaSetInformer) Informer() cache.SharedIndexInformer {
-	return m.informer
-}
-
-func (m *MockedReplicaSetInformer) Lister() appsv1.ReplicaSetLister {
-	return nil
-}
-
-func NewMockedReplicaSetInformer() *MockedReplicaSetInformer {
-	return &MockedReplicaSetInformer{
-		informer: &test.SharedInformerMock{},
-	}
-}
-
-type MockedStatefulSetInformer struct {
-	informer cache.SharedIndexInformer
-}
-
-func (m *MockedStatefulSetInformer) Informer() cache.SharedIndexInformer {
-	return m.informer
-}
-
-func (m *MockedStatefulSetInformer) Lister() appsv1.StatefulSetLister {
-	return nil
-}
-
-func NewMockedStatefulSetInformer() *MockedStatefulSetInformer {
-	return &MockedStatefulSetInformer{
 		informer: &test.SharedInformerMock{},
 	}
 }

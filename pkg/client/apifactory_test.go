@@ -25,7 +25,7 @@ import (
 )
 
 func TestInformerTypes(t *testing.T) {
-	assert.Equal(t, 16, len(informerTypes), "wrong informerTypes length")
+	assert.Equal(t, 12, len(informerTypes), "wrong informerTypes length")
 
 	assert.Equal(t, "Pod", PodInformerHandlers.String())
 	assert.Equal(t, "Node", NodeInformerHandlers.String())
@@ -38,10 +38,6 @@ func TestInformerTypes(t *testing.T) {
 	assert.Equal(t, "CSIStorageCapacity", CSIStorageCapacityInformerHandlers.String())
 	assert.Equal(t, "Namespace", NamespaceInformerHandlers.String())
 	assert.Equal(t, "PriorityClass", PriorityClassInformerHandlers.String())
-	assert.Equal(t, "Service", ServiceInformerHandlers.String())
-	assert.Equal(t, "ReplicationController", ReplicationControllerInformerHandlers.String())
-	assert.Equal(t, "ReplicaSet", ReplicaSetInformerHandlers.String())
-	assert.Equal(t, "StatefulSet", StatefulSetInformerHandlers.String())
 	assert.Equal(t, "VolumeAttachment", VolumeAttachmentInformerHandlers.String())
 }
 
