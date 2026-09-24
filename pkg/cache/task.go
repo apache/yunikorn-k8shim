@@ -549,6 +549,14 @@ func (task *Task) releaseAllocation(eventSrc string, force bool) {
 	}
 }
 
+// forceReleaseAllocation releases the allocation for callers that do not already hold the task
+// lock. The application lock is taken before the task lock on every path that holds both.
+func (task *Task) forceReleaseAllocation() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.releaseAllocation(task.GetTaskState(), true)
+}
+
 // some sanity checks before sending task for scheduling,
 // this reduces the scheduling overhead by blocking such
 // request away from the core scheduler.
