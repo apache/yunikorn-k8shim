@@ -18,7 +18,7 @@
 
 module github.com/apache/yunikorn-k8shim
 
-go 1.27.1
+go 1.26.8
 
 require (
 	github.com/apache/yunikorn-core v0.0.0-20260903142729-2577453c1aed
