@@ -81,3 +81,11 @@ func convert2Namespace(obj interface{}) *v1.Namespace {
 	log.Log(log.AdmissionUtils).Warn("cannot convert to *v1.Namespace", zap.Stringer("type", reflect.TypeOf(obj)))
 	return nil
 }
+
+// changedAppID returns true if the application ID has changed in an update
+func changedAppID(oldPod, newPod *v1.Pod) bool {
+	oldID := utils.GetApplicationIDValue(oldPod)
+	newID := utils.GetApplicationIDValue(newPod)
+
+	return oldID != newID
+}

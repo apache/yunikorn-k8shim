@@ -166,6 +166,23 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
+	if namespace == schedulerconf.GetSchedulerNamespace() {
+		if utils.GetPodLabelValue(&pod, constants.LabelApp) == yunikornPod {
+			if pod.Spec.SchedulerName == constants.SchedulerName {
+				log.Log(log.Admission).Info("YuniKorn pod has self as scheduler")
+				return admissionResponseBuilder(uid, false, "YuniKorn cannot schedule itself", nil)
+			}
+			log.Log(log.Admission).Info("YuniKorn pod, ignoring")
+			return admissionResponseBuilder(uid, true, "", nil)
+		}
+		log.Log(log.Admission).Info("Non YuniKorn pod in yunikorn namespace", zap.String("UID", uid))
+	}
+
+	if !c.shouldProcessNamespace(namespace) {
+		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+
 	userName := req.UserInfo.Username
 	groups := req.UserInfo.Groups
 	failureResponse, userInfoSet := c.checkUserInfoAnnotation(func() (string, bool) {
@@ -185,17 +202,6 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		patch = append(patch, *patchOp)
 	}
 
-	if labelAppValue := utils.GetPodLabelValue(&pod, constants.LabelApp); labelAppValue != "" {
-		if labelAppValue == yunikornPod {
-			log.Log(log.Admission).Info("ignore yunikorn pod")
-			return admissionResponseBuilder(uid, true, "", nil)
-		}
-	}
-
-	if !c.shouldProcessNamespace(namespace) {
-		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
-		return admissionResponseBuilder(uid, true, "", nil)
-	}
 	patch = updateSchedulerName(patch)
 
 	if c.shouldLabelNamespace(namespace) {
@@ -296,11 +302,17 @@ func (c *AdmissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if labelAppValue, ok := newPod.Labels[constants.LabelApp]; ok {
-		if labelAppValue == yunikornPod {
-			log.Log(log.Admission).Info("pod update - ignore yunikorn pod")
+	if namespace == schedulerconf.GetSchedulerNamespace() {
+		wasYuniKorn := utils.GetPodLabelValue(&oldPod, constants.LabelApp) == yunikornPod
+		isYuniKorn := utils.GetPodLabelValue(&newPod, constants.LabelApp) == yunikornPod
+		if isYuniKorn != wasYuniKorn {
+			return admissionResponseBuilder(uid, false, "YuniKorn app label change not allowed", nil)
+		}
+		if isYuniKorn && wasYuniKorn {
+			log.Log(log.Admission).Info("YuniKorn pod, ignoring")
 			return admissionResponseBuilder(uid, true, "", nil)
 		}
+		log.Log(log.Admission).Info("Non YuniKorn pod in scheduler namespace", zap.String("UID", uid))
 	}
 
 	if !c.shouldProcessAdmissionReview(namespace, newPod.Labels) {
@@ -315,9 +327,14 @@ func (c *AdmissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		zap.String("new", newUserInfo))
 
 	if originalUserInfo != newUserInfo {
+		log.Log(log.Admission).Info("pod update - userinfo annotation change not allowed", zap.String("UID", uid))
 		return admissionResponseBuilder(uid, false, "user info annotation change is not allowed", nil)
 	}
 
+	if changedAppID(&oldPod, &newPod) {
+		log.Log(log.Admission).Info("pod update - application ID change not allowed", zap.String("UID", uid))
+		return admissionResponseBuilder(uid, false, "applicationID change is not allowed", nil)
+	}
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 

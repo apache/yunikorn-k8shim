@@ -205,3 +205,29 @@ func TestConvert2Namespace(t *testing.T) {
 	result = convert2Namespace(pod)
 	assert.Check(t, result == nil)
 }
+
+func Test_changedAppID(t *testing.T) {
+	tests := []struct {
+		name   string
+		oldPod *v1.Pod
+		newPod *v1.Pod
+		want   bool
+	}{
+		{"no appID", &v1.Pod{ObjectMeta: metav1.ObjectMeta{}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{}}, false},
+		{"appID no change", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}}}, false},
+		{"appID label val change", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app2"}}}, true},
+		{"appID canonical add", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.CanonicalLabelApplicationID: "app2", constants.LabelApplicationID: "app1"}}}, true},
+		{"appID label remove", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.CanonicalLabelApplicationID: "app1", constants.LabelApplicationID: "app1"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{}}, true},
+		{"appID annotation add", &v1.Pod{ObjectMeta: metav1.ObjectMeta{}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{constants.AnnotationApplicationID: "app3"}}}, true},
+		{"appID annotation val change", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{constants.AnnotationApplicationID: "app4"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{constants.AnnotationApplicationID: "app3"}}}, true},
+		{"appID same value add", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.LabelApplicationID: "app1"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.CanonicalLabelApplicationID: "app1", constants.LabelApplicationID: "app1"}}}, false},
+		{"appID label fallback", &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{constants.CanonicalLabelApplicationID: "app1"}, Annotations: map[string]string{constants.AnnotationApplicationID: "app4"}}}, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{constants.AnnotationApplicationID: "app4"}}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := changedAppID(tt.oldPod, tt.newPod); got != tt.want {
+				t.Errorf("changedAppID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
