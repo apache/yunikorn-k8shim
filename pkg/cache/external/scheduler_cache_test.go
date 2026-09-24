@@ -654,8 +654,7 @@ func TestGetNodesInfoPodsWithReqNonHostScopedAntiAffinity(t *testing.T) {
 
 	newNode1 := createNode(host3, "default", nodeUID3)
 	newNodeInfo1 := framework.NewNodeInfo()
-	newNodeInfo1.SetNode(node)
-	newNodeInfo1.SetNode(newNode)
+	newNodeInfo1.SetNode(newNode1)
 
 	tests := []struct {
 		name                         string
