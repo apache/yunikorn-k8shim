@@ -131,8 +131,8 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 			if conf.QOSClass != v1.PodQOSBestEffort {
 				return &v1.ResourceRequirements{
 					Requests: v1.ResourceList{
-						"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-						"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+						cpu:    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+						memory: resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 					},
 				}
 			}
@@ -222,8 +222,8 @@ func InitTestPod(conf TestPodConfig) (*v1.Pod, error) { //nolint:funlen
 	if conf.InitContainerSleepSecs > 0 {
 		containerReqs := v1.ResourceRequirements{
 			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse(strconv.FormatInt(20, 10) + "m"),
-				"memory": resource.MustParse(strconv.FormatInt(20, 10) + "M"),
+				cpu:    resource.MustParse(strconv.FormatInt(20, 10) + "m"),
+				memory: resource.MustParse(strconv.FormatInt(20, 10) + "M"),
 			},
 		}
 		pod.Spec.InitContainers = []v1.Container{

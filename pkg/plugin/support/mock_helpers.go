@@ -58,8 +58,7 @@ func SharedDRAManager() *dynamicresources.DefaultDRAManager {
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
 			EnableDeviceTaintRules: false,
 			SliceInformer:          InformerFactory(ClientSet()).Resource().V1().ResourceSlices(),
-			ClassInformer:          InformerFactory(ClientSet()).Resource().V1().DeviceClasses(),
-			TaintInformer:          InformerFactory(ClientSet()).Resource().V1beta2().DeviceTaintRules()})
+			TaintInformer:          InformerFactory(ClientSet()).Resource().V1().DeviceTaintRules()})
 		if err != nil {
 			return nil
 		}

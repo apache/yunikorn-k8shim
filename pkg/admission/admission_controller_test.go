@@ -51,6 +51,15 @@ const (
 	validUserInfoAnnotation = "{\"user\":\"test\",\"groups\":[\"devops\",\"system:authenticated\"]}"
 )
 
+const (
+	Pod     = "Pod"
+	testPod = "a-test-pod"
+	Default = "default"
+	uid     = "7f5fd6c5d5"
+	random  = "random"
+	testUID = "test-uid"
+)
+
 // nolint: funlen
 func TestUpdateLabels(t *testing.T) {
 	// verify when appId/queue are not given,
@@ -59,16 +68,16 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			Namespace:       Default,
+			UID:             uid,
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random": "random",
+				random: random,
 			},
 		},
 		Spec:   v1.PodSpec{},
@@ -76,14 +85,14 @@ func TestUpdateLabels(t *testing.T) {
 	}
 
 	c := createAdmissionControllerForTest()
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 3)
-		assert.Equal(t, updatedMap["random"], "random")
+		assert.Equal(t, updatedMap[random], random)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
 	} else {
@@ -96,30 +105,30 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			Namespace:       Default,
+			UID:             uid,
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random":                              "random",
+				random:                                random,
 				constants.CanonicalLabelApplicationID: "app-0001",
 			},
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 3)
-		assert.Equal(t, updatedMap["random"], "random")
+		assert.Equal(t, updatedMap[random], random)
 		assert.Equal(t, updatedMap[constants.CanonicalLabelApplicationID], "app-0001")
 		assert.Equal(t, updatedMap[constants.LabelApplicationID], "app-0001")
 	} else {
@@ -132,16 +141,16 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			Namespace:       Default,
+			UID:             uid,
 			ResourceVersion: "10654",
 			Labels: map[string]string{
-				"random":                          "random",
+				random:                            random,
 				constants.CanonicalLabelQueueName: "root.abc",
 			},
 		},
@@ -149,14 +158,14 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
 	assert.Equal(t, patch[0].Path, "/metadata/labels")
 	if updatedMap, ok := patch[0].Value.(map[string]string); ok {
 		assert.Equal(t, len(updatedMap), 5)
-		assert.Equal(t, updatedMap["random"], "random")
+		assert.Equal(t, updatedMap[random], random)
 		assert.Equal(t, updatedMap[constants.CanonicalLabelQueueName], "root.abc")
 		assert.Equal(t, updatedMap[constants.LabelQueueName], "root.abc")
 		assert.Equal(t, strings.HasPrefix(updatedMap[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
@@ -171,19 +180,19 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			UID:             uid,
 			ResourceVersion: "10654",
 		},
 		Spec:   v1.PodSpec{},
 		Status: v1.PodStatus{},
 	}
 
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -201,7 +210,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -211,7 +220,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status: v1.PodStatus{},
 	}
 
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -229,7 +238,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{},
@@ -237,7 +246,7 @@ func TestUpdateLabels(t *testing.T) {
 		Status:     v1.PodStatus{},
 	}
 
-	patch = c.updateLabels("default", pod, patch)
+	patch = c.updateLabels(Default, pod, patch)
 
 	assert.Equal(t, len(patch), 1)
 	assert.Equal(t, patch[0].Op, "add")
@@ -308,7 +317,7 @@ func TestValidateConfigMapInvalidConfig(t *testing.T) {
 	defer srv.Close()
 	// both server and url pattern contains http://, so we need to delete one
 	controller := prepareController(t, strings.Replace(srv.URL, "http://", "", 1), "", "", "", "", false, true)
-	err := controller.validateConfigMap("default", configmap)
+	err := controller.validateConfigMap(Default, configmap)
 	assert.Assert(t, err != nil, "error not found")
 	assert.Equal(t, "Invalid config", err.Error(),
 		"Other error returned than the expected one")
@@ -480,13 +489,13 @@ func TestMutateYuniKorn(t *testing.T) {
 
 	// yunikorn app tagged pod not in NS
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Labels:    map[string]string{"app": "yunikorn"},
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -506,9 +515,9 @@ func TestMutatePod(t *testing.T) {
 		Namespace: "",
 	}}
 	req := &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
+		UID:       testUID,
 		Namespace: "",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err := json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -521,12 +530,12 @@ func TestMutatePod(t *testing.T) {
 
 	// pod without applicationID
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -551,9 +560,9 @@ func TestMutatePod(t *testing.T) {
 		Namespace: "bypass",
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
+		UID:       testUID,
 		Namespace: "bypass",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -567,9 +576,9 @@ func TestMutatePod(t *testing.T) {
 		Namespace: "nolabel",
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
+		UID:       testUID,
 		Namespace: "nolabel",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -581,12 +590,12 @@ func TestMutatePod(t *testing.T) {
 
 	// unknown object type
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -612,8 +621,8 @@ func TestMutateObject(t *testing.T) {
 		},
 	}
 	req := &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
+		UID:       testUID,
+		Namespace: testNS,
 		Kind:      metav1.GroupVersionKind{Kind: "Deployment"},
 		UserInfo: authv1.UserInfo{
 			Username: "testExtUser",
@@ -650,7 +659,7 @@ func TestMutateObject(t *testing.T) {
 		Spec: appsv1.ReplicaSetSpec{
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "test-ns",
+					Namespace: testNS,
 					Annotations: map[string]string{
 						common.UserInfoAnnotation: validUserInfoAnnotation,
 					},
@@ -660,8 +669,8 @@ func TestMutateObject(t *testing.T) {
 	}
 	ac = prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", false, true)
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
+		UID:       testUID,
+		Namespace: testNS,
 		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
 		UserInfo: authv1.UserInfo{
 			Username: "system:serviceaccount:kube-system:deployment-controller",
@@ -685,13 +694,13 @@ func TestMutateUpdate(t *testing.T) {
 
 	// yunikorn pod
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Labels:    map[string]string{"app": "yunikorn"},
 	}}
 	req := &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err := json.Marshal(pod)
@@ -706,9 +715,9 @@ func TestMutateUpdate(t *testing.T) {
 		Namespace: "bypass",
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
+		UID:       testUID,
 		Namespace: "bypass",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -720,12 +729,12 @@ func TestMutateUpdate(t *testing.T) {
 
 	// normal pod, not allowed
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -736,13 +745,13 @@ func TestMutateUpdate(t *testing.T) {
 
 	// normal pod, allowed
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Annotations: map[string]string{
 			common.UserInfoAnnotation: validUserInfoAnnotation,
 		},
 	}}
 	oldPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Labels: map[string]string{
 			"test": "yunikorn",
 		},
@@ -751,9 +760,9 @@ func TestMutateUpdate(t *testing.T) {
 		},
 	}}
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -869,7 +878,7 @@ func TestExternalAuthentication(t *testing.T) {
 
 	// validation fails, submitter user is not whitelisted
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Annotations: map[string]string{
 			common.UserInfoAnnotation: validUserInfoAnnotation,
 		},
@@ -877,38 +886,38 @@ func TestExternalAuthentication(t *testing.T) {
 	podJSON, err := json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
 	req := &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		UserInfo: authv1.UserInfo{
 			Username: "test",
 			Groups:   []string{"dev"},
 		},
 	}
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: Pod}
 	resp := ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "not allowed to set user annotation"))
 
 	// should pass as "testExtUser" is allowed to add the userInfo annotation
 	req = &admissionv1.AdmissionRequest{
-		UID:       "test-uid",
-		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		UID:       testUID,
+		Namespace: testNS,
+		Kind:      metav1.GroupVersionKind{Kind: Pod},
 		UserInfo: authv1.UserInfo{
 			Username: "testExtUser",
 			Groups:   []string{"dev"},
 		},
 	}
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: Pod}
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed")
 
 	// invalid annotation
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "test-ns",
+		Namespace: testNS,
 		Annotations: map[string]string{
 			common.UserInfoAnnotation: "xyzxyz",
 		},
@@ -916,7 +925,7 @@ func TestExternalAuthentication(t *testing.T) {
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: Pod}
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
@@ -926,7 +935,7 @@ func TestExternalAuthentication(t *testing.T) {
 		Spec: appsv1.DeploymentSpec{
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "test-ns",
+					Namespace: testNS,
 					Annotations: map[string]string{
 						common.UserInfoAnnotation: validUserInfoAnnotation,
 					},
@@ -956,7 +965,7 @@ func TestExternalAuthentication(t *testing.T) {
 		Spec: appsv1.ReplicaSetSpec{
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "test-ns",
+					Namespace: testNS,
 					Annotations: map[string]string{
 						common.UserInfoAnnotation: validUserInfoAnnotation,
 					},

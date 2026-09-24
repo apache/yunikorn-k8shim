@@ -52,6 +52,16 @@ func (n *NodeInfoListerMock) HavePodsWithRequiredAntiAffinityList() ([]fwk.NodeI
 	return result, nil
 }
 
+func (n *NodeInfoListerMock) HavePodsWithRequiredNonHostScopedAntiAffinityList() ([]fwk.NodeInfo, error) {
+	result := make([]fwk.NodeInfo, 0, len(n.nodeInfos))
+	for _, node := range n.nodeInfos {
+		if len(node.GetPodsWithRequiredNonHostScopedAntiAffinity()) > 0 {
+			result = append(result, node)
+		}
+	}
+	return result, nil
+}
+
 func (n *NodeInfoListerMock) Get(nodeName string) (fwk.NodeInfo, error) {
 	for _, node := range n.nodeInfos {
 		if node.Node().Name == nodeName {

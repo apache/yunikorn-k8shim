@@ -297,7 +297,7 @@ func TaskStates() *TStates {
 			Bound:      "Bound",
 			Killing:    "Killing",
 			Killed:     "Killed",
-			Failed:     "Failed",
+			Failed:     Failed,
 			Completed:  "Completed",
 			Any: []string{
 				"New", "Pending", "Scheduling",

@@ -42,7 +42,7 @@ func createConfigWithOverrides(overrides map[string]string) *conf.AdmissionContr
 func createMinimalTestingPod() *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{},
@@ -56,9 +56,9 @@ func createTestingPodWithMeta() *v1.Pod {
 
 	pod.ObjectMeta =
 		metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			Namespace:       "default",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			Namespace:       Default,
+			UID:             uid,
 			ResourceVersion: "10654",
 			Labels: map[string]string{
 				"random": "random",
@@ -96,8 +96,8 @@ func createTestingPodNoNamespaceAndLabels() *v1.Pod {
 	pod := createMinimalTestingPod()
 	pod.ObjectMeta =
 		metav1.ObjectMeta{
-			Name:            "a-test-pod",
-			UID:             "7f5fd6c5d5",
+			Name:            testPod,
+			UID:             uid,
 			ResourceVersion: "10654",
 		}
 	return pod
@@ -110,7 +110,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	// verify when appId/queue are not given,
 	// we generate new appId/queue labels
 	pod := createTestingPodWithMeta()
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		assert.Equal(t, len(result), 3)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, strings.HasPrefix(result[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
@@ -122,7 +122,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	// verify if appId/queue is given in the canonical labels
 	// we won't modify the value and will add it to non-canonical label for backward compatibility
 	pod = createTestingPodWithLabels(dummyAppId, dummyQueueName)
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		assert.Equal(t, len(result), 5)
 		assert.Equal(t, result["random"], "random")
 		assert.Equal(t, result[constants.CanonicalLabelApplicationID], dummyAppId)
@@ -136,7 +136,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	// verify if applicationId and queue is given in the annotations,
 	// we won't generate new labels
 	pod = createTestingPodWithAnnotations(dummyAppId, dummyQueueName)
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		t.Log(result)
 		assert.Equal(t, len(result), 1)
 		assert.Equal(t, result["random"], "random")
@@ -148,7 +148,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	// labels might be empty
 	pod = createTestingPodNoNamespaceAndLabels()
 
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		assert.Equal(t, len(result), 2)
 		assert.Equal(t, strings.HasPrefix(result[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(result[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
@@ -158,7 +158,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 
 	// pod name might be empty, it can comes from generatedName
 	pod = createTestingPodWithGenerateName()
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		assert.Equal(t, len(result), 2)
 		assert.Equal(t, strings.HasPrefix(result[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(result[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)
@@ -167,7 +167,7 @@ func TestUpdatePodLabelForAdmissionController(t *testing.T) {
 	}
 
 	pod = createMinimalTestingPod()
-	if result := updatePodLabel(pod, "default", false); result != nil {
+	if result := updatePodLabel(pod, Default, false); result != nil {
 		assert.Equal(t, len(result), 2)
 		assert.Equal(t, strings.HasPrefix(result[constants.CanonicalLabelApplicationID], constants.AutoGenAppPrefix), true)
 		assert.Equal(t, strings.HasPrefix(result[constants.LabelApplicationID], constants.AutoGenAppPrefix), true)

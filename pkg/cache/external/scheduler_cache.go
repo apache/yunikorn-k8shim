@@ -54,9 +54,10 @@ type SchedulerCache struct {
 	klogger        klog.Logger
 
 	// cached data, re-calculated on demand from nodesMap
-	nodesInfo                        []fwk.NodeInfo
-	nodesInfoPodsWithAffinity        []fwk.NodeInfo
-	nodesInfoPodsWithReqAntiAffinity []fwk.NodeInfo
+	nodesInfo                                          []fwk.NodeInfo
+	nodesInfoPodsWithAffinity                          []fwk.NodeInfo
+	nodesInfoPodsWithReqAntiAffinity                   []fwk.NodeInfo
+	nodesInfoPodsWithRequiredNonHostScopedAntiAffinity []fwk.NodeInfo
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
@@ -125,8 +126,23 @@ func (cache *SchedulerCache) GetNodesInfoPodsWithReqAntiAffinity() []fwk.NodeInf
 		}
 		cache.nodesInfoPodsWithReqAntiAffinity = nodeList
 	}
-
 	return cache.nodesInfoPodsWithReqAntiAffinity
+}
+
+// GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity returns a (possibly cached) list of nodes which contain pods with required non host scoped anti-affinity.
+// This is explicitly for the use of the predicate shared lister and requires that the scheduler cache lock
+// be held while accessing.
+func (cache *SchedulerCache) GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity() []fwk.NodeInfo {
+	if cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity == nil {
+		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
+		for _, node := range cache.nodesMap {
+			if len(node.PodsWithRequiredNonHostScopedAntiAffinity) > 0 {
+				nodeList = append(nodeList, node)
+			}
+		}
+		cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nodeList
+	}
+	return cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity
 }
 
 func (cache *SchedulerCache) LockForReads() {
@@ -191,6 +207,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
 	cache.updatePVCRefCounts(nodeInfo, false)
 
 	return prevNode, adopted
@@ -243,6 +260,7 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	cache.nodesInfo = nil
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
 	cache.updatePVCRefCounts(nodeInfo, true)
 
 	return result, orphans
@@ -344,6 +362,9 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 				if podWithRequiredAntiAffinity(pod) {
 					cache.nodesInfoPodsWithReqAntiAffinity = nil
 				}
+				if podWithRequiredNonHostScopedAntiAffinity(pod) {
+					cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
+				}
 			}
 			if pod.Spec.NodeName == "" && cache.isAssumedPod(key) {
 				// new pod wasn't assigned to a node, but the pod is assumed on one, so use the
@@ -381,6 +402,9 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 			}
 			if podWithRequiredAntiAffinity(pod) {
 				cache.nodesInfoPodsWithReqAntiAffinity = nil
+			}
+			if podWithRequiredNonHostScopedAntiAffinity(pod) {
+				cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
 			}
 			cache.updatePVCRefCounts(nodeInfo, false)
 		}
@@ -434,6 +458,7 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.podsCycleState, key)
 	cache.nodesInfoPodsWithAffinity = nil
 	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
 }
 
 func (cache *SchedulerCache) GetPod(uid string) *v1.Pod {
@@ -755,4 +780,16 @@ func podWithRequiredAntiAffinity(p *v1.Pod) bool {
 	affinity := p.Spec.Affinity
 	return affinity != nil && affinity.PodAntiAffinity != nil &&
 		len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
+}
+
+func podWithRequiredNonHostScopedAntiAffinity(p *v1.Pod) bool {
+	affinity := p.Spec.Affinity
+	if affinity != nil && affinity.PodAntiAffinity != nil {
+		for _, term := range affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution {
+			if term.TopologyKey != v1.LabelHostname {
+				return true
+			}
+		}
+	}
+	return false
 }
