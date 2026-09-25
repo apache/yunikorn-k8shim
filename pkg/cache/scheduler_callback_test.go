@@ -155,7 +155,7 @@ func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
 		return task.GetTaskState() == TaskStates().Failed
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "placeholder task has not transitioned to Failed state")
-	// FailWithEvent emits a Warning/"AssumePodError" event; beforeTaskFail emits a Normal/"TaskFailed" event.
+	// FailWithEvent emits a Warning/"AssumePodError" event; afterTaskFail emits a Normal/"TaskFailed" event.
 	assert.Equal(t, 2, len(recorder.Events), "expected two K8s events to be recorded")
 	assumePodErrorFound := false
 	for i := 0; i < 2; i++ {
