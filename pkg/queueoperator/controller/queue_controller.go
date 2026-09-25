@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"time"
 
@@ -34,36 +35,45 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	queuev1alpha1 "github.com/apache/yunikorn-k8shim/pkg/queueoperator/api/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/queueoperator/queueconfig"
 )
 
 const (
-	ConfigMapName          = "yunikorn-configs"
-	ConfigMapQueueKey      = "queues.yaml"
-	DefaultTargetNamespace = "flowsnake-yunikorn"
-	TargetNamespaceEnvVar  = "TARGET_NAMESPACE"
+	ConfigMapName              = "yunikorn-configs"
+	ConfigMapQueueKey          = "queues.yaml"
+	ConfigMapManagedAnnotation = "yunikorn.apache.org/queue-operator-managed"
+	ConfigMapManagedValue      = "true"
+	DefaultTargetNamespace     = "yunikorn"
+	TargetNamespaceEnvVar      = "TARGET_NAMESPACE"
 
-	// The partition/placement env vars and their default are defined in
-	// internal/queueconfig (single source of truth — the webhook reads them
-	// the same way). We re-export them here so existing callers and tests
-	// don't need to learn the new import path.
+	// Operator setting names and defaults are defined in queueconfig. Re-export
+	// them here for controller callers and tests.
 	PartitionNameEnvVar  = queueconfig.PartitionNameEnvVar
 	PlacementRulesEnvVar = queueconfig.PlacementRulesEnvVar
+	NodeSortPolicyEnvVar = queueconfig.NodeSortPolicyEnvVar
+	RootPropertiesEnvVar = queueconfig.RootPropertiesEnvVar
 	DefaultPartitionName = queueconfig.DefaultPartitionName
 	RootQueueName        = queueconfig.RootQueueName
 
 	// Event reasons emitted by the controller.
-	EventReasonConfigMapCreated      = "ConfigMapCreated"
-	EventReasonConfigMapUpdated      = "ConfigMapUpdated"
-	EventReasonConfigMapUnchanged    = "ConfigMapUnchanged"
-	EventReasonConfigMapUpdateFailed = "ConfigMapUpdateFailed"
-	EventReasonQueueConfigured       = "QueueConfigured"
-	EventReasonDuplicateQueueSkipped = "DuplicateQueueSkipped"
+	EventReasonConfigMapCreated          = "ConfigMapCreated"
+	EventReasonConfigMapUpdated          = "ConfigMapUpdated"
+	EventReasonConfigMapUnchanged        = "ConfigMapUnchanged"
+	EventReasonConfigMapUpdateFailed     = "ConfigMapUpdateFailed"
+	EventReasonConfigMapAdoptionRequired = "ConfigMapAdoptionRequired"
+	EventReasonQueueConfigured           = "QueueConfigured"
+	EventReasonDuplicateQueueSkipped     = "DuplicateQueueSkipped"
 	// EventReasonInvalidMergedConfig fires when the assembled YuniKorn config
 	// fails YuniKorn's own validator. The reconciler refuses to write the
 	// ConfigMap in this case (defense in depth — the webhook should have
@@ -71,6 +81,15 @@ const (
 	// scheduler regardless of how the CR got into etcd).
 	EventReasonInvalidMergedConfig = "InvalidMergedConfig"
 )
+
+// TargetNamespace returns the namespace containing the scheduler ConfigMap.
+func TargetNamespace() string {
+	targetNamespace := os.Getenv(TargetNamespaceEnvVar)
+	if targetNamespace == "" {
+		return DefaultTargetNamespace
+	}
+	return targetNamespace
+}
 
 // QueueReconciler reconciles a Queue object.
 //
@@ -85,6 +104,8 @@ type QueueReconciler struct {
 	TargetNamespace string
 	PartitionName   string
 	PlacementRules  []queueconfig.PlacementRule
+	NodeSortPolicy  *queueconfig.NodeSortingPolicy
+	RootProperties  map[string]string
 }
 
 // buildOptions assembles the QueueReconciler's partition + placement settings
@@ -93,12 +114,20 @@ func (r *QueueReconciler) buildOptions() queueconfig.BuildOptions {
 	return queueconfig.BuildOptions{
 		PartitionName:  r.PartitionName,
 		PlacementRules: r.PlacementRules,
+		NodeSortPolicy: r.NodeSortPolicy,
+		RootProperties: r.RootProperties,
 	}
 }
 
-// +kubebuilder:rbac:groups=queue.yunikorn.k8s.io,resources=queues,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=queue.yunikorn.k8s.io,resources=queues/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=queue.yunikorn.k8s.io,resources=queues/finalizers,verbs=update
+// BuildOptions returns the immutable operator settings loaded during setup.
+// The command passes this value to the webhook so admission and reconciliation
+// validate the same scheduler topology.
+func (r *QueueReconciler) BuildOptions() queueconfig.BuildOptions {
+	return r.buildOptions()
+}
+
+// +kubebuilder:rbac:groups=yunikorn.apache.org,resources=queues,verbs=get;list;watch
+// +kubebuilder:rbac:groups=yunikorn.apache.org,resources=queues/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
@@ -109,7 +138,7 @@ func (r *QueueReconciler) buildOptions() queueconfig.BuildOptions {
 // 2. Builds the merged YuniKorn scheduler config via queueconfig.BuildMerged
 // 3. Validates the result through YuniKorn's own validator
 // 4. Creates or updates the ConfigMap in the target namespace
-// The ConfigMap is yunikorn-configs in namespace flowsnake-yunikorn (or TARGET_NAMESPACE).
+// The ConfigMap is yunikorn-configs in namespace yunikorn (or TARGET_NAMESPACE).
 // YuniKorn expects the queue configurations as a configmap.
 func (r *QueueReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	startTime := time.Now()
@@ -143,12 +172,13 @@ func (r *QueueReconciler) reconcileInner(ctx context.Context, req ctrl.Request) 
 
 	cfg := r.buildAndInstrumentMerged(log, validItems)
 
-	yamlBytes := r.validateMergedOrDegrade(ctx, log, cfg, validItems, duplicateItems)
+	yamlBytes, statusErr := r.validateMergedOrDegrade(ctx, log, cfg, validItems, duplicateItems)
 	if yamlBytes == nil {
 		// validateMergedOrDegrade has already updated status, emitted
-		// events, and ticked metrics. Returning nil keeps the workqueue
-		// from retrying — a fresh CR change will trigger reconcile again.
-		return ctrl.Result{}, nil
+		// events, and ticked metrics. Status failures are returned so the
+		// workqueue retries; a successfully recorded invalid state waits for a
+		// fresh Queue or ConfigMap event.
+		return ctrl.Result{}, statusErr
 	}
 
 	return ctrl.Result{}, r.applyConfigMap(ctx, log, yamlBytes, validItems, duplicateItems)
@@ -246,39 +276,55 @@ func (r *QueueReconciler) validateMergedOrDegrade(
 	cfg *queueconfig.SchedulerConfig,
 	validItems []queuev1alpha1.Queue,
 	duplicateItems []duplicateInfo,
-) []byte {
+) ([]byte, error) {
 	yamlBytes, _, err := queueconfig.Validate(cfg)
 	if err == nil {
-		return yamlBytes
+		return yamlBytes, nil
 	}
 
 	log.Error(err, "Generated YuniKorn configuration is invalid; refusing to write ConfigMap")
 	configMapUpdatesTotal.WithLabelValues("invalid").Inc()
 	recordWebhookMissed(err)
 
-	// Attribute the failure to the specific CR(s) that are individually
-	// invalid so we only mark THOSE as Degraded — not every unrelated CR
-	// in the cluster. The previous (last-known-good) ConfigMap is still
-	// in place serving the good CRs.
-	_, badItems, perCRReasons := findInvalidCRs(validItems, r.buildOptions())
-	if len(badItems) == 0 {
-		// In this operator's L1-CR design this branch is unreachable:
-		// every CR is independent at the root grafting point, so the
-		// merge fails iff some individual CR fails. We keep the fallback
-		// so a future change that introduces cross-CR coupling never
-		// silently swallows the failure.
-		r.degradeAllAsFallback(ctx, err, validItems, duplicateItems)
-		return nil
+	// Validate the real CR hierarchy without operator-owned settings first.
+	// If that succeeds, the CRs are valid and an operator setting caused the
+	// failure. This avoids false attribution when, for example, a fixed
+	// placement rule legitimately references a queue defined by a CR.
+	crOptions := r.buildOptions()
+	crOptions.PlacementRules = nil
+	crOptions.NodeSortPolicy = nil
+	crOptions.RootProperties = nil
+	if _, _, crErr := queueconfig.Validate(queueconfig.BuildMerged(queuev1alpha1.L1QueuesFromCRs(validItems), crOptions)); crErr == nil {
+		return nil, r.degradeAllForOperatorConfig(ctx, err, validItems, duplicateItems)
 	}
 
-	r.degradeAttributedBadCRs(ctx, log, badItems, perCRReasons)
-	r.degradeDuplicates(ctx, log, duplicateItems)
+	// Attribute hierarchy failures to the specific CR(s) that are invalid
+	// without operator-owned settings so unrelated CRs remain untouched.
+	_, badItems, perCRReasons := findInvalidCRs(validItems, crOptions)
+	if len(badItems) == 0 {
+		// Keep a safe fallback if a future change introduces cross-CR
+		// coupling that cannot be attributed to one isolated CR.
+		return nil, r.degradeAllAsFallback(ctx, err, validItems, duplicateItems)
+	}
+
+	statusErr := errors.Join(
+		r.degradeAttributedBadCRs(ctx, log, badItems, perCRReasons),
+		r.degradeDuplicates(ctx, log, duplicateItems),
+	)
 
 	log.Info("Refused to write ConfigMap; only invalid CR(s) marked Degraded",
 		"invalidCount", len(badItems),
 		"validButBlockedCount", len(validItems)-len(badItems),
 	)
-	return nil
+	return nil, statusErr
+}
+
+func (r *QueueReconciler) degradeAllForOperatorConfig(ctx context.Context, err error, validItems []queuev1alpha1.Queue, duplicateItems []duplicateInfo) error {
+	message := fmt.Sprintf("Operator queue settings produced an invalid YuniKorn config: %v", err)
+	for i := range validItems {
+		r.emitEvent(&validItems[i], corev1.EventTypeWarning, EventReasonInvalidMergedConfig, message)
+	}
+	return r.updateAllQueueStatusWithReason(ctx, validItems, duplicateItems, false, StatusReasonInvalidOperatorConfig, message)
 }
 
 // recordWebhookMissed increments the trust-but-verify counter for the
@@ -306,7 +352,7 @@ func (r *QueueReconciler) degradeAllAsFallback(
 	err error,
 	validItems []queuev1alpha1.Queue,
 	duplicateItems []duplicateInfo,
-) {
+) error {
 	stage := "validate"
 	underlying := err
 	var ve *queueconfig.ValidationError
@@ -320,7 +366,7 @@ func (r *QueueReconciler) degradeAllAsFallback(
 	for i := range validItems {
 		r.emitEvent(&validItems[i], corev1.EventTypeWarning, EventReasonInvalidMergedConfig, msg)
 	}
-	r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, msg)
+	return r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, msg)
 }
 
 // degradeAttributedBadCRs marks only the offending CRs as Degraded with
@@ -332,7 +378,8 @@ func (r *QueueReconciler) degradeAttributedBadCRs(
 	log logr.Logger,
 	badItems []queuev1alpha1.Queue,
 	perCRReasons map[string]invalidCRReason,
-) {
+) error {
+	var errs []error
 	for i := range badItems {
 		bad := &badItems[i]
 		reason := perCRReasons[crKey(bad.Namespace, bad.Name)]
@@ -340,8 +387,10 @@ func (r *QueueReconciler) degradeAttributedBadCRs(
 		r.emitEvent(bad, corev1.EventTypeWarning, EventReasonInvalidMergedConfig, msg)
 		if updateErr := r.updateQueueStatusDegraded(ctx, bad, StatusReasonInvalidConfig, msg); updateErr != nil {
 			log.Error(updateErr, "Failed to update status for invalid queue", "queue", bad.Name, "namespace", bad.Namespace)
+			errs = append(errs, updateErr)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // degradeDuplicates refreshes the Degraded condition on every duplicate
@@ -351,14 +400,17 @@ func (r *QueueReconciler) degradeDuplicates(
 	ctx context.Context,
 	log logr.Logger,
 	duplicateItems []duplicateInfo,
-) {
+) error {
+	var errs []error
 	for _, dup := range duplicateItems {
 		q := &dup.queue
 		dupMsg := fmt.Sprintf("Duplicate queue name %q; already claimed by %s", q.Spec.Queue.Name, dup.keptBy)
 		if updateErr := r.updateQueueStatusDegraded(ctx, q, StatusReasonDuplicateQueueName, dupMsg); updateErr != nil {
 			log.Error(updateErr, "Failed to update status for duplicate queue", "queue", q.Name, "namespace", q.Namespace)
+			errs = append(errs, updateErr)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // applyConfigMap reconciles the YuniKorn ConfigMap to contain yamlBytes.
@@ -393,8 +445,8 @@ func (r *QueueReconciler) applyConfigMap(
 		configMapUpdatesTotal.WithLabelValues("error").Inc()
 		r.emitConfigMapEvent(configMap, corev1.EventTypeWarning, EventReasonConfigMapUpdateFailed,
 			fmt.Sprintf("Failed to get ConfigMap: %v", err))
-		r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap get failed: %v", err))
-		return fmt.Errorf("failed to get ConfigMap: %w", err)
+		statusErr := r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap get failed: %v", err))
+		return errors.Join(fmt.Errorf("failed to get ConfigMap: %w", err), statusErr)
 	}
 	return r.updateConfigMapIfChanged(ctx, log, configMap, yamlString, validItems, duplicateItems)
 }
@@ -408,22 +460,22 @@ func (r *QueueReconciler) createConfigMap(
 	validItems []queuev1alpha1.Queue,
 	duplicateItems []duplicateInfo,
 ) error {
+	configMap.Annotations = map[string]string{ConfigMapManagedAnnotation: ConfigMapManagedValue}
 	configMap.Data = map[string]string{ConfigMapQueueKey: yamlString}
 	if err := r.Create(ctx, configMap); err != nil {
 		log.Error(err, "Failed to create ConfigMap", "namespace", r.TargetNamespace)
 		configMapUpdatesTotal.WithLabelValues("error").Inc()
 		r.emitConfigMapEvent(configMap, corev1.EventTypeWarning, EventReasonConfigMapUpdateFailed,
 			fmt.Sprintf("Failed to create ConfigMap: %v", err))
-		r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap create failed: %v", err))
-		return fmt.Errorf("failed to create ConfigMap: %w", err)
+		statusErr := r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap create failed: %v", err))
+		return errors.Join(fmt.Errorf("failed to create ConfigMap: %w", err), statusErr)
 	}
 	log.Info("Created ConfigMap", "namespace", r.TargetNamespace, "name", ConfigMapName)
 	configMapUpdatesTotal.WithLabelValues("success").Inc()
 	r.emitConfigMapEvent(configMap, corev1.EventTypeNormal, EventReasonConfigMapCreated,
 		fmt.Sprintf("Created ConfigMap with %d queue(s)", len(validItems)))
 	r.emitPerQueueEvents(validItems)
-	r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
-	return nil
+	return r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
 }
 
 // updateConfigMapIfChanged handles the "ConfigMap already exists" path,
@@ -437,14 +489,24 @@ func (r *QueueReconciler) updateConfigMapIfChanged(
 	validItems []queuev1alpha1.Queue,
 	duplicateItems []duplicateInfo,
 ) error {
+	if configMap.Annotations[ConfigMapManagedAnnotation] != ConfigMapManagedValue {
+		message := fmt.Sprintf("ConfigMap %s/%s is not managed by the Queue operator; annotate it with %s=%s to adopt it",
+			r.TargetNamespace, ConfigMapName, ConfigMapManagedAnnotation, ConfigMapManagedValue)
+		log.Info("Refusing to modify unmanaged ConfigMap", "namespace", r.TargetNamespace, "name", ConfigMapName)
+		configMapUpdatesTotal.WithLabelValues("unmanaged").Inc()
+		r.emitConfigMapEvent(configMap, corev1.EventTypeWarning, EventReasonConfigMapAdoptionRequired, message)
+		for i := range validItems {
+			r.emitEvent(&validItems[i], corev1.EventTypeWarning, EventReasonConfigMapAdoptionRequired, message)
+		}
+		return r.updateAllQueueStatusWithReason(ctx, validItems, duplicateItems, false, StatusReasonConfigMapOwnershipConflict, message)
+	}
 	if configMap.Data == nil {
 		configMap.Data = make(map[string]string)
 	}
 	if configMap.Data[ConfigMapQueueKey] == yamlString {
 		log.Info("ConfigMap is already up to date", "namespace", r.TargetNamespace)
 		configMapUpdatesTotal.WithLabelValues("noop").Inc()
-		r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
-		return nil
+		return r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
 	}
 	configMap.Data[ConfigMapQueueKey] = yamlString
 	if err := r.Update(ctx, configMap); err != nil {
@@ -452,16 +514,15 @@ func (r *QueueReconciler) updateConfigMapIfChanged(
 		configMapUpdatesTotal.WithLabelValues("error").Inc()
 		r.emitConfigMapEvent(configMap, corev1.EventTypeWarning, EventReasonConfigMapUpdateFailed,
 			fmt.Sprintf("Failed to update ConfigMap: %v", err))
-		r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap update failed: %v", err))
-		return fmt.Errorf("failed to update ConfigMap: %w", err)
+		statusErr := r.updateAllQueueStatus(ctx, validItems, duplicateItems, false, fmt.Sprintf("ConfigMap update failed: %v", err))
+		return errors.Join(fmt.Errorf("failed to update ConfigMap: %w", err), statusErr)
 	}
 	log.Info("Updated ConfigMap", "namespace", r.TargetNamespace, "name", ConfigMapName)
 	configMapUpdatesTotal.WithLabelValues("success").Inc()
 	r.emitConfigMapEvent(configMap, corev1.EventTypeNormal, EventReasonConfigMapUpdated,
 		fmt.Sprintf("Updated ConfigMap with %d queue(s)", len(validItems)))
 	r.emitPerQueueEvents(validItems)
-	r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
-	return nil
+	return r.updateAllQueueStatus(ctx, validItems, duplicateItems, true, "")
 }
 
 type duplicateInfo struct {
@@ -469,13 +530,19 @@ type duplicateInfo struct {
 	keptBy string
 }
 
-func (r *QueueReconciler) updateAllQueueStatus(ctx context.Context, validQueues []queuev1alpha1.Queue, duplicates []duplicateInfo, configMapSuccess bool, failureMessage string) {
+func (r *QueueReconciler) updateAllQueueStatus(ctx context.Context, validQueues []queuev1alpha1.Queue, duplicates []duplicateInfo, configMapSuccess bool, failureMessage string) error {
+	return r.updateAllQueueStatusWithReason(ctx, validQueues, duplicates, configMapSuccess, "ConfigMapFailed", failureMessage)
+}
+
+func (r *QueueReconciler) updateAllQueueStatusWithReason(ctx context.Context, validQueues []queuev1alpha1.Queue, duplicates []duplicateInfo, configMapSuccess bool, failureReason, failureMessage string) error {
 	log := logf.FromContext(ctx)
+	var errs []error
 
 	for i := range validQueues {
 		q := &validQueues[i]
-		if err := r.updateQueueStatus(ctx, q, configMapSuccess, failureMessage); err != nil {
+		if err := r.updateQueueStatusWithReason(ctx, q, configMapSuccess, failureReason, failureMessage); err != nil {
 			log.Error(err, "Failed to update status for queue", "queue", q.Name, "namespace", q.Namespace)
+			errs = append(errs, err)
 		}
 	}
 
@@ -484,15 +551,25 @@ func (r *QueueReconciler) updateAllQueueStatus(ctx context.Context, validQueues 
 		msg := fmt.Sprintf("Duplicate queue name %q; already claimed by %s", q.Spec.Queue.Name, dup.keptBy)
 		if err := r.updateQueueStatusDegraded(ctx, q, StatusReasonDuplicateQueueName, msg); err != nil {
 			log.Error(err, "Failed to update status for duplicate queue", "queue", q.Name, "namespace", q.Namespace)
+			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 func (r *QueueReconciler) updateQueueStatus(ctx context.Context, queue *queuev1alpha1.Queue, available bool, failureMessage string) error {
+	return r.updateQueueStatusWithReason(ctx, queue, available, "ConfigMapFailed", failureMessage)
+}
+
+func (r *QueueReconciler) updateQueueStatusWithReason(ctx context.Context, queue *queuev1alpha1.Queue, available bool, failureReason, failureMessage string) error {
 	fresh := &queuev1alpha1.Queue{}
 	if err := r.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, fresh); err != nil {
 		return err
 	}
+	if fresh.Generation != queue.Generation || (queue.UID != "" && fresh.UID != queue.UID) {
+		return fmt.Errorf("queue %s/%s changed while its configuration was being reconciled", queue.Namespace, queue.Name)
+	}
+	currentStatus := fresh.Status.DeepCopy()
 
 	now := metav1.Now()
 	if available {
@@ -518,7 +595,7 @@ func (r *QueueReconciler) updateQueueStatus(ctx context.Context, queue *queuev1a
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: fresh.Generation,
 			LastTransitionTime: now,
-			Reason:             "ConfigMapFailed",
+			Reason:             failureReason,
 			Message:            failureMessage,
 		})
 		apimeta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
@@ -526,12 +603,15 @@ func (r *QueueReconciler) updateQueueStatus(ctx context.Context, queue *queuev1a
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: fresh.Generation,
 			LastTransitionTime: now,
-			Reason:             "ConfigMapFailed",
+			Reason:             failureReason,
 			Message:            failureMessage,
 		})
 	}
 
 	fresh.Status.ObservedGeneration = fresh.Generation
+	if reflect.DeepEqual(*currentStatus, fresh.Status) {
+		return nil
+	}
 	return r.Status().Update(ctx, fresh)
 }
 
@@ -543,7 +623,9 @@ const (
 	// StatusReasonInvalidConfig is set when a CR is the attributed cause of
 	// a merged YuniKorn config validation failure (i.e. its single-CR
 	// scheduler config also fails YuniKorn validation when rendered alone).
-	StatusReasonInvalidConfig = "InvalidConfig"
+	StatusReasonInvalidConfig              = "InvalidConfig"
+	StatusReasonInvalidOperatorConfig      = "InvalidOperatorConfig"
+	StatusReasonConfigMapOwnershipConflict = "ConfigMapOwnershipConflict"
 )
 
 // updateQueueStatusDegraded marks the queue Available=False and Degraded=True
@@ -554,6 +636,10 @@ func (r *QueueReconciler) updateQueueStatusDegraded(ctx context.Context, queue *
 	if err := r.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, fresh); err != nil {
 		return err
 	}
+	if fresh.Generation != queue.Generation || (queue.UID != "" && fresh.UID != queue.UID) {
+		return fmt.Errorf("queue %s/%s changed while its configuration was being reconciled", queue.Namespace, queue.Name)
+	}
+	currentStatus := fresh.Status.DeepCopy()
 
 	now := metav1.Now()
 	apimeta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
@@ -574,6 +660,9 @@ func (r *QueueReconciler) updateQueueStatusDegraded(ctx context.Context, queue *
 	})
 
 	fresh.Status.ObservedGeneration = fresh.Generation
+	if reflect.DeepEqual(*currentStatus, fresh.Status) {
+		return nil
+	}
 	return r.Status().Update(ctx, fresh)
 }
 
@@ -622,8 +711,9 @@ type invalidCRReason struct {
 // is not) findInvalidCRs returns an empty bad slice; the caller falls
 // back to the legacy "degrade the whole valid set" behaviour rather than
 // silently swallowing the failure.
-func findInvalidCRs(items []queuev1alpha1.Queue, opts queueconfig.BuildOptions) (good, bad []queuev1alpha1.Queue, reasons map[string]invalidCRReason) {
-	reasons = make(map[string]invalidCRReason, 0)
+func findInvalidCRs(items []queuev1alpha1.Queue, opts queueconfig.BuildOptions) ([]queuev1alpha1.Queue, []queuev1alpha1.Queue, map[string]invalidCRReason) {
+	var good, bad []queuev1alpha1.Queue
+	reasons := make(map[string]invalidCRReason, 0)
 	for i := range items {
 		cr := items[i]
 		single := queueconfig.BuildMerged(
@@ -658,28 +748,44 @@ func crKey(namespace, name string) string {
 
 // SetupWithManager sets up the controller with the Manager.
 //
-// Partition + placement configuration is loaded via queueconfig.LoadOptionsFromEnv
-// so the reconciler and the admission webhook share a single source of truth.
-// A malformed PLACEMENT_RULES is soft-failed (logged + ignored) — mirroring
-// the webhook's behaviour — so startup is never blocked by a typo.
+// Operator configuration is loaded via queueconfig.LoadOptionsFromEnv so the
+// reconciler and the admission webhook share a single source of truth.
 func (r *QueueReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	targetNamespace := os.Getenv(TargetNamespaceEnvVar)
-	if targetNamespace == "" {
-		targetNamespace = DefaultTargetNamespace
-	}
-	r.TargetNamespace = targetNamespace
+	r.TargetNamespace = TargetNamespace()
 
-	opts, err := queueconfig.LoadOptionsFromEnv()
-	if err != nil {
-		logf.Log.Error(err, "Failed to parse placement rules from environment variable, ignoring", "envVar", PlacementRulesEnvVar)
+	opts, errs := queueconfig.LoadOptionsFromEnv()
+	for _, err := range errs {
+		logf.Log.Error(err, "Failed to parse optional queue operator setting, ignoring", "setting", err.Setting)
+		settingsDroppedTotal.WithLabelValues(err.Setting).Inc()
 	}
 	r.PartitionName = opts.PartitionName
 	r.PlacementRules = opts.PlacementRules
+	r.NodeSortPolicy = opts.NodeSortPolicy
+	r.RootProperties = opts.RootProperties
 
 	logf.Log.Info("Queue controller configured", "targetNamespace", r.TargetNamespace, "partitionName", r.PartitionName, "placementRulesCount", len(r.PlacementRules))
 
+	globalRequest := reconcile.Request{NamespacedName: types.NamespacedName{
+		Name: ConfigMapName, Namespace: r.TargetNamespace,
+	}}
+	configMapPredicate := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetName() == ConfigMapName && object.GetNamespace() == r.TargetNamespace
+	})
+	startupSource := source.Func(func(_ context.Context, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) error {
+		queue.Add(globalRequest)
+		return nil
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&queuev1alpha1.Queue{}).
+		For(&queuev1alpha1.Queue{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
+				return []reconcile.Request{globalRequest}
+			}),
+			builder.WithPredicates(configMapPredicate),
+		).
+		WatchesRawSource(startupSource).
 		Named("queue").
 		Complete(r)
 }

@@ -78,6 +78,55 @@ func TestBuildMerged_PassesPlacementRulesThrough(t *testing.T) {
 	expectValid(t, cfg)
 }
 
+func TestBuildMerged_PreservesNodeSortAndRootProperties(t *testing.T) {
+	cfg := BuildMerged(nil, BuildOptions{
+		PartitionName: "default",
+		NodeSortPolicy: &NodeSortingPolicy{
+			Type:            "binpacking",
+			ResourceWeights: map[string]float64{"memory": 2, "vcore": 0.5},
+		},
+		RootProperties: map[string]string{
+			"application.sort.policy": "fair",
+		},
+	})
+
+	partition := cfg.Partitions[0]
+	if partition.NodeSortPolicy == nil || partition.NodeSortPolicy.Type != "binpacking" {
+		t.Fatalf("node sort policy dropped: %+v", partition.NodeSortPolicy)
+	}
+	if got := partition.NodeSortPolicy.ResourceWeights["memory"]; got != 2 {
+		t.Errorf("memory weight = %v, want 2", got)
+	}
+	root := partition.Queues[0]
+	if got := root.Properties["application.sort.policy"]; got != "fair" {
+		t.Errorf("root property = %q, want fair", got)
+	}
+
+	yamlBytes, parsed, err := Validate(cfg)
+	if err != nil {
+		t.Fatalf("override config did not validate: %v\n%s", err, yamlBytes)
+	}
+	if parsed.Partitions[0].NodeSortPolicy.Type != "binpacking" {
+		t.Errorf("round-trip node sort type = %q", parsed.Partitions[0].NodeSortPolicy.Type)
+	}
+	if got := parsed.Partitions[0].NodeSortPolicy.ResourceWeights["vcore"]; got != 0.5 {
+		t.Errorf("round-trip vcore weight = %v, want 0.5", got)
+	}
+	if got := parsed.Partitions[0].Queues[0].Properties["application.sort.policy"]; got != "fair" {
+		t.Errorf("round-trip root property = %q, want fair", got)
+	}
+}
+
+func TestBuildMerged_UnsetOverridesPreserveCurrentYAML(t *testing.T) {
+	yamlBytes, err := MarshalYAML(BuildMerged(nil, BuildOptions{PartitionName: "default"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(yamlBytes), "nodesortpolicy") || strings.Contains(string(yamlBytes), "properties") {
+		t.Errorf("unset overrides changed rendered output:\n%s", yamlBytes)
+	}
+}
+
 func TestBuildMerged_DuplicatesSurfaceAsValidationError(t *testing.T) {
 	// BuildMerged must NOT silently dedupe — duplicates must surface as a
 	// validation error so the operator can mark the offender Degraded.

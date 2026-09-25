@@ -20,8 +20,11 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v3"
@@ -269,9 +272,18 @@ func TestStatus_NoopReconcilePreservesStatus(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	statusUpdates := 0
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
 		WithRuntimeObjects(queue).
 		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(ctx context.Context, c client.Client, subResourceName string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+				if subResourceName == "status" {
+					statusUpdates++
+				}
+				return c.SubResource(subResourceName).Update(ctx, obj, opts...)
+			},
+		}).
 		Build()
 
 	r := &QueueReconciler{
@@ -287,6 +299,9 @@ func TestStatus_NoopReconcilePreservesStatus(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("first reconcile error: %v", err)
+	}
+	if statusUpdates != 1 {
+		t.Fatalf("status updates after first reconcile = %d, want 1", statusUpdates)
 	}
 
 	// Second reconcile (noop ConfigMap)
@@ -305,6 +320,181 @@ func TestStatus_NoopReconcilePreservesStatus(t *testing.T) {
 	avail := getCondition(updated.Status.Conditions, queuev1alpha1.ConditionTypeAvailable)
 	if avail == nil || avail.Status != metav1.ConditionTrue {
 		t.Errorf("after noop reconcile, Available = %v, want True", avail)
+	}
+	if statusUpdates != 1 {
+		t.Errorf("status updates after noop reconcile = %d, want 1", statusUpdates)
+	}
+}
+
+func TestStatus_UpdateFailureIsReturnedForRetry(t *testing.T) {
+	queue := &queuev1alpha1.Queue{
+		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Namespace: "default", UID: "uid-1"},
+		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
+	}
+	scheme := runtime.NewScheme()
+	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	wantErr := errors.New("status update failed")
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithRuntimeObjects(queue).
+		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(context.Context, client.Client, string, client.Object, ...client.SubResourceUpdateOption) error {
+				return wantErr
+			},
+		}).
+		Build()
+	r := &QueueReconciler{Client: fakeClient, Scheme: scheme, TargetNamespace: "default", PartitionName: "default"}
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "team-a", Namespace: "default"}})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("reconcile error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestStatus_RefusesStaleGeneration(t *testing.T) {
+	listed := &queuev1alpha1.Queue{
+		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Namespace: "default", UID: "uid-1", Generation: 1},
+		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
+	}
+	fresh := listed.DeepCopy()
+	fresh.Generation = 2
+	scheme := runtime.NewScheme()
+	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithRuntimeObjects(fresh).
+		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		Build()
+	r := &QueueReconciler{Client: fakeClient, Scheme: scheme}
+
+	err := r.updateQueueStatus(context.Background(), listed, true, "")
+	if err == nil || !strings.Contains(err.Error(), "changed while") {
+		t.Fatalf("status error = %v, want stale generation refusal", err)
+	}
+}
+
+func TestReconcile_CreatedConfigMapIsMarkedManaged(t *testing.T) {
+	queue := &queuev1alpha1.Queue{
+		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Namespace: "default", UID: "uid-1"},
+		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithRuntimeObjects(queue).
+		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		Build()
+	r := &QueueReconciler{Client: fakeClient, Scheme: scheme, TargetNamespace: "default", PartitionName: "default"}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatalf("unexpected reconcile error: %v", err)
+	}
+
+	cm := &corev1.ConfigMap{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: ConfigMapName, Namespace: "default"}, cm); err != nil {
+		t.Fatalf("failed to get ConfigMap: %v", err)
+	}
+	if got := cm.Annotations[ConfigMapManagedAnnotation]; got != ConfigMapManagedValue {
+		t.Errorf("managed annotation = %q, want %q", got, ConfigMapManagedValue)
+	}
+}
+
+func TestReconcile_UnmanagedConfigMapIsPreserved(t *testing.T) {
+	queue := &queuev1alpha1.Queue{
+		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Namespace: "default", UID: "uid-1"},
+		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
+	}
+	existingCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        ConfigMapName,
+			Namespace:   "default",
+			Labels:      map[string]string{"owner": "administrator"},
+			Annotations: map[string]string{"example.com/note": "leave-me"},
+		},
+		Data:       map[string]string{ConfigMapQueueKey: "administrator-content", "extra": "preserved"},
+		BinaryData: map[string][]byte{"binary": {1, 2, 3}},
+	}
+	scheme := runtime.NewScheme()
+	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithRuntimeObjects(queue, existingCM).
+		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		Build()
+	r := &QueueReconciler{Client: fakeClient, Scheme: scheme, TargetNamespace: "default", PartitionName: "default"}
+	wantCM := &corev1.ConfigMap{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: ConfigMapName, Namespace: "default"}, wantCM); err != nil {
+		t.Fatalf("failed to get ConfigMap baseline: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatalf("unexpected reconcile error: %v", err)
+	}
+
+	gotCM := &corev1.ConfigMap{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: ConfigMapName, Namespace: "default"}, gotCM); err != nil {
+		t.Fatalf("failed to get ConfigMap: %v", err)
+	}
+	if !reflect.DeepEqual(wantCM, gotCM) {
+		t.Errorf("unmanaged ConfigMap changed:\nwant: %#v\n got: %#v", wantCM, gotCM)
+	}
+
+	updatedQueue := &queuev1alpha1.Queue{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: "team-a", Namespace: "default"}, updatedQueue); err != nil {
+		t.Fatalf("failed to get Queue: %v", err)
+	}
+	degraded := getCondition(updatedQueue.Status.Conditions, queuev1alpha1.ConditionTypeDegraded)
+	if degraded == nil || degraded.Status != metav1.ConditionTrue || degraded.Reason != StatusReasonConfigMapOwnershipConflict {
+		t.Errorf("Degraded condition = %#v, want True with reason %q", degraded, StatusReasonConfigMapOwnershipConflict)
+	}
+}
+
+func TestReconcile_AdoptedConfigMapPreservesUnrelatedContent(t *testing.T) {
+	queue := &queuev1alpha1.Queue{
+		ObjectMeta: metav1.ObjectMeta{Name: "team-a", Namespace: "default", UID: "uid-1"},
+		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
+	}
+	existingCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ConfigMapName,
+			Namespace: "default",
+			Labels:    map[string]string{"owner": "administrator"},
+			Annotations: map[string]string{
+				ConfigMapManagedAnnotation: ConfigMapManagedValue,
+				"example.com/note":         "leave-me",
+			},
+		},
+		Data:       map[string]string{ConfigMapQueueKey: "old-content", "extra": "preserved"},
+		BinaryData: map[string][]byte{"binary": {1, 2, 3}},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithRuntimeObjects(queue, existingCM).
+		WithStatusSubresource(&queuev1alpha1.Queue{}).
+		Build()
+	r := &QueueReconciler{Client: fakeClient, Scheme: scheme, TargetNamespace: "default", PartitionName: "default"}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatalf("unexpected reconcile error: %v", err)
+	}
+
+	cm := &corev1.ConfigMap{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: ConfigMapName, Namespace: "default"}, cm); err != nil {
+		t.Fatalf("failed to get ConfigMap: %v", err)
+	}
+	if cm.Data[ConfigMapQueueKey] == "old-content" {
+		t.Error("queues.yaml was not reconciled")
+	}
+	if cm.Data["extra"] != "preserved" || !reflect.DeepEqual(cm.BinaryData["binary"], []byte{1, 2, 3}) {
+		t.Errorf("unrelated ConfigMap data was not preserved: data=%v binaryData=%v", cm.Data, cm.BinaryData)
+	}
+	if cm.Labels["owner"] != "administrator" || cm.Annotations["example.com/note"] != "leave-me" {
+		t.Errorf("unrelated ConfigMap metadata was not preserved: labels=%v annotations=%v", cm.Labels, cm.Annotations)
 	}
 }
 
@@ -427,8 +617,12 @@ func TestReconcile_ConfigMapUpdateError(t *testing.T) {
 		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
 	}
 	existingCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName, Namespace: "default"},
-		Data:       map[string]string{ConfigMapQueueKey: "old-content"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        ConfigMapName,
+			Namespace:   "default",
+			Annotations: map[string]string{ConfigMapManagedAnnotation: ConfigMapManagedValue},
+		},
+		Data: map[string]string{ConfigMapQueueKey: "old-content"},
 	}
 
 	scheme := runtime.NewScheme()
@@ -469,7 +663,11 @@ func TestReconcile_ConfigMapNilData(t *testing.T) {
 		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
 	}
 	existingCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName, Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        ConfigMapName,
+			Namespace:   "default",
+			Annotations: map[string]string{ConfigMapManagedAnnotation: ConfigMapManagedValue},
+		},
 	}
 
 	scheme := runtime.NewScheme()
@@ -629,6 +827,8 @@ func TestSetupWithManager_EnvVarDefaults(t *testing.T) {
 	os.Unsetenv(TargetNamespaceEnvVar)
 	os.Unsetenv(PartitionNameEnvVar)
 	os.Unsetenv(PlacementRulesEnvVar)
+	os.Unsetenv(NodeSortPolicyEnvVar)
+	os.Unsetenv(RootPropertiesEnvVar)
 
 	r := &QueueReconciler{}
 	r.TargetNamespace = ""

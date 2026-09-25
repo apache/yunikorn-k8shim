@@ -22,6 +22,7 @@ package controller
 
 import (
 	"context"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,6 +34,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
+	controllerconfig "sigs.k8s.io/controller-runtime/pkg/config"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	queuev1alpha1 "github.com/apache/yunikorn-k8shim/pkg/queueoperator/api/v1alpha1"
@@ -94,6 +99,52 @@ func deleteConfigMap(ctx context.Context) {
 	}
 }
 
+func createTestNamespace(ctx context.Context, name string) {
+	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	ExpectWithOffset(1, k8sClient.Create(ctx, namespace)).To(Succeed())
+	DeferCleanup(func() {
+		_ = k8sClient.Delete(context.Background(), namespace)
+	})
+}
+
+func startControllerManager(targetNamespace string) {
+	oldTargetNamespace, hadTargetNamespace := os.LookupEnv(TargetNamespaceEnvVar)
+	ExpectWithOffset(1, os.Setenv(TargetNamespaceEnvVar, targetNamespace)).To(Succeed())
+	DeferCleanup(func() {
+		if hadTargetNamespace {
+			_ = os.Setenv(TargetNamespaceEnvVar, oldTargetNamespace)
+			return
+		}
+		_ = os.Unsetenv(TargetNamespaceEnvVar)
+	})
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:                 k8sClient.Scheme(),
+		Metrics:                metricsserver.Options{BindAddress: "0"},
+		HealthProbeBindAddress: "0",
+		Controller:             controllerconfig.Controller{SkipNameValidation: ptr.To(true)},
+	})
+	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+
+	reconciler := &QueueReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: record.NewFakeRecorder(100),
+	}
+	ExpectWithOffset(1, reconciler.SetupWithManager(mgr)).To(Succeed())
+
+	managerCtx, stopManager := context.WithCancel(context.Background())
+	managerDone := make(chan error, 1)
+	go func() {
+		managerDone <- mgr.Start(managerCtx)
+	}()
+	ExpectWithOffset(1, mgr.GetCache().WaitForCacheSync(managerCtx)).To(BeTrue())
+	DeferCleanup(func() {
+		stopManager()
+		Eventually(managerDone, 5*time.Second).Should(Receive(BeNil()))
+	})
+}
+
 var _ = Describe("Queue Controller", func() {
 	ctx := context.Background()
 
@@ -119,6 +170,9 @@ var _ = Describe("Queue Controller", func() {
 
 			By("verifying ConfigMap exists with correct structure")
 			config := getConfigMapYAML(ctx)
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: testTargetNamespace}, cm)).To(Succeed())
+			Expect(cm.Annotations).To(HaveKeyWithValue(ConfigMapManagedAnnotation, ConfigMapManagedValue))
 			Expect(config.Partitions).To(HaveLen(1))
 			Expect(config.Partitions[0].Name).To(Equal("default"))
 			Expect(config.Partitions[0].Queues).To(HaveLen(1))
@@ -129,6 +183,116 @@ var _ = Describe("Queue Controller", func() {
 			Expect(root.SubmitACL).To(Equal("*"))
 			Expect(root.Queues).To(HaveLen(1))
 			Expect(root.Queues[0].Name).To(Equal("team-a"))
+		})
+	})
+
+	Context("When running through a controller manager", func() {
+		It("reconciles startup, adoption, ConfigMap drift and deletion, and Queue generation changes", func() {
+			const targetNamespace = "manager-watch-test"
+			createTestNamespace(ctx, targetNamespace)
+
+			queue := &queuev1alpha1.Queue{
+				ObjectMeta: metav1.ObjectMeta{Name: "manager-team", Namespace: "default"},
+				Spec: queuev1alpha1.QueueSpec{
+					Queue: queuev1alpha1.QueueConfig{Name: "manager-team", SubmitACL: "original-acl"},
+				},
+			}
+			Expect(k8sClient.Create(ctx, queue)).To(Succeed())
+
+			configMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        ConfigMapName,
+					Namespace:   targetNamespace,
+					Labels:      map[string]string{"owner": "administrator"},
+					Annotations: map[string]string{"example.com/note": "preserve"},
+				},
+				Data:       map[string]string{ConfigMapQueueKey: "administrator-content", "extra": "preserve"},
+				BinaryData: map[string][]byte{"binary": {1, 2, 3}},
+			}
+			Expect(k8sClient.Create(ctx, configMap)).To(Succeed())
+
+			startControllerManager(targetNamespace)
+
+			By("refusing to take over the ConfigMap during startup reconciliation")
+			Eventually(func(g Gomega) {
+				freshQueue := &queuev1alpha1.Queue{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, freshQueue)).To(Succeed())
+				degraded := getCondition(freshQueue.Status.Conditions, queuev1alpha1.ConditionTypeDegraded)
+				g.Expect(degraded).NotTo(BeNil())
+				g.Expect(degraded.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(degraded.Reason).To(Equal(StatusReasonConfigMapOwnershipConflict))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+			freshConfigMap := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, freshConfigMap)).To(Succeed())
+			Expect(freshConfigMap.Data[ConfigMapQueueKey]).To(Equal("administrator-content"))
+
+			By("reconciling immediately after explicit adoption")
+			freshConfigMap.Annotations[ConfigMapManagedAnnotation] = ConfigMapManagedValue
+			Expect(k8sClient.Update(ctx, freshConfigMap)).To(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, freshConfigMap)).To(Succeed())
+				g.Expect(freshConfigMap.Data[ConfigMapQueueKey]).To(ContainSubstring("manager-team"))
+				g.Expect(freshConfigMap.Data["extra"]).To(Equal("preserve"))
+				g.Expect(freshConfigMap.BinaryData["binary"]).To(Equal([]byte{1, 2, 3}))
+				g.Expect(freshConfigMap.Labels).To(HaveKeyWithValue("owner", "administrator"))
+				g.Expect(freshConfigMap.Annotations).To(HaveKeyWithValue("example.com/note", "preserve"))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+
+			By("repairing direct queues.yaml drift")
+			freshConfigMap.Data[ConfigMapQueueKey] = "drifted"
+			Expect(k8sClient.Update(ctx, freshConfigMap)).To(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, freshConfigMap)).To(Succeed())
+				g.Expect(freshConfigMap.Data[ConfigMapQueueKey]).NotTo(Equal("drifted"))
+				g.Expect(freshConfigMap.Data[ConfigMapQueueKey]).To(ContainSubstring("manager-team"))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+
+			By("repairing ConfigMap deletion")
+			Expect(k8sClient.Delete(ctx, freshConfigMap)).To(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, freshConfigMap)).To(Succeed())
+				g.Expect(freshConfigMap.Annotations).To(HaveKeyWithValue(ConfigMapManagedAnnotation, ConfigMapManagedValue))
+				g.Expect(freshConfigMap.Data[ConfigMapQueueKey]).To(ContainSubstring("manager-team"))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+
+			By("reacting to a Queue generation change")
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, queue)).To(Succeed())
+			queue.Spec.Queue.SubmitACL = "updated-acl"
+			Expect(k8sClient.Update(ctx, queue)).To(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, freshConfigMap)).To(Succeed())
+				g.Expect(freshConfigMap.Data[ConfigMapQueueKey]).To(ContainSubstring("updated-acl"))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+
+			By("settling status without a status-triggered hot loop")
+			freshQueue := &queuev1alpha1.Queue{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, freshQueue)).To(Succeed())
+				g.Expect(freshQueue.Status.ObservedGeneration).To(Equal(freshQueue.Generation))
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
+			statusResourceVersion := freshQueue.ResourceVersion
+			Consistently(func() string {
+				g := NewWithT(GinkgoT())
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, freshQueue)).To(Succeed())
+				return freshQueue.ResourceVersion
+			}, time.Second, 100*time.Millisecond).Should(Equal(statusResourceVersion))
+		})
+
+		It("creates an empty-root managed ConfigMap from the synthetic startup event", func() {
+			const targetNamespace = "manager-startup-test"
+			createTestNamespace(ctx, targetNamespace)
+			startControllerManager(targetNamespace)
+
+			Eventually(func(g Gomega) {
+				configMap := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: targetNamespace}, configMap)).To(Succeed())
+				g.Expect(configMap.Annotations).To(HaveKeyWithValue(ConfigMapManagedAnnotation, ConfigMapManagedValue))
+				var config queueconfig.SchedulerConfig
+				g.Expect(yaml.Unmarshal([]byte(configMap.Data[ConfigMapQueueKey]), &config)).To(Succeed())
+				g.Expect(config.Partitions).To(HaveLen(1))
+				g.Expect(config.Partitions[0].Queues).To(HaveLen(1))
+				g.Expect(config.Partitions[0].Queues[0].Queues).To(BeEmpty())
+			}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
 		})
 	})
 
@@ -370,6 +534,106 @@ var _ = Describe("Queue Controller", func() {
 			root := config.Partitions[0].Queues[0]
 			Expect(root.Queues).To(HaveLen(1))
 			Expect(root.Queues[0].Name).To(Equal("team-b"))
+		})
+	})
+
+	Context("When cluster-level queue settings are configured", func() {
+		It("preserves node sorting and root properties across Queue CRUD", func() {
+			r := newReconciler()
+			r.NodeSortPolicy = &queueconfig.NodeSortingPolicy{
+				Type:            "binpacking",
+				ResourceWeights: map[string]float64{"memory": 2, "vcore": 0.5},
+			}
+			r.RootProperties = map[string]string{"application.sort.policy": "fair"}
+
+			By("creating the empty-root configuration")
+			doReconcile(ctx, r)
+			config := getConfigMapYAML(ctx)
+			Expect(config.Partitions[0].NodeSortPolicy).NotTo(BeNil())
+			Expect(config.Partitions[0].NodeSortPolicy.Type).To(Equal("binpacking"))
+			Expect(config.Partitions[0].NodeSortPolicy.ResourceWeights).To(HaveKeyWithValue("memory", float64(2)))
+			Expect(config.Partitions[0].Queues[0].Properties).To(HaveKeyWithValue("application.sort.policy", "fair"))
+
+			By("creating and then deleting a Queue")
+			queue := &queuev1alpha1.Queue{
+				ObjectMeta: metav1.ObjectMeta{Name: "override-team", Namespace: "default"},
+				Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "override-team"}},
+			}
+			Expect(k8sClient.Create(ctx, queue)).To(Succeed())
+			doReconcile(ctx, r)
+			config = getConfigMapYAML(ctx)
+			Expect(config.Partitions[0].NodeSortPolicy.Type).To(Equal("binpacking"))
+			Expect(config.Partitions[0].Queues[0].Properties).To(HaveKeyWithValue("application.sort.policy", "fair"))
+
+			Expect(k8sClient.Delete(ctx, queue)).To(Succeed())
+			Eventually(func() bool {
+				return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, &queuev1alpha1.Queue{}))
+			}, 5*time.Second, 100*time.Millisecond).Should(BeTrue())
+			doReconcile(ctx, r)
+			config = getConfigMapYAML(ctx)
+			Expect(config.Partitions[0].NodeSortPolicy.Type).To(Equal("binpacking"))
+			Expect(config.Partitions[0].Queues[0].Properties).To(HaveKeyWithValue("application.sort.policy", "fair"))
+			Expect(config.Partitions[0].Queues[0].Queues).To(BeEmpty())
+		})
+
+		It("attributes an invalid placement rule to operator settings using the real CR hierarchy", func() {
+			queue := &queuev1alpha1.Queue{
+				ObjectMeta: metav1.ObjectMeta{Name: "placement-target", Namespace: "default"},
+				Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "placement-target"}},
+			}
+			Expect(k8sClient.Create(ctx, queue)).To(Succeed())
+
+			r := newReconciler()
+			r.PlacementRules = []queueconfig.PlacementRule{{
+				Name: "fixed", Value: "root.placement-target.missing", Create: false,
+			}}
+			doReconcile(ctx, r)
+
+			fresh := &queuev1alpha1.Queue{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: queue.Name, Namespace: queue.Namespace}, fresh)).To(Succeed())
+			degraded := getCondition(fresh.Status.Conditions, queuev1alpha1.ConditionTypeDegraded)
+			Expect(degraded).NotTo(BeNil())
+			Expect(degraded.Status).To(Equal(metav1.ConditionTrue))
+			Expect(degraded.Reason).To(Equal(StatusReasonInvalidOperatorConfig))
+			Expect(errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: ConfigMapName, Namespace: testTargetNamespace}, &corev1.ConfigMap{}))).To(BeTrue())
+		})
+
+		It("still attributes an invalid Queue CR when a placement rule references a different valid CR", func() {
+			goodQueue := &queuev1alpha1.Queue{
+				ObjectMeta: metav1.ObjectMeta{Name: "placement-target", Namespace: "default"},
+				Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "placement-target"}},
+			}
+			Expect(k8sClient.Create(ctx, goodQueue)).To(Succeed())
+
+			parent := true
+			maxApplications := uint64(10)
+			badQueue := &queuev1alpha1.Queue{
+				ObjectMeta: metav1.ObjectMeta{Name: "bad-hierarchy", Namespace: "default"},
+				Spec: queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{
+					Name:            "bad-hierarchy",
+					Parent:          &parent,
+					MaxApplications: &maxApplications,
+					Queues:          []queuev1alpha1.QueueConfig{{Name: "child"}},
+				}},
+			}
+			Expect(k8sClient.Create(ctx, badQueue)).To(Succeed())
+
+			r := newReconciler()
+			r.PlacementRules = []queueconfig.PlacementRule{{
+				Name: "fixed", Value: "root.placement-target", Create: false,
+			}}
+			doReconcile(ctx, r)
+
+			freshBad := &queuev1alpha1.Queue{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: badQueue.Name, Namespace: badQueue.Namespace}, freshBad)).To(Succeed())
+			badDegraded := getCondition(freshBad.Status.Conditions, queuev1alpha1.ConditionTypeDegraded)
+			Expect(badDegraded).NotTo(BeNil())
+			Expect(badDegraded.Reason).To(Equal(StatusReasonInvalidConfig))
+
+			freshGood := &queuev1alpha1.Queue{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: goodQueue.Name, Namespace: goodQueue.Namespace}, freshGood)).To(Succeed())
+			goodDegraded := getCondition(freshGood.Status.Conditions, queuev1alpha1.ConditionTypeDegraded)
+			Expect(goodDegraded == nil || goodDegraded.Status != metav1.ConditionTrue).To(BeTrue())
 		})
 	})
 

@@ -19,16 +19,23 @@
 package queueconfig
 
 import (
+	"errors"
 	"testing"
 )
 
-func TestLoadOptionsFromEnv_DefaultsWhenUnset(t *testing.T) {
-	t.Setenv(PartitionNameEnvVar, "")
-	t.Setenv(PlacementRulesEnvVar, "")
+func clearOptionalSettings(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{PartitionNameEnvVar, PlacementRulesEnvVar, NodeSortPolicyEnvVar, RootPropertiesEnvVar} {
+		t.Setenv(name, "")
+	}
+}
 
-	opts, err := LoadOptionsFromEnv()
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
+func TestLoadOptionsFromEnv_DefaultsWhenUnset(t *testing.T) {
+	clearOptionalSettings(t)
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errs: %v", errs)
 	}
 	if opts.PartitionName != DefaultPartitionName {
 		t.Errorf("partition: got %q want %q", opts.PartitionName, DefaultPartitionName)
@@ -39,12 +46,12 @@ func TestLoadOptionsFromEnv_DefaultsWhenUnset(t *testing.T) {
 }
 
 func TestLoadOptionsFromEnv_PartitionOverride(t *testing.T) {
+	clearOptionalSettings(t)
 	t.Setenv(PartitionNameEnvVar, "my-partition")
-	t.Setenv(PlacementRulesEnvVar, "")
 
-	opts, err := LoadOptionsFromEnv()
-	if err != nil {
-		t.Fatal(err)
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatal(errs)
 	}
 	if opts.PartitionName != "my-partition" {
 		t.Errorf("partition: %q", opts.PartitionName)
@@ -52,7 +59,7 @@ func TestLoadOptionsFromEnv_PartitionOverride(t *testing.T) {
 }
 
 func TestLoadOptionsFromEnv_ValidPlacementRules(t *testing.T) {
-	t.Setenv(PartitionNameEnvVar, "")
+	clearOptionalSettings(t)
 	t.Setenv(PlacementRulesEnvVar, `
 - name: tag
   value: namespace
@@ -61,9 +68,9 @@ func TestLoadOptionsFromEnv_ValidPlacementRules(t *testing.T) {
   value: root.fallback
   create: false
 `)
-	opts, err := LoadOptionsFromEnv()
-	if err != nil {
-		t.Fatalf("err: %v", err)
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
 	}
 	if len(opts.PlacementRules) != 2 {
 		t.Fatalf("want 2 rules, got %d", len(opts.PlacementRules))
@@ -74,12 +81,20 @@ func TestLoadOptionsFromEnv_ValidPlacementRules(t *testing.T) {
 }
 
 func TestLoadOptionsFromEnv_MalformedPlacementRulesReturnsErrButValidPartition(t *testing.T) {
+	clearOptionalSettings(t)
 	t.Setenv(PartitionNameEnvVar, "p")
 	t.Setenv(PlacementRulesEnvVar, "::not-yaml::")
 
-	opts, err := LoadOptionsFromEnv()
-	if err == nil {
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 1 {
 		t.Fatal("expected parse error")
+	}
+	if errs[0].Setting != PlacementRulesEnvVar {
+		t.Errorf("error setting = %q, want %q", errs[0].Setting, PlacementRulesEnvVar)
+	}
+	var optionErr OptionError
+	if !errors.As(errs[0], &optionErr) {
+		t.Errorf("error is not an OptionError: %T", errs[0])
 	}
 	// Even on parse failure the partition name must remain usable so callers
 	// can softfail and continue.
@@ -88,5 +103,105 @@ func TestLoadOptionsFromEnv_MalformedPlacementRulesReturnsErrButValidPartition(t
 	}
 	if opts.PlacementRules != nil {
 		t.Errorf("placement rules should be nil on parse error: %+v", opts.PlacementRules)
+	}
+}
+
+func TestLoadOptionsFromEnv_NodeSortPolicyName(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(NodeSortPolicyEnvVar, "binpacking")
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errs: %v", errs)
+	}
+	if opts.NodeSortPolicy == nil || opts.NodeSortPolicy.Type != "binpacking" {
+		t.Fatalf("node sort policy = %+v, want binpacking", opts.NodeSortPolicy)
+	}
+}
+
+func TestLoadOptionsFromEnv_NodeSortPolicyObject(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(NodeSortPolicyEnvVar, `type: fair
+resourceweights:
+  memory: 2
+  vcore: 0.5`)
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errs: %v", errs)
+	}
+	if opts.NodeSortPolicy == nil || opts.NodeSortPolicy.Type != "fair" {
+		t.Fatalf("node sort policy = %+v, want fair", opts.NodeSortPolicy)
+	}
+	if got := opts.NodeSortPolicy.ResourceWeights["memory"]; got != 2 {
+		t.Errorf("memory weight = %v, want 2", got)
+	}
+	if got := opts.NodeSortPolicy.ResourceWeights["vcore"]; got != 0.5 {
+		t.Errorf("vcore weight = %v, want 0.5", got)
+	}
+}
+
+func TestLoadOptionsFromEnv_RejectsUnknownStructuredFields(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(PlacementRulesEnvVar, "- name: tag\n  unexpected: true")
+	t.Setenv(NodeSortPolicyEnvVar, "type: fair\nresourceweight: {}")
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 2 {
+		t.Fatalf("errors = %v, want 2", errs)
+	}
+	if errs[0].Setting != PlacementRulesEnvVar || errs[1].Setting != NodeSortPolicyEnvVar {
+		t.Errorf("error settings = %q, %q", errs[0].Setting, errs[1].Setting)
+	}
+	if opts.PlacementRules != nil || opts.NodeSortPolicy != nil {
+		t.Errorf("settings with unknown fields should be dropped: rules=%v policy=%v", opts.PlacementRules, opts.NodeSortPolicy)
+	}
+}
+
+func TestLoadOptionsFromEnv_RejectsMultipleYAMLDocuments(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(NodeSortPolicyEnvVar, "type: fair\n---\ntype: binpacking")
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 1 || errs[0].Setting != NodeSortPolicyEnvVar {
+		t.Fatalf("errors = %v, want one %s error", errs, NodeSortPolicyEnvVar)
+	}
+	if opts.NodeSortPolicy != nil {
+		t.Errorf("multi-document setting should be dropped: %+v", opts.NodeSortPolicy)
+	}
+}
+
+func TestLoadOptionsFromEnv_RootProperties(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(RootPropertiesEnvVar, `application.sort.policy: fair
+preemption.delay: 30s`)
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errs: %v", errs)
+	}
+	if opts.RootProperties["application.sort.policy"] != "fair" || opts.RootProperties["preemption.delay"] != "30s" {
+		t.Errorf("root properties = %v", opts.RootProperties)
+	}
+}
+
+func TestLoadOptionsFromEnv_ParsesSettingsIndependently(t *testing.T) {
+	clearOptionalSettings(t)
+	t.Setenv(PlacementRulesEnvVar, "not: [valid")
+	t.Setenv(NodeSortPolicyEnvVar, "binpacking")
+	t.Setenv(RootPropertiesEnvVar, "not: [valid")
+
+	opts, errs := LoadOptionsFromEnv()
+	if len(errs) != 2 {
+		t.Fatalf("errors = %v, want 2", errs)
+	}
+	if errs[0].Setting != PlacementRulesEnvVar || errs[1].Setting != RootPropertiesEnvVar {
+		t.Errorf("error settings = %q, %q", errs[0].Setting, errs[1].Setting)
+	}
+	if opts.NodeSortPolicy == nil || opts.NodeSortPolicy.Type != "binpacking" {
+		t.Errorf("valid sibling setting was discarded: %+v", opts.NodeSortPolicy)
+	}
+	if opts.PlacementRules != nil || opts.RootProperties != nil {
+		t.Errorf("malformed settings should be nil: rules=%v properties=%v", opts.PlacementRules, opts.RootProperties)
 	}
 }

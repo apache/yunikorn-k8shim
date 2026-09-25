@@ -117,6 +117,7 @@ func TestMetricRegistrations(t *testing.T) {
 		"queue_operator_queues_duplicate_skipped_total": true,
 		"queue_operator_queue_hierarchy_depth":          true,
 		"queue_operator_webhook_missed_invalid_total":   true,
+		"queue_operator_settings_dropped_total":         true,
 	}
 
 	collectors := []prometheus.Collector{
@@ -127,6 +128,7 @@ func TestMetricRegistrations(t *testing.T) {
 		queuesDuplicateSkippedTotal,
 		queueHierarchyDepth,
 		webhookMissedInvalidTotal,
+		settingsDroppedTotal,
 	}
 
 	for _, c := range collectors {

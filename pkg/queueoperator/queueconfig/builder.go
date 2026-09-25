@@ -46,9 +46,18 @@ type SchedulerConfig struct {
 // PartitionConfig is a single YuniKorn partition. queue-operator emits exactly
 // one partition (typically "default").
 type PartitionConfig struct {
-	Name           string          `yaml:"name"`
-	PlacementRules []PlacementRule `yaml:"placementrules,omitempty"`
-	Queues         []QueueConfig   `yaml:"queues"`
+	Name           string             `yaml:"name"`
+	PlacementRules []PlacementRule    `yaml:"placementrules,omitempty"`
+	NodeSortPolicy *NodeSortingPolicy `yaml:"nodesortpolicy,omitempty"`
+	Queues         []QueueConfig      `yaml:"queues"`
+}
+
+// NodeSortingPolicy controls how YuniKorn orders nodes when placing an
+// allocation. Resource types omitted from ResourceWeights retain YuniKorn's
+// default weight.
+type NodeSortingPolicy struct {
+	Type            string             `yaml:"type,omitempty"`
+	ResourceWeights map[string]float64 `yaml:"resourceweights,omitempty"`
 }
 
 // PlacementRule maps to YuniKorn's PlacementRule type.
@@ -109,6 +118,10 @@ type BuildOptions struct {
 	PartitionName string
 	// PlacementRules, if non-empty, are placed at the partition level.
 	PlacementRules []PlacementRule
+	// NodeSortPolicy, when non-zero, is placed at the partition level.
+	NodeSortPolicy *NodeSortingPolicy
+	// RootProperties are applied to the generated root queue.
+	RootProperties map[string]string
 }
 
 // BuildMerged grafts the supplied L1 queues under the implicit root queue and
@@ -138,23 +151,24 @@ type BuildOptions struct {
 //     constrain each other's per-user/group caps — they're independent
 //     budget pools by construction. The inter-CR tests in validator_test.go
 //     pin this behaviour.
-//   - We emit exactly one Partition and never populate Partition.Limits or
-//     Partition.NodeSortPolicy → V3 (duplicate partition name),
-//     V13/V14/V16 (root structure), V57/V58 (node-sorting policy) are all
-//     unreachable from a CR. They remain proven via unit tests against the
-//     wrapped validator, but no Queue CR can express them today.
+//   - We emit exactly one Partition and never populate Partition.Limits.
+//     Partition.NodeSortPolicy and generated-root Properties are operator
+//     settings, not Queue CR fields. Their validation therefore remains
+//     independent of tenant-owned queue definitions.
 func BuildMerged(l1Children []QueueConfig, opts BuildOptions) *SchedulerConfig {
 	root := QueueConfig{
-		Name:      RootQueueName,
-		Parent:    true,
-		SubmitACL: "*",
-		Queues:    l1Children,
+		Name:       RootQueueName,
+		Parent:     true,
+		SubmitACL:  "*",
+		Properties: opts.RootProperties,
+		Queues:     l1Children,
 	}
 
 	return &SchedulerConfig{
 		Partitions: []PartitionConfig{{
 			Name:           opts.PartitionName,
 			PlacementRules: opts.PlacementRules,
+			NodeSortPolicy: opts.NodeSortPolicy,
 			Queues:         []QueueConfig{root},
 		}},
 	}

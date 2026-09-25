@@ -41,7 +41,7 @@ func setupReconciler(objs ...runtime.Object) (*QueueReconciler, *record.FakeReco
 	utilruntime.Must(queuev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 
-	builder := fake.NewClientBuilder().WithScheme(scheme)
+	builder := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&queuev1alpha1.Queue{})
 	if len(objs) > 0 {
 		builder = builder.WithRuntimeObjects(objs...)
 	}
@@ -124,8 +124,12 @@ func TestEvents_ConfigMapUpdated(t *testing.T) {
 		Spec:       queuev1alpha1.QueueSpec{Queue: queuev1alpha1.QueueConfig{Name: "team-a"}},
 	}
 	existingCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: ConfigMapName, Namespace: "default"},
-		Data:       map[string]string{ConfigMapQueueKey: "old-content"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        ConfigMapName,
+			Namespace:   "default",
+			Annotations: map[string]string{ConfigMapManagedAnnotation: ConfigMapManagedValue},
+		},
+		Data: map[string]string{ConfigMapQueueKey: "old-content"},
 	}
 
 	r, recorder := setupReconciler(queue, existingCM)
@@ -253,7 +257,10 @@ func TestEvents_NoRecorder(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 
 	r := &QueueReconciler{
-		Client:          fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(queue).Build(),
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithRuntimeObjects(queue).
+			WithStatusSubresource(&queuev1alpha1.Queue{}).
+			Build(),
 		Scheme:          scheme,
 		Recorder:        nil,
 		TargetNamespace: "default",

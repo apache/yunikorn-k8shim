@@ -110,6 +110,15 @@ var (
 		},
 		[]string{"stage"},
 	)
+
+	settingsDroppedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Name:      "settings_dropped_total",
+			Help:      "Total number of malformed explicit operator settings dropped during startup.",
+		},
+		[]string{"setting"}, // PLACEMENT_RULES, NODE_SORT_POLICY, or ROOT_PROPERTIES.
+	)
 )
 
 func init() {
@@ -121,6 +130,7 @@ func init() {
 		queuesDuplicateSkippedTotal,
 		queueHierarchyDepth,
 		webhookMissedInvalidTotal,
+		settingsDroppedTotal,
 	)
 }
 
