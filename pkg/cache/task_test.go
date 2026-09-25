@@ -21,6 +21,7 @@ package cache
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,8 +29,10 @@ import (
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sEvents "k8s.io/client-go/tools/events"
@@ -1035,6 +1038,728 @@ func newBindTestPod(name, uid string) *v1.Pod {
 		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)},
 	}
+}
+
+func newDeleteTaskForTest() (*Task, *client.MockedAPIProvider) {
+	mockedContext, apiProvider := initContextAndAPIProviderForTest()
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	task := NewTask(taskUID1, app, mockedContext, newBindTestPod("delete-task-pod", taskUID1))
+	task.sm.SetState(TaskStates().Bound)
+	return task, apiProvider
+}
+
+type layer3ConflictKubeClient struct {
+	client.KubeClient
+	deleteFn func(pod *v1.Pod) error
+	getFn    func(namespace, name string) (*v1.Pod, error)
+}
+
+func (c *layer3ConflictKubeClient) Delete(pod *v1.Pod) error {
+	return c.deleteFn(pod)
+}
+
+func (c *layer3ConflictKubeClient) Get(namespace, name string) (*v1.Pod, error) {
+	return c.getFn(namespace, name)
+}
+
+// Use one channel so buffered notifications preserve API call order.
+type layer3KubeCall struct {
+	method    string
+	namespace string
+	name      string
+	uid       types.UID
+}
+
+func assertLayer3KubeCall(t *testing.T, calls <-chan layer3KubeCall, method string, timeout time.Duration) {
+	t.Helper()
+	select {
+	case call := <-calls:
+		assert.Equal(t, call.method, method, "unexpected API call order")
+		assert.Equal(t, call.namespace, "ns")
+		assert.Equal(t, call.name, "victim")
+		if method == "DELETE" {
+			assert.Equal(t, call.uid, types.UID("A"), "DELETE targeted a replacement Pod")
+		}
+	case <-time.After(timeout):
+		t.Fatalf("expected %s call", method)
+	}
+}
+
+func newLayer3ConflictTaskForTest() (*Task, *client.MockedAPIProvider) {
+	apiProvider := client.NewMockedAPIProvider(false)
+	// Deletion only needs the API provider; avoid starting unrelated DRA trackers.
+	mockedContext := &Context{apiProvider: apiProvider}
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+		apiProvider.GetAPIs().SchedulerAPI)
+	pod := newBindTestPod("victim", "A")
+	pod.Namespace = "ns"
+	task := NewTask(string(pod.UID), app, mockedContext, pod)
+	task.sm.SetState(TaskStates().Bound)
+	return task, apiProvider
+}
+
+func TestDeleteTaskPodConflictWithReplacementStopsRetry(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	var deleteAttempts atomic.Int32
+	var getAttempts atomic.Int32
+	pods := schema.GroupResource{Resource: "pods"}
+	replacement := newBindTestPod("victim", "B")
+	replacement.Namespace = "ns"
+
+	baseClient := apiProvider.GetAPIs().KubeClient
+	apiProvider.GetAPIs().KubeClient = &layer3ConflictKubeClient{
+		KubeClient: baseClient,
+		deleteFn: func(pod *v1.Pod) error {
+			attempt := deleteAttempts.Add(1)
+			calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+			if attempt == 1 {
+				return apierrors.NewConflict(pods, pod.Name, fmt.Errorf("delete conflict"))
+			}
+			return nil
+		},
+		getFn: func(namespace, name string) (*v1.Pod, error) {
+			getAttempts.Add(1)
+			calls <- layer3KubeCall{method: "GET", namespace: namespace, name: name}
+			return replacement.DeepCopy(), nil
+		},
+	}
+
+	err := task.DeleteTaskPod()
+	assert.NilError(t, err, "replacement UID should resolve the initial Conflict")
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "GET", 4*deleteTaskPodRetryInitialDelay)
+
+	// A replacement resolves the old UID's delete obligation, but ownership must
+	// remain claimed so a duplicate release cannot reopen the stale DELETE.
+	err = task.DeleteTaskPod()
+	assert.NilError(t, err, "duplicate release should remain idempotent")
+	select {
+	case call := <-calls:
+		t.Fatalf("resolved Conflict triggered another API call: %+v", call)
+	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+	}
+
+	assert.Equal(t, int32(1), deleteAttempts.Load(), "replacement should stop DELETE re-drive")
+	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "replacement should retain delete ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "replacement classification synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"replacement classification synthesized a core release confirmation")
+}
+
+func TestDeleteTaskPodConflictWithNotFoundStopsRetry(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	var deleteAttempts atomic.Int32
+	var getAttempts atomic.Int32
+	pods := schema.GroupResource{Resource: "pods"}
+
+	baseClient := apiProvider.GetAPIs().KubeClient
+	apiProvider.GetAPIs().KubeClient = &layer3ConflictKubeClient{
+		KubeClient: baseClient,
+		deleteFn: func(pod *v1.Pod) error {
+			attempt := deleteAttempts.Add(1)
+			calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+			if attempt == 1 {
+				return apierrors.NewConflict(pods, pod.Name, fmt.Errorf("delete conflict"))
+			}
+			return nil
+		},
+		getFn: func(namespace, name string) (*v1.Pod, error) {
+			getAttempts.Add(1)
+			calls <- layer3KubeCall{method: "GET", namespace: namespace, name: name}
+			return nil, apierrors.NewNotFound(pods, name)
+		},
+	}
+
+	err := task.DeleteTaskPod()
+	assert.NilError(t, err, "GET NotFound should resolve the initial Conflict")
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "GET", 4*deleteTaskPodRetryInitialDelay)
+
+	err = task.DeleteTaskPod()
+	assert.NilError(t, err, "duplicate release should remain idempotent")
+	select {
+	case call := <-calls:
+		t.Fatalf("resolved Conflict triggered another API call: %+v", call)
+	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+	}
+
+	assert.Equal(t, int32(1), deleteAttempts.Load(), "NotFound should stop DELETE re-drive")
+	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "NotFound should retain delete ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "NotFound classification synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"NotFound classification synthesized a core release confirmation")
+}
+
+func TestDeleteTaskPodConflictWithOriginalUIDRetries(t *testing.T) {
+	original := newBindTestPod("victim", "A")
+	original.Namespace = "ns"
+	testDeleteTaskPodConflictAllowsRetry(t, original, nil)
+}
+
+func TestDeleteTaskPodConflictWithGetErrorRetries(t *testing.T) {
+	testDeleteTaskPodConflictAllowsRetry(t, nil, apierrors.NewServiceUnavailable("classification GET failed"))
+}
+
+func TestDeleteTaskPodRetryWorkerConflictWithReplacementStopsRetry(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	allowGetReturn := make(chan struct{})
+	getReturning := make(chan struct{})
+	var releaseGetOnce sync.Once
+	releaseGet := func() { releaseGetOnce.Do(func() { close(allowGetReturn) }) }
+	t.Cleanup(releaseGet)
+	var deleteAttempts atomic.Int32
+	var getAttempts atomic.Int32
+	pods := schema.GroupResource{Resource: "pods"}
+	replacement := newBindTestPod("victim", "B")
+	replacement.Namespace = "ns"
+
+	baseClient := apiProvider.GetAPIs().KubeClient
+	apiProvider.GetAPIs().KubeClient = &layer3ConflictKubeClient{
+		KubeClient: baseClient,
+		deleteFn: func(pod *v1.Pod) error {
+			attempt := deleteAttempts.Add(1)
+			calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+			switch attempt {
+			case 1:
+				return apierrors.NewServiceUnavailable("initial DELETE failed")
+			case 2:
+				return apierrors.NewConflict(pods, pod.Name, fmt.Errorf("delete conflict"))
+			default:
+				return nil
+			}
+		},
+		getFn: func(namespace, name string) (*v1.Pod, error) {
+			attempt := getAttempts.Add(1)
+			calls <- layer3KubeCall{method: "GET", namespace: namespace, name: name}
+			if attempt == 1 {
+				<-allowGetReturn
+				defer close(getReturning)
+			}
+			return replacement.DeepCopy(), nil
+		},
+	}
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err), "initial DELETE should return ServiceUnavailable")
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "GET", 6*deleteTaskPodRetryInitialDelay)
+
+	releaseGet()
+	select {
+	case <-getReturning:
+	case <-time.After(4 * deleteTaskPodRetryInitialDelay):
+		t.Fatal("classification GET did not reach its return")
+	}
+
+	// The handshake marks the callback's return, not worker exit. Observe for
+	// unexpected API calls while the worker processes the replacement result.
+	select {
+	case call := <-calls:
+		t.Fatalf("resolved Conflict triggered another API call: %+v", call)
+	case <-time.After(4 * deleteTaskPodRetryInitialDelay):
+	}
+
+	assert.Equal(t, int32(2), deleteAttempts.Load(), "replacement should stop retry worker after its Conflict")
+	assert.Equal(t, int32(1), getAttempts.Load(), "retry-worker Conflict should be classified with exactly one GET")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "replacement should retain retry-worker delete ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "retry-worker reconciliation synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"retry-worker reconciliation synthesized a core release confirmation")
+}
+
+func testDeleteTaskPodConflictAllowsRetry(t *testing.T, getPod *v1.Pod, getErr error) {
+	t.Helper()
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	allowRetryReturn := make(chan struct{})
+	retryReturning := make(chan struct{})
+	var releaseRetryOnce sync.Once
+	releaseRetry := func() { releaseRetryOnce.Do(func() { close(allowRetryReturn) }) }
+	t.Cleanup(releaseRetry)
+	var deleteAttempts atomic.Int32
+	var getAttempts atomic.Int32
+	pods := schema.GroupResource{Resource: "pods"}
+
+	baseClient := apiProvider.GetAPIs().KubeClient
+	apiProvider.GetAPIs().KubeClient = &layer3ConflictKubeClient{
+		KubeClient: baseClient,
+		deleteFn: func(pod *v1.Pod) error {
+			attempt := deleteAttempts.Add(1)
+			calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+			if attempt == 1 {
+				return apierrors.NewConflict(pods, pod.Name, fmt.Errorf("delete conflict"))
+			}
+			if attempt == 2 {
+				<-allowRetryReturn
+				defer close(retryReturning)
+			}
+			return nil
+		},
+		getFn: func(namespace, name string) (*v1.Pod, error) {
+			getAttempts.Add(1)
+			calls <- layer3KubeCall{method: "GET", namespace: namespace, name: name}
+			if getPod == nil {
+				return nil, getErr
+			}
+			return getPod.DeepCopy(), getErr
+		},
+	}
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsConflict(err), "unresolved initial DELETE should return Conflict")
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "GET", 4*deleteTaskPodRetryInitialDelay)
+
+	assertLayer3KubeCall(t, calls, "DELETE", 4*deleteTaskPodRetryInitialDelay)
+
+	releaseRetry()
+	select {
+	case <-retryReturning:
+	case <-time.After(4 * deleteTaskPodRetryInitialDelay):
+		t.Fatal("retry DELETE did not reach its return")
+	}
+
+	// The callback handshake does not join the worker. Check for further API
+	// calls while it processes the successful DELETE result.
+	select {
+	case call := <-calls:
+		t.Fatalf("successful retry triggered another API call: %+v", call)
+	case <-time.After(4 * deleteTaskPodRetryInitialDelay):
+	}
+
+	assert.Equal(t, int32(2), deleteAttempts.Load(), "unresolved Conflict should allow one automatic retry")
+	assert.Equal(t, int32(1), getAttempts.Load(), "Conflict should be classified with exactly one GET")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "unresolved Conflict should retain delete ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "Conflict reconciliation synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"Conflict reconciliation synthesized a core release confirmation")
+}
+
+func TestTaskPodDeleteRetryBackoff(t *testing.T) {
+	nextDelay := taskPodDeleteRetryBackoff().DelayFunc()
+	want := []time.Duration{
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		400 * time.Millisecond,
+		800 * time.Millisecond,
+		1600 * time.Millisecond,
+		3200 * time.Millisecond,
+		6400 * time.Millisecond,
+		12800 * time.Millisecond,
+		25600 * time.Millisecond,
+		30 * time.Second,
+		30 * time.Second,
+		30 * time.Second,
+	}
+	for i, delay := range want {
+		assert.Equal(t, nextDelay(), delay, "delay at step %d", i)
+	}
+	// Another lifecycle must start with a fresh policy, independent of this one.
+	assert.Equal(t, taskPodDeleteRetryBackoff().DelayFunc()(), 100*time.Millisecond)
+}
+
+func TestDeleteTaskPodFirstRetryWaits(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	attemptTimes := make(chan time.Time, 2)
+	var attempts atomic.Int32
+	apiProvider.MockDeleteFn(func(_ *v1.Pod) error {
+		attempt := attempts.Add(1)
+		attemptTimes <- time.Now()
+		if attempt == 1 {
+			return apierrors.NewServiceUnavailable("initial DELETE failed")
+		}
+		return nil
+	})
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err))
+	initialAttempt := <-attemptTimes
+	select {
+	case retryAttempt := <-attemptTimes:
+		assert.Assert(t, retryAttempt.Sub(initialAttempt) >= deleteTaskPodRetryInitialDelay,
+			"first worker DELETE must wait for the initial retry delay")
+	case <-time.After(time.Second):
+		t.Fatal("worker did not retry DELETE")
+	}
+}
+
+func TestDeleteTaskPodRetriesContinueAfterBackoffGrowth(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	backoff := taskPodDeleteRetryBackoff()
+	backoff.Duration = time.Millisecond
+	backoff.Cap = 2 * time.Millisecond
+	const wantAttempts = 12 // Verify retries continue well after backoff growth reaches the cap.
+	calls := make(chan layer3KubeCall, wantAttempts)
+	allowReturn := make(chan struct{})
+	t.Cleanup(func() { close(allowReturn) })
+	var attempts atomic.Int32
+	apiProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		attempt := attempts.Add(1)
+		calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+		<-allowReturn
+		if attempt < wantAttempts {
+			return apierrors.NewServiceUnavailable("DELETE still failing")
+		}
+		return nil
+	})
+
+	// Exercise the same worker with a short local policy, retaining the caller's
+	// ownership precondition without changing production delays or global state.
+	assert.Assert(t, task.podDeleteClaimed.CompareAndSwap(false, true))
+	pod := task.GetTaskPod().DeepCopy()
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		task.runTaskPodDeleteRetries(pod, backoff)
+	}()
+	for attempt := 1; attempt <= wantAttempts; attempt++ {
+		assertLayer3KubeCall(t, calls, "DELETE", time.Second)
+		assert.Assert(t, task.podDeleteClaimed.Load(), "transient failure lost ownership")
+		assert.NilError(t, task.DeleteTaskPod(), "duplicate release must not start another lifecycle")
+		assert.Equal(t, attempts.Load(), int32(attempt), "duplicate release issued another DELETE")
+		assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
+		assert.Equal(t, apiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(0))
+		allowReturn <- struct{}{}
+	}
+	select {
+	case <-workerDone:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop after accepted DELETE")
+	}
+	assert.Equal(t, attempts.Load(), int32(wantAttempts))
+	assert.Assert(t, task.podDeleteClaimed.Load(), "accepted DELETE must retain ownership")
+	assert.Equal(t, task.GetTaskState(), TaskStates().Bound, "worker synthesized Task completion")
+	assert.Equal(t, apiProvider.GetSchedulerAPIUpdateAllocationCount(), int32(0),
+		"worker synthesized core release confirmation")
+}
+
+func TestDeleteTaskPodRetryWorkerNotFoundStopsRetry(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	allowRetryReturn := make(chan struct{})
+	retryReturning := make(chan struct{})
+	var releaseRetryOnce sync.Once
+	releaseRetry := func() { releaseRetryOnce.Do(func() { close(allowRetryReturn) }) }
+	t.Cleanup(releaseRetry)
+	var attempts atomic.Int32
+	pods := schema.GroupResource{Resource: "pods"}
+	apiProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		attempt := attempts.Add(1)
+		calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+		switch attempt {
+		case 1:
+			return apierrors.NewServiceUnavailable("initial DELETE failed")
+		case 2:
+			<-allowRetryReturn
+			defer close(retryReturning)
+			return apierrors.NewNotFound(pods, pod.Name)
+		default:
+			return nil
+		}
+	})
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err), "initial DELETE should return ServiceUnavailable")
+	assertLayer3KubeCall(t, calls, "DELETE", time.Second)
+	assertLayer3KubeCall(t, calls, "DELETE", time.Second)
+	assert.Assert(t, task.podDeleteClaimed.Load(), "initial failure lost delete ownership")
+
+	releaseRetry()
+	select {
+	case <-retryReturning:
+	case <-time.After(time.Second):
+		t.Fatal("retry DELETE did not reach its NotFound return")
+	}
+
+	// The callback handshake does not join the worker. Observe for unwanted
+	// retries while it processes NotFound, which must not complete the Task.
+	select {
+	case call := <-calls:
+		t.Fatalf("worker NotFound triggered another API call: %+v", call)
+	case <-time.After(4 * deleteTaskPodRetryInitialDelay):
+	}
+	assert.Equal(t, int32(2), attempts.Load(), "worker NotFound should stop DELETE retries")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "worker NotFound should retain delete ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "worker NotFound synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"worker NotFound synthesized a core release confirmation")
+}
+
+func TestDeleteTaskPodRepeatedTransientFailuresKeepSingleOwner(t *testing.T) {
+	task, apiProvider := newLayer3ConflictTaskForTest()
+	calls := make(chan layer3KubeCall, 4)
+	retryGates := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	var releaseOnce [2]sync.Once
+	releaseRetry := func(index int) { releaseOnce[index].Do(func() { close(retryGates[index]) }) }
+	t.Cleanup(func() {
+		for i := range retryGates {
+			releaseRetry(i)
+		}
+	})
+	lastRetryReturning := make(chan struct{})
+	var attempts atomic.Int32
+	apiProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		attempt := attempts.Add(1)
+		calls <- layer3KubeCall{method: "DELETE", namespace: pod.Namespace, name: pod.Name, uid: pod.UID}
+		switch attempt {
+		case 1:
+			return apierrors.NewServiceUnavailable("initial DELETE failed")
+		case 2:
+			<-retryGates[0]
+			return apierrors.NewServiceUnavailable("first worker DELETE failed")
+		case 3:
+			<-retryGates[1]
+			defer close(lastRetryReturning)
+			return nil
+		default:
+			return nil
+		}
+	})
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err), "initial DELETE should return ServiceUnavailable")
+	assertLayer3KubeCall(t, calls, "DELETE", time.Second)
+	assert.Assert(t, task.podDeleteClaimed.Load(), "initial failure lost delete ownership")
+
+	for i := range retryGates {
+		// Each event checks namespace/name/original UID. The second worker call
+		// also proves that responsibility survived the first worker failure.
+		assertLayer3KubeCall(t, calls, "DELETE", time.Second)
+		assert.Assert(t, task.podDeleteClaimed.Load(), "transient failure lost delete ownership")
+		assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "transient failure synthesized Task completion")
+		assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+			"transient failure synthesized a core release confirmation")
+
+		// Hold the current attempt so duplicate releases cannot hide behind a
+		// completed callback. They must return without issuing another DELETE.
+		duplicateResult := make(chan error, 1)
+		go func() { duplicateResult <- task.DeleteTaskPod() }()
+		select {
+		case duplicateErr := <-duplicateResult:
+			assert.NilError(t, duplicateErr, "duplicate release should remain idempotent")
+		case <-time.After(time.Second):
+			t.Fatal("duplicate release blocked behind the active retry owner")
+		}
+		assert.Equal(t, int32(i+2), attempts.Load(), "duplicate release issued an independent DELETE")
+		releaseRetry(i)
+	}
+
+	select {
+	case <-lastRetryReturning:
+	case <-time.After(time.Second):
+		t.Fatal("last retry DELETE did not reach its successful return")
+	}
+	// This is a bounded observation after callback return, not a worker join
+	// or an assertion about exact backoff timing.
+	select {
+	case call := <-calls:
+		t.Fatalf("successful retry or duplicate owner triggered another API call: %+v", call)
+	case <-time.After(6 * deleteTaskPodRetryInitialDelay):
+	}
+	assert.Equal(t, int32(3), attempts.Load(), "expected two failures followed by one successful DELETE")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "successful DELETE should retain ownership")
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState(), "successful DELETE synthesized Task completion")
+	assert.Equal(t, int32(0), apiProvider.GetSchedulerAPIUpdateAllocationCount(),
+		"successful DELETE synthesized a core release confirmation")
+}
+
+func TestDeleteTaskPodResolvedErrorsAreNotRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "nil", err: nil},
+		{name: "NotFound", err: apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "victim")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Assert(t, !shouldRetryDeleteTaskPod(tt.err), "resolved DELETE result must not be retryable")
+		})
+	}
+}
+
+func TestDeleteTaskPodPermanentErrorReleasesOwnership(t *testing.T) {
+	pods := schema.GroupResource{Resource: "pods"}
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "Forbidden", err: apierrors.NewForbidden(pods, "delete-task-pod", fmt.Errorf("forbidden"))},
+		{name: "Invalid", err: apierrors.NewInvalid(schema.GroupKind{Kind: "Pod"}, "delete-task-pod", nil)},
+		{name: "BadRequest", err: apierrors.NewBadRequest("bad delete request")},
+		{name: "MethodNotSupported", err: apierrors.NewMethodNotSupported(pods, "delete")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task, apiProvider := newDeleteTaskForTest()
+			var attempts atomic.Int32
+			unexpectedDelete := make(chan struct{}, 1)
+			apiProvider.MockDeleteFn(func(_ *v1.Pod) error {
+				if attempts.Add(1) == 1 {
+					return tt.err
+				}
+				select {
+				case unexpectedDelete <- struct{}{}:
+				default:
+				}
+				return nil
+			})
+
+			err := task.DeleteTaskPod()
+			assert.Assert(t, err != nil, "first DELETE should return the permanent error")
+			assert.Equal(t, int32(1), attempts.Load(), "permanent error should not start an automatic retry")
+			assert.Assert(t, !shouldRetryDeleteTaskPod(err), "permanent error was classified as retryable")
+			assert.Assert(t, !task.podDeleteClaimed.Load(), "permanent error retained delete ownership")
+			select {
+			case <-unexpectedDelete:
+				t.Fatal("permanent error triggered an automatic retry")
+			case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+			}
+
+			err = task.DeleteTaskPod()
+			assert.NilError(t, err, "later explicit DELETE should acquire released ownership")
+			assert.Equal(t, int32(2), attempts.Load(), "later explicit DELETE was suppressed")
+			assert.Assert(t, task.podDeleteClaimed.Load(), "successful DELETE should retain ownership")
+		})
+	}
+
+	t.Run("RetryWorker", func(t *testing.T) {
+		task, apiProvider := newDeleteTaskForTest()
+		var attempts atomic.Int32
+		workerPermanentErrorReturned := make(chan struct{})
+		apiProvider.MockDeleteFn(func(_ *v1.Pod) error {
+			switch attempts.Add(1) {
+			case 1:
+				return apierrors.NewServiceUnavailable("transient delete failure")
+			case 2:
+				close(workerPermanentErrorReturned)
+				return apierrors.NewForbidden(pods, "delete-task-pod", fmt.Errorf("forbidden"))
+			default:
+				return nil
+			}
+		})
+
+		err := task.DeleteTaskPod()
+		assert.Assert(t, apierrors.IsServiceUnavailable(err), "first DELETE should return ServiceUnavailable")
+		select {
+		case <-workerPermanentErrorReturned:
+		case <-time.After(time.Second):
+			t.Fatal("retry worker did not receive the permanent error")
+		}
+		err = utils.WaitForCondition(func() bool {
+			return !task.podDeleteClaimed.Load()
+		}, time.Millisecond, time.Second)
+		assert.NilError(t, err, "retry worker did not release delete ownership")
+		assert.Equal(t, int32(2), attempts.Load(), "permanent worker error triggered another automatic retry")
+
+		err = task.DeleteTaskPod()
+		assert.NilError(t, err, "later explicit DELETE should acquire ownership released by the worker")
+		assert.Equal(t, int32(3), attempts.Load(), "later explicit DELETE was suppressed after worker failure")
+		assert.Assert(t, task.podDeleteClaimed.Load(), "successful DELETE should retain ownership")
+	})
+}
+
+func TestDeleteTaskPodDuplicateCallsUseSingleOwner(t *testing.T) {
+	task, apiProvider := newDeleteTaskForTest()
+	var attempts atomic.Int32
+	secondDeleteStarted := make(chan struct{})
+	allowSecondDeleteToFinish := make(chan struct{})
+	unexpectedDelete := make(chan struct{}, 1)
+	var closeSecondDeleteGate sync.Once
+	defer closeSecondDeleteGate.Do(func() { close(allowSecondDeleteToFinish) })
+	apiProvider.MockDeleteFn(func(_ *v1.Pod) error {
+		switch attempts.Add(1) {
+		case 1:
+			return apierrors.NewServiceUnavailable("transient delete failure")
+		case 2:
+			close(secondDeleteStarted)
+			<-allowSecondDeleteToFinish
+			return nil
+		default:
+			select {
+			case unexpectedDelete <- struct{}{}:
+			default:
+			}
+			return nil
+		}
+	})
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err), "first DELETE should return ServiceUnavailable")
+	select {
+	case <-secondDeleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("retry owner did not issue the second DELETE")
+	}
+
+	duplicateResults := make(chan error, 3)
+	for i := 0; i < cap(duplicateResults); i++ {
+		go func() {
+			duplicateResults <- task.DeleteTaskPod()
+		}()
+	}
+	for i := 0; i < cap(duplicateResults); i++ {
+		select {
+		case duplicateErr := <-duplicateResults:
+			assert.NilError(t, duplicateErr, "duplicate idempotent delete command should be accepted")
+		case <-time.After(time.Second):
+			t.Fatal("duplicate DELETE call blocked behind the active owner")
+		}
+	}
+	assert.Equal(t, int32(2), attempts.Load(), "duplicate call issued an independent DELETE")
+
+	// Give any incorrectly created duplicate workers enough time to reach the
+	// blocked client call before releasing the legitimate owner.
+	select {
+	case <-unexpectedDelete:
+		t.Fatal("duplicate call created an independent delete worker")
+	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+	}
+	closeSecondDeleteGate.Do(func() { close(allowSecondDeleteToFinish) })
+	apiProvider.GetAPIs().KubeClient.GetClientSet()
+	select {
+	case <-unexpectedDelete:
+		t.Fatal("duplicate delete worker issued a later DELETE")
+	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+	}
+	assert.Equal(t, int32(2), attempts.Load(), "more than one delete owner issued retries")
+}
+
+func TestDeleteTaskPodTerminalTaskStopsRetry(t *testing.T) {
+	task, apiProvider := newDeleteTaskForTest()
+	var attempts atomic.Int32
+	retryStarted := make(chan struct{}, 1)
+	apiProvider.MockDeleteFn(func(_ *v1.Pod) error {
+		if attempts.Add(1) == 1 {
+			return apierrors.NewServiceUnavailable("transient delete failure")
+		}
+		retryStarted <- struct{}{}
+		return nil
+	})
+
+	err := task.DeleteTaskPod()
+	assert.Assert(t, apierrors.IsServiceUnavailable(err), "first DELETE should return ServiceUnavailable")
+	task.sm.SetState(TaskStates().Completed)
+	select {
+	case <-retryStarted:
+		t.Fatal("terminal Task issued another DELETE")
+	case <-time.After(2 * deleteTaskPodRetryInitialDelay):
+	}
+	assert.Equal(t, int32(1), attempts.Load(), "terminal Task did not stop deletion retry")
+	assert.Assert(t, task.podDeleteClaimed.Load(), "terminal Task should retain delete ownership")
 }
 
 // setShortBindBackoff shrinks the bind retry backoff so tests do not wait for the

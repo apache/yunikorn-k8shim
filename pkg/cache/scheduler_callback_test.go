@@ -22,12 +22,14 @@ import (
 	ctx "context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
 	fwk "k8s.io/kube-scheduler/framework"
@@ -296,6 +298,110 @@ func TestUpdateAllocation_AllocationReleased(t *testing.T) {
 	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
 	err = utils.WaitForCondition(deleteCalled.Load, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "pod has not been deleted")
+}
+
+func TestUpdateAllocation_AllocationReleased_DeleteFailureRedrive(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := context.AssumePod(taskUID1, fakeNodeName)
+	assert.NilError(t, err, "could not assume pod")
+	app := context.getApplication(appID)
+	assert.Assert(t, app != nil)
+	app.sm.SetState(ApplicationStates().Running)
+	task := context.getTask(appID, taskUID1)
+	assert.Assert(t, task != nil)
+	task.sm.SetState(TaskStates().Bound)
+	task.allocationKey = taskUID1
+	originalUID := string(task.GetTaskPod().UID)
+	assert.Assert(t, originalUID != "", "test pod must have a Kubernetes UID")
+
+	var releaseConfirmations atomic.Int32
+	apiProvider, ok := context.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok, "expecting MockedAPIProvider")
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, release := range request.Releases.AllocationsToRelease {
+				if release.ApplicationID == appID && release.AllocationKey == taskUID1 {
+					releaseConfirmations.Add(1)
+				}
+			}
+		}
+		return nil
+	})
+
+	var deleteAttempts atomic.Int32
+	firstDeleteFailed := make(chan struct{})
+	secondDeleteStarted := make(chan struct{})
+	allowSecondDeleteToFinish := make(chan struct{})
+	var closeSecondDeleteGate sync.Once
+	defer closeSecondDeleteGate.Do(func() { close(allowSecondDeleteToFinish) })
+	deleteUIDs := make(chan string, 2)
+	context.apiProvider.(*client.MockedAPIProvider).MockDeleteFn(func(pod *v1.Pod) error { //nolint:errcheck
+		deleteUIDs <- string(pod.UID)
+		switch deleteAttempts.Add(1) {
+		case 1:
+			close(firstDeleteFailed)
+			return apierrors.NewServiceUnavailable("transient pod delete failure")
+		case 2:
+			close(secondDeleteStarted)
+			<-allowSecondDeleteToFinish
+		}
+		return nil
+	})
+
+	err = callback.UpdateAllocation(&si.AllocationResponse{
+		Released: []*si.AllocationRelease{
+			{
+				ApplicationID:   appID,
+				AllocationKey:   taskUID1,
+				TerminationType: si.TerminationType_PREEMPTED_BY_SCHEDULER,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating allocation")
+
+	select {
+	case <-firstDeleteFailed:
+	case <-time.After(time.Second):
+		t.Fatal("first DELETE did not return the injected transient failure")
+	}
+	assert.Equal(t, originalUID, <-deleteUIDs, "first DELETE targeted the wrong pod UID")
+	assert.Equal(t, si.TerminationType_PREEMPTED_BY_SCHEDULER.String(), task.GetTaskTerminationType(),
+		"release event was not consumed by the application handler")
+	assert.Equal(t, int32(0), releaseConfirmations.Load(),
+		"failed DELETE must not confirm the allocation release")
+
+	// The release handler owns the application lock. A successful read after the
+	// failed DELETE proves that the handler returned instead of blocking in a
+	// retry loop.
+	handlerReturned := make(chan struct{})
+	go func() {
+		app.GetTask(taskUID1)
+		close(handlerReturned)
+	}()
+	select {
+	case <-handlerReturned:
+	case <-time.After(time.Second):
+		t.Fatal("application release handler remained blocked after the failed DELETE")
+	}
+
+	select {
+	case <-secondDeleteStarted:
+	case <-time.After(time.Second):
+		t.Fatalf("unfinished release obligation did not trigger an automatic second DELETE; attempts: got %d, want 2",
+			deleteAttempts.Load())
+	}
+	assert.Equal(t, originalUID, <-deleteUIDs, "automatic second DELETE targeted the wrong pod UID")
+	assert.Equal(t, int32(2), deleteAttempts.Load(), "unexpected DELETE attempt count")
+
+	closeSecondDeleteGate.Do(func() { close(allowSecondDeleteToFinish) })
+	// KubeClientMock holds its lock through Delete. Acquiring the same lock via
+	// GetClientSet establishes that the accepted second DELETE has returned.
+	context.apiProvider.GetAPIs().KubeClient.GetClientSet()
+	assert.Equal(t, int32(0), releaseConfirmations.Load(),
+		"accepted Kubernetes DELETE must not complete the YuniKorn release")
 }
 
 func TestUpdateAllocation_AllocationReleased_StoppedByRM(t *testing.T) {
