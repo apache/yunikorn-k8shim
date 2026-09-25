@@ -387,7 +387,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 			Tags:          app.tags,
 		},
 	})
-	errMess := "app rejected"
+	errMess := "failed to place application app01: application rejected: no placement rule matched"
 	err = app.handle(NewApplicationEvent(app.applicationID, RejectApplication, errMess))
 	assert.NilError(t, err)
 	assertAppState(t, app, ApplicationStates().Rejected, 3*time.Second)
@@ -401,10 +401,12 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, newPod1.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod1.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
+	assert.Equal(t, newPod1.Status.Message, errMess)
 	newPod2, err := mockClient.Get(pod2.Namespace, pod2.Name)
 	assert.NilError(t, err)
 	assert.Equal(t, newPod2.Status.Phase, v1.PodFailed, 3*time.Second)
 	assert.Equal(t, newPod2.Status.Reason, constants.ApplicationRejectedFailure, 3*time.Second)
+	assert.Equal(t, newPod2.Status.Message, errMess)
 }
 
 func TestReleaseAppAllocation(t *testing.T) {
@@ -1087,6 +1089,93 @@ func TestOnReservingSkipsTimedOutPlaceholders(t *testing.T) {
 				return createdPods.count() == 0
 			}, 100*time.Millisecond, time.Second)
 			assert.NilError(t, err, "placeholders should not be created when timeout already elapsed")
+		})
+	}
+}
+
+func TestOnReservingPlaceholderCreateFailure(t *testing.T) {
+	createErr := fmt.Errorf("pods %q is forbidden: %s", "tg-spark-test", "[maximum cpu usage per Pod is 7, but limit is 8, maximum memory usage per Pod is 7Gi, but limit is 8Gi]")
+	tests := []struct {
+		name            string
+		schedulingStyle string
+		expectedState   string
+		expectedPhase   v1.PodPhase
+		expectedReason  string
+		expectedMessage string
+		expectedEvent   string
+	}{
+		{"soft", constants.SchedulingPolicyStyleParamDefault, ApplicationStates().Running, v1.PodPending, "", "", "fall back to normal scheduling"},
+		{"hard", constants.SchedulingPolicyStyleParamValues["Hard"], ApplicationStates().Failing, v1.PodFailed, constants.ApplicationPlaceholderCreateFailure, createErr.Error(), "failing application"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context, mockedAPIProvider := initContextAndAPIProviderForTest()
+			dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+			dispatcher.Start()
+			defer dispatcher.Stop()
+
+			recorder := k8sEvents.NewFakeRecorder(1024)
+			events.SetRecorder(recorder)
+			defer events.SetRecorder(events.NewMockedRecorder())
+
+			mockClient := mockedAPIProvider.GetAPIs().KubeClient
+			pod, err := mockClient.Create(&v1.Pod{
+				TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+				ObjectMeta: apis.ObjectMeta{Name: "pod-test-01", Namespace: "default", UID: "UID-01"},
+				Status:     v1.PodStatus{Phase: v1.PodPending}})
+			assert.NilError(t, err)
+			// all placeholders are rejected, LimitRange does not allow the resources
+			mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+				return nil, createErr
+			})
+			mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+			mgr.Start()
+			defer mgr.Stop()
+
+			app := NewApplication(appID, "root.abc", "test-user", testGroups, map[string]string{}, mockedAPIProvider.GetAPIs().SchedulerAPI)
+			context.addApplicationToContext(app)
+			app.setTaskGroups([]TaskGroup{{
+				Name:        "test-group-1",
+				MinMember:   2,
+				MinResource: map[string]resource.Quantity{v1.ResourceCPU.String(): resource.MustParse("8"), v1.ResourceMemory.String(): resource.MustParse("8Gi")}},
+			})
+			app.setSchedulingStyle(tt.schedulingStyle)
+			originator := NewTask("task01", app, context, pod)
+			app.addTask(originator)
+			app.setOriginatingTask(originator)
+
+			err = app.handle(NewSubmitApplicationEvent(app.applicationID))
+			assert.NilError(t, err)
+			err = app.handle(NewSimpleApplicationEvent(app.GetApplicationID(), AcceptApplication))
+			assert.NilError(t, err)
+			err = app.handle(NewSimpleApplicationEvent(app.applicationID, TryReserve))
+			assert.NilError(t, err)
+
+			assertAppState(t, app, tt.expectedState, 3*time.Second)
+			err = utils.WaitForCondition(func() bool {
+				current, getErr := mockClient.Get(pod.Namespace, pod.Name)
+				return getErr == nil && current.Status.Phase == tt.expectedPhase
+			}, 10*time.Millisecond, time.Second)
+			assert.NilError(t, err, "originator pod phase should be %s", tt.expectedPhase)
+			updated, err := mockClient.Get(pod.Namespace, pod.Name)
+			assert.NilError(t, err)
+			assert.Equal(t, updated.Status.Reason, tt.expectedReason)
+			assert.Equal(t, updated.Status.Message, tt.expectedMessage)
+
+			err = utils.WaitForCondition(func() bool {
+				for {
+					select {
+					case event := <-recorder.Events:
+						if strings.Contains(event, tt.expectedEvent) && strings.Contains(event, createErr.Error()) {
+							return true
+						}
+					default:
+						return false
+					}
+				}
+			}, 5*time.Millisecond, time.Second)
+			assert.NilError(t, err, "placeholder create failure event should have been emitted")
 		})
 	}
 }
