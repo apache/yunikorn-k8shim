@@ -1886,6 +1886,7 @@ func TestGetExistingAllocation(t *testing.T) {
 func TestInitializeState(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
 	apiProvider.RunEventHandler()
+	defer apiProvider.Stop()
 	pcLister, ok := apiProvider.GetAPIs().PriorityClassInformer.Lister().(*test.MockPriorityClassLister)
 	assert.Assert(t, ok, "unable to get mock priority class lister")
 	nodeLister, ok := apiProvider.GetAPIs().NodeInformer.Lister().(*test.NodeListerMock)
@@ -2012,6 +2013,7 @@ func TestInitializeState(t *testing.T) {
 func TestInitializeStateDoesNotEnableCordonedNodes(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
 	apiProvider.RunEventHandler()
+	defer apiProvider.Stop()
 	nodeLister, ok := apiProvider.GetAPIs().NodeInformer.Lister().(*test.NodeListerMock)
 	assert.Assert(t, ok, "unable to get mock node lister")
 
