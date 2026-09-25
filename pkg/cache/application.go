@@ -595,14 +595,23 @@ func (app *Application) onReserving() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
 			// creating placeholder failed
-			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
-			ev := NewRunApplicationEvent(app.applicationID)
-			dispatcher.Dispatch(ev)
-			// failed at least one placeholder creation progress as a normal application
-			if app.originatingTask != nil {
-				events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
-					"PlaceholderCreateFailed", "Application %s fall back to normal scheduling", app.applicationID)
+			// the gang scheduling style decides how the app progresses.
+			// HARD fails the app, while SOFT falls back to normal scheduling
+			originator := app.GetOriginatingTask()
+			if app.schedulingStyle == constants.SchedulingPolicyStyleParamValues["Hard"] {
+				if originator != nil {
+					events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+						"PlaceholderCreateFailed", "Application %s placeholder creation failed, failing application, reason: %s", app.applicationID, err.Error())
+				}
+				dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
+					fmt.Sprintf("%s: %s", constants.ApplicationPlaceholderCreateFailure, err.Error())))
+			} else {
+				if originator != nil {
+					events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+						"PlaceholderCreateFailed", "Application %s placeholder creation failed, fall back to normal scheduling, reason: %s", app.applicationID, err.Error())
+				}
+				dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 			}
 		}
 	}()
@@ -692,14 +701,17 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 
 	timeout := strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure)
 	rejected := strings.Contains(errMsg, constants.ApplicationRejectedFailure)
+	placeholderCreateFailed := strings.Contains(errMsg, constants.ApplicationPlaceholderCreateFailure)
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
 		// Only need to fail the non-placeholder pod(s)
-		if timeout {
+		switch {
+		case timeout:
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
-		} else if rejected {
-			errMsgArr := strings.Split(errMsg, ":")
-			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
+		case rejected:
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, strings.TrimPrefix(errMsg, constants.ApplicationRejectedFailure+": "))
+		case placeholderCreateFailed:
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationPlaceholderCreateFailure, strings.TrimPrefix(errMsg, constants.ApplicationPlaceholderCreateFailure+": "))
 		}
 		events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)
