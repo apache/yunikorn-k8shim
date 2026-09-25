@@ -153,23 +153,25 @@ func TestPreemptionFilterWithVictims(t *testing.T) {
 	largePod.UID = "largepod"
 
 	tests := []struct {
-		name          string
-		pod           *v1.Pod
-		node          *framework.NodeInfo
-		victims       []*v1.Pod
-		expectedIndex int
+		name                     string
+		pod                      *v1.Pod
+		node                     *framework.NodeInfo
+		victims                  []*v1.Pod
+		expectedIndex            int
+		expectedFilterErrorCount int
 	}{
-		{"invalid pod and no victims", &v1.Pod{}, emptyNode, make([]*v1.Pod, 0), -1},
-		{"valid pod with available victims", pod, node, victims, 2},
-		{"valid pod with not suitable victims", largePod, node, victims, -1},
+		{"invalid pod and no victims", &v1.Pod{}, emptyNode, make([]*v1.Pod, 0), -1, 0},
+		{"valid pod with available victims", pod, node, victims, 2, 0},
+		{"valid pod with not suitable victims", largePod, node, victims, -1, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(tt.pod, true)
 			assert.NilError(t, err)
-			index := predicateManager.PreemptionFilter(tt.pod, tt.node, cycleState, tt.victims, 1)
+			index, pluginErrors := predicateManager.PreemptionFilter(tt.pod, tt.node, cycleState, tt.victims, 1)
 			assert.Equal(t, index, tt.expectedIndex, "wrong victim index")
+			assert.Equal(t, len(pluginErrors), tt.expectedFilterErrorCount, "wrong number of victim error")
 		})
 	}
 }
@@ -2586,11 +2588,13 @@ func TestPreemptionFilter(t *testing.T) {
 				newResourcePod(framework.Resource{MilliCPU: 100, Memory: 1000000}),
 			}
 			victims[0].Name = "pod0"
-			idx := p.PreemptionFilter(tc.pod, nodeInfo, cycleState, victims, 0)
+			idx, pluginErrors := p.PreemptionFilter(tc.pod, nodeInfo, cycleState, victims, 0)
 			if tc.errorExpected != nil {
 				assert.Equal(t, idx, -1)
+				assert.Assert(t, len(pluginErrors) >= 1, "atleast one plugin should have failed")
 			} else {
 				assert.Equal(t, idx, 0)
+				assert.Equal(t, len(pluginErrors), 0)
 			}
 		})
 	}
