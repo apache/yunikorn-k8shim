@@ -89,7 +89,7 @@ scheduler to run but can be enabled on top of a working YuniKorn install:
 | Admission controller | `make admission`   | `make adm_image`  | Included in the default `make image` target.                                                              |
 | Queue operator       | `make queue_operator` | `make qop_image` | **Opt-in** ([YUNIKORN-3192](https://issues.apache.org/jira/browse/YUNIKORN-3192)). Not part of `make image`. |
 
-The queue operator watches `queue.yunikorn.k8s.io/v1alpha1` `Queue` CRs and
+The queue operator watches `yunikorn.apache.org/v1alpha1` `Queue` CRs and
 materialises them into the `yunikorn-configs` ConfigMap so tenants can
 manage queues declaratively without editing the monolithic `queues.yaml`.
 Install manifests and configuration are in
