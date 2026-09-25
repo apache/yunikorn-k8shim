@@ -32,36 +32,28 @@ metadata:
     component: yunikorn-queue-operator
 rules:
   # The operator reconciles every Queue CR in the cluster and materialises
-  # them as a single yunikorn-configs ConfigMap. Read-write access on the
-  # CRDs and the target ConfigMap is required.
+  # them as a single yunikorn-configs ConfigMap.
   - apiGroups:
-      - queue.yunikorn.k8s.io
+      - yunikorn.apache.org
     resources:
       - queues
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+    verbs: ["get", "list", "watch"]
   - apiGroups:
-      - queue.yunikorn.k8s.io
+      - yunikorn.apache.org
     resources:
       - queues/status
     verbs: ["get", "patch", "update"]
   - apiGroups:
-      - queue.yunikorn.k8s.io
+      - admissionregistration.k8s.io
     resources:
-      - queues/finalizers
-    verbs: ["update"]
-  - apiGroups: [""]
-    resources:
-      - configmaps
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+      - validatingwebhookconfigurations
+    resourceNames:
+      - yunikorn-queue-operator
+    verbs: ["get", "update", "patch"]
   - apiGroups: [""]
     resources:
       - events
     verbs: ["create", "patch"]
-  # Leader election lease (opt-in via --leader-elect).
-  - apiGroups: ["coordination.k8s.io"]
-    resources:
-      - leases
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -78,3 +70,58 @@ subjects:
   - kind: ServiceAccount
     name: yunikorn-queue-operator
     namespace: yunikorn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["list", "watch", "create"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    resourceNames:
+      - yunikorn-configs
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources:
+      - secrets
+    resourceNames:
+      - yunikorn-queue-operator-webhook-ca
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - leases
+    resourceNames:
+      - 04cd498c.queue.yunikorn.k8s.io
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: yunikorn-queue-operator
+subjects:
+  - kind: ServiceAccount
+    name: yunikorn-queue-operator
+    namespace: yunikorn
+---
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: 04cd498c.queue.yunikorn.k8s.io
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator

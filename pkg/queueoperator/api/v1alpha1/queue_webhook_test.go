@@ -25,10 +25,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/apache/yunikorn-k8shim/pkg/queueoperator/queueconfig"
 )
@@ -206,11 +204,6 @@ func TestValidateQueueConfig(t *testing.T) {
 }
 
 func TestValidateUniqueQueueName(t *testing.T) {
-	scheme := runtime.NewScheme()
-	if err := AddToScheme(scheme); err != nil {
-		t.Fatalf("failed to add scheme: %v", err)
-	}
-
 	tests := []struct {
 		name      string
 		existing  []Queue
@@ -235,18 +228,7 @@ func TestValidateUniqueQueueName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder := fake.NewClientBuilder().WithScheme(scheme)
-			objs := make([]runtime.Object, len(tt.existing))
-			for i := range tt.existing {
-				objs[i] = &tt.existing[i]
-			}
-			if len(objs) > 0 {
-				builder = builder.WithRuntimeObjects(objs...)
-			}
-			fakeClient := builder.Build()
-
-			v := &QueueValidator{Client: fakeClient}
-			err := v.validateUniqueQueueName(context.Background(), &tt.newQueue)
+			err := validateUniqueQueueName(tt.existing, &tt.newQueue)
 			checkErr(t, tt.expectErr, err)
 		})
 	}
@@ -373,25 +355,10 @@ func mergedConfigTestCases() []mergedConfigCase {
 }
 
 func TestValidateMergedConfig(t *testing.T) {
-	scheme := runtime.NewScheme()
-	if err := AddToScheme(scheme); err != nil {
-		t.Fatalf("failed to add scheme: %v", err)
-	}
-
 	for _, tt := range mergedConfigTestCases() {
 		t.Run(tt.name, func(t *testing.T) {
-			builder := fake.NewClientBuilder().WithScheme(scheme)
-			objs := make([]runtime.Object, 0, len(tt.existing))
-			for i := range tt.existing {
-				objs = append(objs, &tt.existing[i])
-			}
-			if len(objs) > 0 {
-				builder = builder.WithRuntimeObjects(objs...)
-			}
-			fakeClient := builder.Build()
-
-			v := &QueueValidator{Client: fakeClient, BuildOptions: tt.opts}
-			err := v.validateMergedConfig(context.Background(), &tt.candidate)
+			v := &QueueValidator{BuildOptions: tt.opts}
+			err := v.validateMergedConfig(tt.existing, &tt.candidate)
 			checkErr(t, tt.expectErr, err)
 
 			if tt.expectErr && err != nil {

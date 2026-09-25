@@ -34,7 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/queueoperator/queueconfig"
 )
 
-// +kubebuilder:webhook:path=/validate-queue-yunikorn-k8s-io-v1alpha1-queue,mutating=false,failurePolicy=fail,sideEffects=None,groups=queue.yunikorn.k8s.io,resources=queues,verbs=create;update,versions=v1alpha1,name=vqueue.queue.yunikorn.k8s.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-yunikorn-apache-org-v1alpha1-queue,mutating=false,failurePolicy=fail,sideEffects=None,groups=yunikorn.apache.org,resources=queues,verbs=create;update,versions=v1alpha1,name=vqueue.yunikorn.apache.org,admissionReviewVersions=v1
 
 // QueueValidator implements webhook.CustomValidator with three layers of
 // admission validation, each layer cheaper than the next:
@@ -64,20 +64,9 @@ type QueueValidator struct {
 	BuildOptions queueconfig.BuildOptions
 }
 
-// SetupWebhookWithManager registers the webhook with the manager. Build
-// options are loaded from env vars (PARTITION_NAME, PLACEMENT_RULES) so the
-// webhook validates against the exact partition + placement topology the
-// reconciler will ultimately produce.
-func (r *Queue) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	opts, err := queueconfig.LoadOptionsFromEnv()
-	if err != nil {
-		// Optional placement rules failed to parse — log and proceed with the
-		// defaulted partition. Same softfail behaviour as the reconciler so
-		// startup is never blocked by a typo in PLACEMENT_RULES.
-		ctrl.Log.WithName("webhook").Error(err,
-			"failed to parse PLACEMENT_RULES env, falling back to no placement rules")
-	}
-
+// SetupWebhookWithManager registers the webhook with the manager using the
+// same immutable build options supplied to the reconciler.
+func (r *Queue) SetupWebhookWithManager(mgr ctrl.Manager, opts queueconfig.BuildOptions) error {
 	// Use the API reader (direct, uncached) rather than mgr.GetClient()
 	// (cached). Admission decisions MUST see the latest committed state of
 	// every Queue CR — a stale cache would let two CRs racing for the
@@ -153,11 +142,15 @@ func (v *QueueValidator) validate(ctx context.Context, queue *Queue) (admission.
 		log.Info("queue admission rejected", "layer", "1-structural", "reason", err.Error())
 		return warnings, err
 	}
-	if err := v.validateUniqueQueueName(ctx, queue); err != nil {
+	queueList := &QueueList{}
+	if err := v.Client.List(ctx, queueList); err != nil {
+		return nil, fmt.Errorf("failed to list Queue CRs for admission validation: %w", err)
+	}
+	if err := validateUniqueQueueName(queueList.Items, queue); err != nil {
 		log.Info("queue admission rejected", "layer", "2-uniqueness", "reason", err.Error())
 		return nil, err
 	}
-	if err := v.validateMergedConfig(ctx, queue); err != nil {
+	if err := v.validateMergedConfig(queueList.Items, queue); err != nil {
 		log.Info("queue admission rejected", "layer", "3-merged-config", "reason", err.Error())
 		return nil, err
 	}
@@ -165,14 +158,9 @@ func (v *QueueValidator) validate(ctx context.Context, queue *Queue) (admission.
 }
 
 // validateUniqueQueueName checks that no other Queue CR in the cluster uses the same spec.queue.name.
-func (v *QueueValidator) validateUniqueQueueName(ctx context.Context, queue *Queue) error {
-	queueList := &QueueList{}
-	if err := v.Client.List(ctx, queueList); err != nil {
-		return fmt.Errorf("failed to list Queue CRs for duplicate check: %w", err)
-	}
-
-	for i := range queueList.Items {
-		existing := &queueList.Items[i]
+func validateUniqueQueueName(queues []Queue, queue *Queue) error {
+	for i := range queues {
+		existing := &queues[i]
 		// Skip self (for updates — the CR being updated will appear in the list)
 		if isSelf(existing, queue) {
 			continue
@@ -204,20 +192,15 @@ func (v *QueueValidator) validateUniqueQueueName(ctx context.Context, queue *Que
 // sees a clean kubectl message rather than a wall of YAML. The full rendered
 // YAML lives in the wrapped *queueconfig.ValidationError for operators
 // digging through controller logs.
-func (v *QueueValidator) validateMergedConfig(ctx context.Context, queue *Queue) error {
-	queueList := &QueueList{}
-	if err := v.Client.List(ctx, queueList); err != nil {
-		return fmt.Errorf("failed to list Queue CRs for merged-config validation: %w", err)
-	}
-
+func (v *QueueValidator) validateMergedConfig(queues []Queue, queue *Queue) error {
 	// Replace the existing entry for this CR (matched by UID for updates, or
 	// by namespace/name when UID isn't set yet on a fresh create) with the
 	// candidate so validation reflects what the cluster will look like AFTER
 	// this admission decision.
-	merged := make([]Queue, 0, len(queueList.Items)+1)
+	merged := make([]Queue, 0, len(queues)+1)
 	replaced := false
-	for i := range queueList.Items {
-		existing := queueList.Items[i]
+	for i := range queues {
+		existing := queues[i]
 		if isSelf(&existing, queue) {
 			merged = append(merged, *queue)
 			replaced = true

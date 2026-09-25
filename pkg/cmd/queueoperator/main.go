@@ -18,17 +18,20 @@
 
 // Package main is the entry point for the (opt-in) YuniKorn Queue Operator.
 //
-// The operator watches queue.yunikorn.k8s.io/v1alpha1 Queue CRs and
+// The operator watches yunikorn.apache.org/v1alpha1 Queue CRs and
 // materialises them into the yunikorn-configs ConfigMap that the YuniKorn
 // scheduler consumes. See deployments/queue-operator/README.md for the
 // install flow and rationale (YUNIKORN-3192).
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +41,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -46,11 +51,17 @@ import (
 
 	queuev1alpha1 "github.com/apache/yunikorn-k8shim/pkg/queueoperator/api/v1alpha1"
 	"github.com/apache/yunikorn-k8shim/pkg/queueoperator/controller"
+	"github.com/apache/yunikorn-k8shim/pkg/queueoperator/webhookpki"
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+)
+
+const (
+	operatorNamespaceEnvVar  = "POD_NAMESPACE"
+	defaultOperatorNamespace = "yunikorn"
 )
 
 func init() {
@@ -75,6 +86,8 @@ type options struct {
 	webhookCertKey       string
 }
 
+const webhookPort = 9443
+
 func parseFlags() (options, zap.Options) {
 	var opts options
 	flag.StringVar(&opts.metricsAddr, "metrics-bind-address", "0",
@@ -85,8 +98,8 @@ func parseFlags() (options, zap.Options) {
 	flag.BoolVar(&opts.secureMetrics, "metrics-secure", true,
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&opts.enableWebhook, "webhook-enabled", false,
-		"Enable the validating webhook server. Requires --webhook-cert-path to be set.")
-	flag.StringVar(&opts.webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
+		"Enable the self-managed validating webhook server.")
+	flag.StringVar(&opts.webhookCertPath, "webhook-cert-path", webhookpki.DefaultCertDir, "The writable directory for the generated webhook serving certificate.")
 	flag.StringVar(&opts.webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	flag.StringVar(&opts.webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
 	flag.StringVar(&opts.metricsCertPath, "metrics-cert-path", "", "The directory that contains the metrics server certificate.")
@@ -121,7 +134,7 @@ func buildTLSOpts(enableHTTP2 bool) []func(*tls.Config) {
 }
 
 func newWebhookServer(opts options, tlsOpts []func(*tls.Config)) webhook.Server {
-	whOpts := webhook.Options{TLSOpts: tlsOpts}
+	whOpts := webhook.Options{TLSOpts: tlsOpts, Port: webhookPort}
 	if opts.webhookCertPath != "" {
 		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
 			"webhook-cert-path", opts.webhookCertPath,
@@ -157,6 +170,16 @@ func newMetricsOptions(opts options, tlsOpts []func(*tls.Config)) metricsserver.
 	return m
 }
 
+func queueOperatorCacheOptions(targetNamespace string) cache.Options {
+	return cache.Options{ByObject: map[client.Object]cache.ByObject{
+		&corev1.ConfigMap{}: {
+			Namespaces: map[string]cache.Config{targetNamespace: {
+				FieldSelector: fields.OneTermEqualSelector("metadata.name", controller.ConfigMapName),
+			}},
+		},
+	}}
+}
+
 func main() {
 	opts, zapOpts := parseFlags()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
@@ -168,13 +191,18 @@ func main() {
 
 	tlsOpts := buildTLSOpts(opts.enableHTTP2)
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	restConfig := ctrl.GetConfigOrDie()
+	webhookServer := newWebhookServer(opts, tlsOpts)
+	targetNamespace := controller.TargetNamespace()
+	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                newMetricsOptions(opts, tlsOpts),
-		WebhookServer:          newWebhookServer(opts, tlsOpts),
+		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.enableLeaderElection,
-		LeaderElectionID:       "04cd498c.queue.yunikorn.k8s.io",
+		Cache:                  queueOperatorCacheOptions(targetNamespace),
+		// Keep the historical lock identity stable across Queue API group changes.
+		LeaderElectionID: "04cd498c.queue.yunikorn.k8s.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -190,7 +218,8 @@ func main() {
 		// releases; the newer GetEventRecorder is a controller-runtime
 		// v0.24+ convenience.
 		//nolint:staticcheck
-		Recorder: mgr.GetEventRecorderFor("queue-controller"),
+		Recorder:        mgr.GetEventRecorderFor("queue-controller"),
+		TargetNamespace: targetNamespace,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Queue")
@@ -202,12 +231,40 @@ func main() {
 		"placementRulesCount", len(reconciler.PlacementRules))
 
 	if opts.enableWebhook {
-		if opts.webhookCertPath == "" {
-			setupLog.Error(nil, "--webhook-cert-path is required when --webhook-enabled is set")
+		operatorNamespace := os.Getenv(operatorNamespaceEnvVar)
+		if operatorNamespace == "" {
+			operatorNamespace = defaultOperatorNamespace
+		}
+		apiClient, pkiErr := client.New(restConfig, client.Options{Scheme: scheme})
+		if pkiErr != nil {
+			setupLog.Error(pkiErr, "unable to create direct webhook PKI client")
 			os.Exit(1)
 		}
-		if err := (&queuev1alpha1.Queue{}).SetupWebhookWithManager(mgr); err != nil {
+		pkiConfig := webhookpki.DefaultConfig(operatorNamespace, opts.webhookCertPath, opts.webhookCertName, opts.webhookCertKey)
+		pkiConfig.ProbeAddress = webhookpki.LocalProbeAddress(webhookPort)
+		pkiManager, pkiErr := webhookpki.New(apiClient, pkiConfig)
+		if pkiErr != nil {
+			setupLog.Error(pkiErr, "unable to configure webhook PKI manager")
+			os.Exit(1)
+		}
+		if pkiErr = pkiManager.Prepare(context.Background()); pkiErr != nil {
+			setupLog.Error(pkiErr, "unable to prepare webhook certificates and trust")
+			os.Exit(1)
+		}
+		if pkiErr = mgr.Add(pkiManager); pkiErr != nil {
+			setupLog.Error(pkiErr, "unable to add webhook PKI manager")
+			os.Exit(1)
+		}
+		if err := (&queuev1alpha1.Queue{}).SetupWebhookWithManager(mgr, reconciler.BuildOptions()); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Queue")
+			os.Exit(1)
+		}
+		if err := mgr.AddReadyzCheck("webhook-server", webhookServer.StartedChecker()); err != nil {
+			setupLog.Error(err, "unable to set up webhook server readiness check")
+			os.Exit(1)
+		}
+		if err := mgr.AddReadyzCheck("webhook-pki", pkiManager.Checker()); err != nil {
+			setupLog.Error(err, "unable to set up webhook PKI readiness check")
 			os.Exit(1)
 		}
 		setupLog.Info("Validating webhook registered")
