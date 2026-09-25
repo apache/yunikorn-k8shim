@@ -18,7 +18,13 @@
 
 package common
 
-import siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+import (
+	"errors"
+
+	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
+)
+
+var ErrorUnsupportedKind = errors.New("unsupported object kind")
 
 const (
 	UserInfoAnnotation = siCommon.DomainYuniKorn + "user.info"

@@ -601,7 +601,7 @@ func (task *Task) logIgnoredPodMetadata(pod *v1.Pod, metadataType string, fianlV
 	for key, value := range ignoredAnnotation {
 		ignoredItems = append(ignoredItems, fmt.Sprintf("(Annotation) %s: %s", key, value))
 	}
-	logMessage := fmt.Sprintf("Found multiple '%s' value in pod. { podName: %s, fianlValue: %s, ignored: [%s] }",
+	logMessage := fmt.Sprintf("Found multiple '%s' value in pod. { podName: %s, finalValue: %s, ignored: [%s] }",
 		metadataType, pod.Name, fianlValue, strings.Join(ignoredItems, ", "))
 
 	log.Log(log.ShimCacheTask).Warn(logMessage)
