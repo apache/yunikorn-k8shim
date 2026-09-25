@@ -20,6 +20,10 @@ jobs:
           check-latest: true
       - name: Unit tests
         run: make test
+      - name: Verify generated Queue API artifacts
+        run: make verify-generated
+      - name: Queue operator envtests
+        run: make test-envtest
       - name: Code coverage
         uses: codecov/codecov-action@v5
         with:

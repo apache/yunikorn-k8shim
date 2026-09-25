@@ -15,18 +15,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: tools
+.PHONY: tools controller-gen setup-envtest generate verify-generated
 # production build targets
-.PHONY: scheduler admission scheduler_instrumented
-.PHONY: image sched_image adm_image sched_image_instrumented webtest_image go-license-generate
+.PHONY: scheduler admission queue_operator scheduler_instrumented
+.PHONY: image sched_image adm_image qop_image sched_image_instrumented webtest_image go-license-generate
 # local run targets
 .PHONY: run build build_web_test_server_prod build_web_test_server_dev
 # test targets
-.PHONY: test_all test bench fsm_graph clean distclean arch
+.PHONY: test_all test test-envtest bench fsm_graph clean distclean arch
 .PHONY: lint check_scripts license-check go-license-check pseudo
 # e2e test targets
 .PHONY: print_kubectl_version print_kind_version print_helm_version
-.PHONY: e2e_test kind-e2e start-cluster stop-cluster
+.PHONY: e2e_test kind-e2e kind-qop-e2e start-cluster stop-cluster
 
 # Go compiler selection
 ifeq ($(GO),)
@@ -68,6 +68,7 @@ COVERAGE_DIR=${OUTPUT}/instrumented
 # Binary names
 SCHEDULER_BINARY=yunikorn-scheduler
 ADMISSION_CONTROLLER_BINARY=yunikorn-admission-controller
+QUEUE_OPERATOR_BINARY=yunikorn-queue-operator
 TEST_SERVER_BINARY=web-test-server
 
 TOOLS_DIR=tools
@@ -216,6 +217,18 @@ GINKGO_PATH=$(TOOLS_DIR)/ginkgo-$(GINKGO_VERSION)
 GINKGO_BIN=$(GINKGO_PATH)/ginkgo
 export PATH := $(BASE_DIR)/$(GINKGO_PATH):$(PATH)
 
+# controller-gen
+CONTROLLER_GEN_VERSION=v0.19.0
+CONTROLLER_GEN_PATH=$(TOOLS_DIR)/controller-gen-$(CONTROLLER_GEN_VERSION)
+CONTROLLER_GEN_BIN=$(CONTROLLER_GEN_PATH)/controller-gen
+QUEUE_OPERATOR_CRD_DIR=$(OUTPUT)/queue-operator-crd
+
+# setup-envtest
+SETUP_ENVTEST_VERSION=v0.24.2-0.20260922162418-fbc3eec4c710
+SETUP_ENVTEST_PATH=$(TOOLS_DIR)/setup-envtest-$(SETUP_ENVTEST_VERSION)
+SETUP_ENVTEST_BIN=$(SETUP_ENVTEST_PATH)/setup-envtest
+ENVTEST_K8S_VERSION=1.36.0
+
 FLAG_PREFIX=github.com/apache/yunikorn-k8shim/pkg/conf
 
 # Image hashes
@@ -257,13 +270,16 @@ endif
 ifeq ($(ADMISSION_TAG),)
 ADMISSION_TAG := $(REGISTRY)/yunikorn:admission-$(DOCKER_ARCH)-$(VERSION)
 endif
+ifeq ($(QUEUE_OPERATOR_TAG),)
+QUEUE_OPERATOR_TAG := $(REGISTRY)/yunikorn:queue-operator-$(DOCKER_ARCH)-$(VERSION)
+endif
 
 SCHEDULER_INSTRUMENTED_TAG := $(SCHEDULER_TAG)-instrumented
 
 all:
 	$(MAKE) -C $(dir $(BASE_DIR)) build
 
-test_all: lint check_scripts license-check go-license-check pseudo test
+test_all: lint check_scripts license-check go-license-check pseudo verify-generated test test-envtest
 
 # Print tools version
 print_kubectl_version:
@@ -325,6 +341,38 @@ $(GINKGO_BIN):
 	@echo "installing ginkgo $(GINKGO_VERSION)"
 	@mkdir -p "$(GINKGO_PATH)"
 	@GOBIN="$(BASE_DIR)/$(GINKGO_PATH)" "$(GO)" install "github.com/onsi/ginkgo/v2/ginkgo@$(GINKGO_VERSION)"
+
+controller-gen: $(CONTROLLER_GEN_BIN)
+
+$(CONTROLLER_GEN_BIN):
+	@echo "installing controller-gen $(CONTROLLER_GEN_VERSION)"
+	@mkdir -p "$(CONTROLLER_GEN_PATH)"
+	@GOBIN="$(BASE_DIR)/$(CONTROLLER_GEN_PATH)" "$(GO)" install "sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)"
+
+setup-envtest: $(SETUP_ENVTEST_BIN)
+
+$(SETUP_ENVTEST_BIN):
+	@echo "installing setup-envtest $(SETUP_ENVTEST_VERSION)"
+	@mkdir -p "$(SETUP_ENVTEST_PATH)"
+	@GOBIN="$(BASE_DIR)/$(SETUP_ENVTEST_PATH)" "$(GO)" install "sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION)"
+
+# Regenerate the Queue API deepcopy implementation and CRD from kubebuilder markers.
+generate: $(CONTROLLER_GEN_BIN)
+	@rm -rf "$(QUEUE_OPERATOR_CRD_DIR)"
+	@mkdir -p "$(QUEUE_OPERATOR_CRD_DIR)"
+	@"$(CONTROLLER_GEN_BIN)" object:headerFile="scripts/custom-boilerplate.go.txt" \
+		paths="./pkg/queueoperator/api/v1alpha1"
+	@"$(CONTROLLER_GEN_BIN)" crd:crdVersions=v1,headerFile="scripts/custom-boilerplate.yaml.txt" \
+		paths="./pkg/queueoperator/api/v1alpha1" \
+		output:crd:artifacts:config="$(QUEUE_OPERATOR_CRD_DIR)"
+	@"$(GO)" run ./scripts/generate_queue_crd "$(QUEUE_OPERATOR_CRD_DIR)/yunikorn.apache.org_queues.yaml"
+	@cp "$(QUEUE_OPERATOR_CRD_DIR)/yunikorn.apache.org_queues.yaml" \
+		"deployments/queue-operator/queue-crd.yaml"
+
+verify-generated: generate
+	@git diff --exit-code -- \
+		pkg/queueoperator/api/v1alpha1/zz_generated.deepcopy.go \
+		deployments/queue-operator/queue-crd.yaml
 
 # Run lint against the previous commit for PR and branch build
 # In dev setup look at all changes on top of master
@@ -561,7 +609,68 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
 	${QUIET}
 
-# Build all images based on the production ready version
+# Build the queue operator binary in a production ready version.
+#
+# The queue operator is an OPTIONAL (opt-in) component. Users who do not
+# want CRD-based queue management can ignore this binary entirely and keep
+# using the ConfigMap-based flow served by the admission controller.
+queue_operator: $(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY)
+
+$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY): go.mod go.sum $(shell find pkg)
+	@echo "building queue operator binary"
+	@mkdir -p "$(RELEASE_BIN_DIR)"
+ifeq ($(REPRO),1)
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY) \
+	-trimpath \
+	-buildvcs=false \
+	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	./pkg/cmd/queueoperator"
+else
+	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
+	-a \
+	-o=$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY) \
+	-trimpath \
+	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
+	-tags netgo \
+	./pkg/cmd/queueoperator
+endif
+
+# Build a queue operator image based on the production ready version.
+qop_image: $(OUTPUT)/third-party-licenses.md queue_operator docker/queueoperator
+	@echo "building queue operator docker image"
+	@rm -rf "$(DOCKER_DIR)/queueoperator"
+	@mkdir -p "$(DOCKER_DIR)/queueoperator"
+	@cp -a "docker/queueoperator/." "$(DOCKER_DIR)/queueoperator/."
+	@cp "$(RELEASE_BIN_DIR)/$(QUEUE_OPERATOR_BINARY)" "$(DOCKER_DIR)/queueoperator/."
+	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/queueoperator/."
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
+	"$(DOCKER_DIR)/queueoperator" \
+	-t "$(QUEUE_OPERATOR_TAG)" \
+	--platform "linux/${DOCKER_ARCH}" \
+	--label "yunikorn-core-revision=${CORE_SHA}" \
+	--label "yunikorn-scheduler-interface-revision=${SI_SHA}" \
+	--label "yunikorn-k8shim-revision=${SHIM_SHA}" \
+	--label "BuildTimeStamp=${DATE}" \
+	--label "Version=${VERSION}" \
+	--label "org.opencontainers.image.title=${QUEUE_OPERATOR_BINARY}" \
+	--label "org.opencontainers.image.description=Apache YuniKorn Queue Operator (optional)" \
+	--label "org.opencontainers.image.version=${VERSION}" \
+	--label "org.opencontainers.image.created=$(DATE)" \
+	--label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+	--label "org.opencontainers.image.url=${IMAGE_URL}" \
+	--label "org.opencontainers.image.revision=$(SHIM_SHA)" \
+	--label "org.opencontainers.image.license=${LICENSE}" \
+	--label "org.opencontainers.image.documentation=${DOCS_URL}" \
+	${QUIET}
+
+# Build all images based on the production ready version.
+# The queue-operator image is OPT-IN and NOT included in the top-level
+# `image` target — build it explicitly with `make qop_image` if you want
+# CRD-based queue management.
 image: sched_image adm_image
 
 # Build a web server image ONLY to be used in e2e tests
@@ -610,6 +719,11 @@ test:
 	"$(GO)" test ./pkg/... -cover -race -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
 	"$(GO)" vet "$(REPO)"...
 
+test-envtest: $(SETUP_ENVTEST_BIN)
+	@echo "running queue operator envtests with Kubernetes $(ENVTEST_K8S_VERSION)"
+	@KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST_BIN) use -p path $(ENVTEST_K8S_VERSION))" \
+		"$(GO)" test -tags=envtest -race ./pkg/queueoperator/controller/...
+
 # Run benchmarks
 bench:
 	@echo "running benchmarks"
@@ -655,8 +769,14 @@ kind-e2e: $(KIND_BIN)
 		./scripts/run-e2e-tests.sh -a test -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" ; STATUS=$$? ; \
 		"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; exit $$STATUS
 
+# Run the focused Queue operator lifecycle suite on a disposable kind cluster.
+kind-qop-e2e: $(KIND_BIN)
+	@"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; \
+		./scripts/run-queue-operator-e2e.sh -n "$(CLUSTER_NAME)" -v "kindest/node:$(K8S_VERSION)" ; STATUS=$$? ; \
+		"$(KIND_BIN)" delete cluster --name="$(CLUSTER_NAME)" || : ; exit $$STATUS
+
 # Run the e2e tests, this assumes yunikorn is running under yunikorn namespace
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
-	ginkgo -r $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	ginkgo -r -v -keep-going $(E2E_TEST) -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
