@@ -174,6 +174,93 @@ func TestPreemptionFilterWithVictims(t *testing.T) {
 	}
 }
 
+func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
+	ep := enabledPlugins(interpodaffinity.Name)
+	handle, lister := getFrameworkHandle()
+	config, err := DefaultConfig()
+	assert.NilError(t, err)
+	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
+
+	nodeName := "preemption-node"
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nodeName,
+			Labels: map[string]string{
+				v1.LabelHostname: nodeName,
+			},
+		},
+	}
+
+	victim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "victim",
+			Namespace: "default",
+			Labels:    map[string]string{"app": "conflict"},
+		},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+
+	nodeInfo := framework.NewNodeInfo(victim)
+	nodeInfo.SetNode(node)
+	lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
+
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "incoming",
+			Namespace: "default",
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"conflict"},
+									},
+								},
+							},
+							TopologyKey: v1.LabelHostname,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, cycleState, err := predicateManager.PreFilter(pod, true)
+	assert.NilError(t, err)
+
+	// Direct Filter check should fail because victim exists on node0
+	pl, filterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
+	assert.Assert(t, filterErr != nil, "Filter should fail due to anti-affinity conflict")
+	assert.Equal(t, pl, interpodaffinity.Name)
+
+	// PreemptionFilter should remove victim and succeed at index 0
+	index := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, 0)
+	assert.Equal(t, index, 0, "PreemptionFilter should succeed after removing the conflicting victim")
+
+	// Ensure caller's original cycleState was not corrupted / mutated
+	_, originalFilterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
+	assert.Assert(t, originalFilterErr != nil, "Original cycleState should remain unmodified")
+
+	// PreemptionFilter with startIndex > 0 (earlier resource victims removed)
+	resourceVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "resource-victim", Namespace: "default"},
+	}
+	indexStartIndex := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{resourceVictim, victim}, 1)
+	assert.Equal(t, indexStartIndex, 1, "PreemptionFilter should succeed with startIndex > 0")
+
+	// PreemptionFilter with nil victim (handling concurrent pod deletion in cache)
+	indexNil := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nil, victim}, 0)
+	assert.Equal(t, indexNil, 1, "PreemptionFilter should skip nil victims safely")
+}
+
 func TestEventsToRegister(t *testing.T) {
 	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
 	handle, _ := getFrameworkHandle()
