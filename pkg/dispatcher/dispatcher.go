@@ -36,6 +36,7 @@ var dispatcher *Dispatcher
 var once sync.Once
 
 const defaultAsyncDispatchCheckInterval = 3 * time.Second
+const defaultStopTimeout = 5 * time.Second
 
 type EventType int8
 
@@ -45,14 +46,22 @@ const (
 	EventTypeNode
 )
 
-// central dispatcher that dispatches scheduling events.
+type dispatcherRun struct {
+	// Buffered notification lets async senders retry promptly when the loop dequeues.
+	spaceAvailable chan struct{}
+	stopChan       chan struct{}
+	doneChan       chan struct{}
+	stopping       bool
+}
+
+// Dispatcher is the central dispatcher that dispatches scheduling events.
 type Dispatcher struct {
-	eventChan chan events.SchedulingEvent
-	stopChan  chan struct{}
-	handlers  map[EventType]map[string]func(interface{})
-	running   atomic.Bool
-	lock      locking.RWMutex
-	stopped   sync.WaitGroup
+	eventChan     chan events.SchedulingEvent
+	handlers      map[EventType]map[string]func(interface{})
+	lock          locking.RWMutex
+	lifecycleLock locking.RWMutex
+	currentRun    *dispatcherRun
+	stopTimeout   time.Duration
 
 	asyncDispatchLimit         int32
 	asyncDispatchCheckInterval time.Duration
@@ -63,17 +72,15 @@ type Dispatcher struct {
 func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
 	dispatcher = &Dispatcher{
-		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-		handlers:  make(map[EventType]map[string]func(interface{})),
-		stopChan:  make(chan struct{}),
-		lock:      locking.RWMutex{},
+		eventChan:   make(chan events.SchedulingEvent, eventChannelCapacity),
+		handlers:    make(map[EventType]map[string]func(interface{})),
+		lock:        locking.RWMutex{},
+		stopTimeout: defaultStopTimeout,
 
 		asyncDispatchCheckInterval: defaultAsyncDispatchCheckInterval,
 		dispatchTimeout:            conf.GetSchedulerConf().DispatchTimeout,
 		asyncDispatchLimit:         max(10000, int32(eventChannelCapacity/10)), //nolint:gosec
 	}
-	dispatcher.setRunning(false)
-
 	log.Log(log.ShimDispatcher).Info("Init dispatcher",
 		zap.Int("EventChannelCapacity", eventChannelCapacity),
 		zap.Int32("AsyncDispatchLimit", dispatcher.asyncDispatchLimit),
@@ -147,29 +154,31 @@ func Dispatch(event events.SchedulingEvent) {
 }
 
 func (p *Dispatcher) isRunning() bool {
-	return p.running.Load()
-}
-
-func (p *Dispatcher) setRunning(flag bool) {
-	p.running.Store(flag)
+	p.lifecycleLock.RLock()
+	defer p.lifecycleLock.RUnlock()
+	return p.currentRun != nil && !p.currentRun.stopping
 }
 
 func (p *Dispatcher) dispatch(event events.SchedulingEvent) error {
-	if !p.isRunning() {
+	p.lifecycleLock.RLock()
+	defer p.lifecycleLock.RUnlock()
+
+	run := p.currentRun
+	if run == nil || run.stopping {
 		return fmt.Errorf("dispatcher is not running")
 	}
 	select {
 	case p.eventChan <- event:
 		return nil
 	default:
-		p.asyncDispatch(event)
+		p.asyncDispatch(event, run)
 		return nil
 	}
 }
 
-// async-dispatch retries enqueueing the event in every 3 seconds until dispatchTimeout
-// it's only called when the event channel is full.
-func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
+// asyncDispatch retries when queue space is available, checking dispatchTimeout
+// at asyncDispatchCheckInterval. It is only called when the event channel is full.
+func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, run *dispatcherRun) {
 	count := p.asyncDispatchCount.Add(1)
 	log.Log(log.ShimDispatcher).Warn("event channel is full, transition to async-dispatch mode",
 		zap.Int32("asyncDispatchCount", count))
@@ -178,15 +187,21 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 		p.asyncDispatchCount.Add(-1)
 		panic(fmt.Errorf("dispatcher exceeds async-dispatch limit"))
 	}
-	go func(beginTime time.Time, stop chan struct{}) {
+	go func(beginTime time.Time) {
 		defer p.asyncDispatchCount.Add(-1)
-		for p.isRunning() {
+		timer := time.NewTimer(p.asyncDispatchCheckInterval)
+		defer timer.Stop()
+		for {
+			enqueued, err := p.tryEnqueue(event, run)
+			if err != nil || enqueued {
+				return
+			}
 			select {
-			case <-stop:
+			case <-run.stopChan:
 				return
-			case p.eventChan <- event:
-				return
-			case <-time.After(p.asyncDispatchCheckInterval):
+			case <-run.spaceAvailable:
+				// The consumer freed space; retry under the lifecycle lock.
+			case <-timer.C:
 				elapseTime := time.Since(beginTime)
 				if elapseTime >= p.dispatchTimeout {
 					log.Log(log.ShimDispatcher).Error("dispatch timeout",
@@ -195,9 +210,26 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 				}
 				log.Log(log.ShimDispatcher).Warn("event channel is full, keep waiting...",
 					zap.Float64("elapseSeconds", elapseTime.Seconds()))
+				timer.Reset(p.asyncDispatchCheckInterval)
 			}
 		}
-	}(time.Now(), p.stopChan)
+	}(time.Now())
+}
+
+// tryEnqueue coordinates async admission with Stop. Never wait for channel space
+// while holding the lock, since Stop needs the write lock to signal cancellation.
+func (p *Dispatcher) tryEnqueue(event events.SchedulingEvent, run *dispatcherRun) (bool, error) {
+	p.lifecycleLock.RLock()
+	defer p.lifecycleLock.RUnlock()
+	if p.currentRun != run || run.stopping {
+		return false, fmt.Errorf("dispatcher is not running")
+	}
+	select {
+	case p.eventChan <- event:
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (p *Dispatcher) drain() {
@@ -209,80 +241,117 @@ func (p *Dispatcher) drain() {
 	log.Log(log.ShimDispatcher).Info("dispatcher is draining out")
 }
 
+// Start starts the dispatcher. If a previous run is stopping, it waits for that
+// worker to exit, even after a Stop timeout, before starting another run.
 func Start() {
 	log.Log(log.ShimDispatcher).Info("starting the dispatcher")
-	if getDispatcher().isRunning() {
+	if !getDispatcher().start() {
 		log.Log(log.ShimDispatcher).Info("dispatcher is already running")
-		return
 	}
-	getDispatcher().stopChan = make(chan struct{})
-	getDispatcher().stopped.Add(1)
-	go func() {
-		for {
-			select {
-			case event := <-getDispatcher().eventChan:
-				switch v := event.(type) {
-				case events.TaskEvent:
-					getEventHandler(EventTypeTask)(v)
-				case events.ApplicationEvent:
-					getEventHandler(EventTypeApp)(v)
-				case events.SchedulerNodeEvent:
-					getEventHandler(EventTypeNode)(v)
-				default:
-					log.Log(log.ShimDispatcher).Fatal("unsupported event",
-						zap.Any("event", v))
-				}
-			case <-getDispatcher().stopChan:
-				log.Log(log.ShimDispatcher).Info("shutting down event channel")
-				getDispatcher().setRunning(false)
-				getDispatcher().stopped.Done()
-				return
+}
+
+// start waits for a stopping run to actually exit, even if Stop has timed out.
+// This preserves sequential event handling across dispatcher restarts.
+func (p *Dispatcher) start() bool {
+	for {
+		p.lifecycleLock.Lock()
+		if p.currentRun == nil {
+			run := &dispatcherRun{
+				spaceAvailable: make(chan struct{}, 1),
+				stopChan:       make(chan struct{}),
+				doneChan:       make(chan struct{}),
 			}
+			p.currentRun = run
+			go p.run(run)
+			p.lifecycleLock.Unlock()
+			return true
 		}
+		if !p.currentRun.stopping {
+			p.lifecycleLock.Unlock()
+			return false
+		}
+		doneChan := p.currentRun.doneChan
+		p.lifecycleLock.Unlock()
+		<-doneChan
+	}
+}
+
+func (p *Dispatcher) run(run *dispatcherRun) {
+	defer func() {
+		p.lifecycleLock.Lock()
+		defer p.lifecycleLock.Unlock()
+		// Only the worker can retire its run. A Stop timeout is not completion.
+		if p.currentRun == run {
+			p.currentRun = nil
+		}
+		close(run.doneChan)
 	}()
-	getDispatcher().setRunning(true)
+	for {
+		select {
+		case <-run.stopChan:
+			log.Log(log.ShimDispatcher).Info("shutting down event channel")
+			return
+		default:
+		}
+
+		select {
+		case <-run.stopChan:
+			log.Log(log.ShimDispatcher).Info("shutting down event channel")
+			return
+		case event := <-p.eventChan:
+			select {
+			case run.spaceAvailable <- struct{}{}:
+			default:
+			}
+			p.handleEvent(event)
+		}
+	}
+}
+
+func (p *Dispatcher) handleEvent(event events.SchedulingEvent) {
+	switch v := event.(type) {
+	case events.TaskEvent:
+		getEventHandler(EventTypeTask)(v)
+	case events.ApplicationEvent:
+		getEventHandler(EventTypeApp)(v)
+	case events.SchedulerNodeEvent:
+		getEventHandler(EventTypeNode)(v)
+	default:
+		log.Log(log.ShimDispatcher).Fatal("unsupported event",
+			zap.Any("event", v))
+	}
 }
 
 // stop the dispatcher and wait at most 5 seconds gracefully
 func Stop() {
 	log.Log(log.ShimDispatcher).Info("stopping the dispatcher")
+	getDispatcher().stop()
+}
 
-	var chanClosed bool
-	select {
-	case <-getDispatcher().stopChan:
-		chanClosed = true
-	default:
-	}
-
-	if chanClosed {
-		if getDispatcher().isRunning() {
-			log.Log(log.ShimDispatcher).Info("dispatcher shutdown in progress")
-		} else {
-			log.Log(log.ShimDispatcher).Info("dispatcher is already stopped")
-		}
+func (p *Dispatcher) stop() {
+	p.lifecycleLock.Lock()
+	run := p.currentRun
+	if run == nil {
+		p.lifecycleLock.Unlock()
+		log.Log(log.ShimDispatcher).Info("dispatcher is already stopped")
 		return
 	}
 
-	close(getDispatcher().stopChan)
-	stopWait := make(chan struct{})
-
-	go func() {
-		defer close(stopWait)
-		getDispatcher().stopped.Wait()
-	}()
-
-	// wait until the main event loop stops properly
-	select {
-	case <-stopWait:
-		break
-	case <-time.After(5 * time.Second):
-		log.Log(log.ShimDispatcher).Info("dispatcher did not stop in time")
-		break
+	if !run.stopping {
+		run.stopping = true
+		close(run.stopChan)
 	}
+	stopTimeout := p.stopTimeout
+	p.lifecycleLock.Unlock()
 
-	if getDispatcher().isRunning() {
-		log.Log(log.ShimDispatcher).Warn("dispatcher even processing did not stop properly")
-	} else {
+	// Each caller waits outside the lifecycle lock, subject to its own timeout.
+	// Keep currentRun until the worker exits so Start cannot overlap handlers.
+	timer := time.NewTimer(stopTimeout)
+	defer timer.Stop()
+	select {
+	case <-run.doneChan:
 		log.Log(log.ShimDispatcher).Info("dispatcher stopped successfully")
+	case <-timer.C:
+		log.Log(log.ShimDispatcher).Warn("dispatcher event processing did not stop properly")
 	}
 }
