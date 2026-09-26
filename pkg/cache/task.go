@@ -593,7 +593,7 @@ func (task *Task) checkPodMetadataBeforeScheduling() {
 	}
 }
 
-func (task *Task) logIgnoredPodMetadata(pod *v1.Pod, metadataType string, fianlValue string, ignoredLabel map[string]string, ignoredAnnotation map[string]string) {
+func (task *Task) logIgnoredPodMetadata(pod *v1.Pod, metadataType string, finalValue string, ignoredLabel map[string]string, ignoredAnnotation map[string]string) {
 	ignoredItems := make([]string, 0)
 	for key, value := range ignoredLabel {
 		ignoredItems = append(ignoredItems, fmt.Sprintf("(Label) %s: %s", key, value))
@@ -602,7 +602,7 @@ func (task *Task) logIgnoredPodMetadata(pod *v1.Pod, metadataType string, fianlV
 		ignoredItems = append(ignoredItems, fmt.Sprintf("(Annotation) %s: %s", key, value))
 	}
 	logMessage := fmt.Sprintf("Found multiple '%s' value in pod. { podName: %s, finalValue: %s, ignored: [%s] }",
-		metadataType, pod.Name, fianlValue, strings.Join(ignoredItems, ", "))
+		metadataType, pod.Name, finalValue, strings.Join(ignoredItems, ", "))
 
 	log.Log(log.ShimCacheTask).Warn(logMessage)
 	events.GetRecorder().Eventf(pod.DeepCopy(),
