@@ -238,7 +238,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 			Requests: resources,
 		},
 	})
-	pod1, err := mockClient.Create(&v1.Pod{
+	pod1, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -252,7 +252,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod2, err := mockClient.Create(&v1.Pod{
+	pod2, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -266,7 +266,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod3, err := mockClient.Create(&v1.Pod{
+	pod3, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -343,7 +343,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 			Requests: resources,
 		},
 	})
-	pod1, err := mockClient.Create(&v1.Pod{
+	pod1, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -357,7 +357,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod2, err := mockClient.Create(&v1.Pod{
+	pod2, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",

@@ -133,12 +133,12 @@ func (nc SchedulerKubeClient) Bind(pod *v1.Pod, hostID string) error {
 	return nil
 }
 
-func (nc SchedulerKubeClient) Create(pod *v1.Pod) (*v1.Pod, error) {
-	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, apis.CreateOptions{})
+func (nc SchedulerKubeClient) Create(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return nc.clientSet.CoreV1().Pods(pod.Namespace).Create(ctx, pod, apis.CreateOptions{})
 }
 
-func (nc SchedulerKubeClient) Delete(pod *v1.Pod) error {
-	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, apis.DeleteOptions{}); err != nil {
+func (nc SchedulerKubeClient) Delete(ctx context.Context, pod *v1.Pod) error {
+	if err := nc.clientSet.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, apis.DeleteOptions{}); err != nil {
 		log.Log(log.ShimClient).Warn("failed to delete pod",
 			zap.String("namespace", pod.Namespace),
 			zap.String("podName", pod.Name),

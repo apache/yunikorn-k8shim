@@ -192,7 +192,7 @@ func (task *Task) GetNodeName() string {
 }
 
 func (task *Task) DeleteTaskPod() error {
-	return task.context.apiProvider.GetAPIs().KubeClient.Delete(task.GetTaskPod())
+	return task.context.apiProvider.GetAPIs().KubeClient.Delete(context.Background(), task.GetTaskPod())
 }
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
