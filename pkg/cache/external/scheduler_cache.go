@@ -20,6 +20,7 @@ package external
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -53,10 +54,12 @@ type SchedulerCache struct {
 	clients        *client.Clients // client APIs
 	klogger        klog.Logger
 
-	// cached data, re-calculated on demand from nodesMap
-	nodesInfo                        []fwk.NodeInfo
-	nodesInfoPodsWithAffinity        []fwk.NodeInfo
-	nodesInfoPodsWithReqAntiAffinity []fwk.NodeInfo
+	// cached data, re-calculated on demand from nodesMap. The predicate shared lister populates
+	// these while holding the read lock, so they are published atomically: concurrent predicate
+	// checks would otherwise write the same field at the same time.
+	nodesInfo                        atomic.Pointer[[]fwk.NodeInfo]
+	nodesInfoPodsWithAffinity        atomic.Pointer[[]fwk.NodeInfo]
+	nodesInfoPodsWithReqAntiAffinity atomic.Pointer[[]fwk.NodeInfo]
 }
 
 func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
@@ -84,49 +87,55 @@ func (cache *SchedulerCache) GetNodesInfoMap() map[string]*framework.NodeInfo {
 // GetNodesInfo returns a (possibly cached) list of nodes. This is explicitly for the use of the predicate
 // shared lister and requires that the scheduler cache lock be held while accessing.
 func (cache *SchedulerCache) GetNodesInfo() []fwk.NodeInfo {
-	if cache.nodesInfo == nil {
-		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
-		for _, node := range cache.nodesMap {
-			nodeList = append(nodeList, node)
-		}
-		cache.nodesInfo = nodeList
+	if cached := cache.nodesInfo.Load(); cached != nil {
+		return *cached
 	}
 
-	return cache.nodesInfo
+	nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
+	for _, node := range cache.nodesMap {
+		nodeList = append(nodeList, node)
+	}
+	cache.nodesInfo.Store(&nodeList)
+
+	return nodeList
 }
 
 // GetNodesInfoPodsWithAffinity returns a (possibly cached) list of nodes which contain pods with affinity.
 // This is explicitly for the use of the predicate shared lister and requires that the scheduler cache lock
 // be held while accessing.
 func (cache *SchedulerCache) GetNodesInfoPodsWithAffinity() []fwk.NodeInfo {
-	if cache.nodesInfoPodsWithAffinity == nil {
-		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
-		for _, node := range cache.nodesMap {
-			if len(node.PodsWithAffinity) > 0 {
-				nodeList = append(nodeList, node)
-			}
-		}
-		cache.nodesInfoPodsWithAffinity = nodeList
+	if cached := cache.nodesInfoPodsWithAffinity.Load(); cached != nil {
+		return *cached
 	}
 
-	return cache.nodesInfoPodsWithAffinity
+	nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
+	for _, node := range cache.nodesMap {
+		if len(node.PodsWithAffinity) > 0 {
+			nodeList = append(nodeList, node)
+		}
+	}
+	cache.nodesInfoPodsWithAffinity.Store(&nodeList)
+
+	return nodeList
 }
 
 // GetNodesInfoPodsWithReqAntiAffinity returns a (possibly cached) list of nodes which contain pods with required anti-affinity.
 // This is explicitly for the use of the predicate shared lister and requires that the scheduler cache lock
 // be held while accessing.
 func (cache *SchedulerCache) GetNodesInfoPodsWithReqAntiAffinity() []fwk.NodeInfo {
-	if cache.nodesInfoPodsWithReqAntiAffinity == nil {
-		nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
-		for _, node := range cache.nodesMap {
-			if len(node.PodsWithRequiredAntiAffinity) > 0 {
-				nodeList = append(nodeList, node)
-			}
-		}
-		cache.nodesInfoPodsWithReqAntiAffinity = nodeList
+	if cached := cache.nodesInfoPodsWithReqAntiAffinity.Load(); cached != nil {
+		return *cached
 	}
 
-	return cache.nodesInfoPodsWithReqAntiAffinity
+	nodeList := make([]fwk.NodeInfo, 0, len(cache.nodesMap))
+	for _, node := range cache.nodesMap {
+		if len(node.PodsWithRequiredAntiAffinity) > 0 {
+			nodeList = append(nodeList, node)
+		}
+	}
+	cache.nodesInfoPodsWithReqAntiAffinity.Store(&nodeList)
+
+	return nodeList
 }
 
 func (cache *SchedulerCache) LockForReads() {
@@ -172,7 +181,7 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 		log.Log(log.ShimCacheExternal).Debug("Adding node to cache", zap.String("nodeName", node.Name))
 		nodeInfo = framework.NewNodeInfo()
 		cache.nodesMap[node.Name] = nodeInfo
-		cache.nodesInfo = nil
+		cache.nodesInfo.Store(nil)
 		nodeInfo.SetNode(node)
 
 		// look for orphaned pods to adopt
@@ -189,8 +198,8 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 		nodeInfo.SetNode(node)
 	}
 
-	cache.nodesInfoPodsWithAffinity = nil
-	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfoPodsWithAffinity.Store(nil)
+	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 	cache.updatePVCRefCounts(nodeInfo, false)
 
 	return prevNode, adopted
@@ -240,9 +249,9 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 
 	log.Log(log.ShimCacheExternal).Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
-	cache.nodesInfo = nil
-	cache.nodesInfoPodsWithAffinity = nil
-	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfo.Store(nil)
+	cache.nodesInfoPodsWithAffinity.Store(nil)
+	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 	cache.updatePVCRefCounts(nodeInfo, true)
 
 	return result, orphans
@@ -339,10 +348,10 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 				}
 				cache.updatePVCRefCounts(nodeInfo, false)
 				if podWithAffinity(pod) {
-					cache.nodesInfoPodsWithAffinity = nil
+					cache.nodesInfoPodsWithAffinity.Store(nil)
 				}
 				if podWithRequiredAntiAffinity(pod) {
-					cache.nodesInfoPodsWithReqAntiAffinity = nil
+					cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 				}
 			}
 			if pod.Spec.NodeName == "" && cache.isAssumedPod(key) {
@@ -377,10 +386,10 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 			nodeInfo.AddPod(pod)
 			cache.assignedPods[key] = pod.Spec.NodeName
 			if podWithAffinity(pod) {
-				cache.nodesInfoPodsWithAffinity = nil
+				cache.nodesInfoPodsWithAffinity.Store(nil)
 			}
 			if podWithRequiredAntiAffinity(pod) {
-				cache.nodesInfoPodsWithReqAntiAffinity = nil
+				cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 			}
 			cache.updatePVCRefCounts(nodeInfo, false)
 		}
@@ -432,8 +441,8 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.assumedPods, key)
 	delete(cache.orphanedPods, key)
 	delete(cache.podsCycleState, key)
-	cache.nodesInfoPodsWithAffinity = nil
-	cache.nodesInfoPodsWithReqAntiAffinity = nil
+	cache.nodesInfoPodsWithAffinity.Store(nil)
+	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 }
 
 func (cache *SchedulerCache) GetPod(uid string) *v1.Pod {
