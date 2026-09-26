@@ -25,8 +25,10 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
-	batchv1Beta "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
 )
 
 type extractResult struct {
@@ -35,30 +37,48 @@ type extractResult struct {
 	path        string
 }
 
-type extractor func(*admissionv1.AdmissionRequest) (*extractResult, error)
+type extractorFn func(obj runtime.RawExtension) (*extractResult, error)
 
 var (
-	Deployment  = reflect.TypeOf(appsv1.Deployment{}).Name()
-	DaemonSet   = reflect.TypeOf(appsv1.DaemonSet{}).Name()
-	StatefulSet = reflect.TypeOf(appsv1.StatefulSet{}).Name()
-	ReplicaSet  = reflect.TypeOf(appsv1.ReplicaSet{}).Name()
-	Job         = reflect.TypeOf(batchv1.Job{}).Name()
-	CronJob     = reflect.TypeOf(batchv1Beta.CronJob{}).Name()
-	Pod         = reflect.TypeOf(corev1.Pod{}).Name()
+	Deployment  = reflect.TypeFor[appsv1.Deployment]().Name()
+	DaemonSet   = reflect.TypeFor[appsv1.DaemonSet]().Name()
+	StatefulSet = reflect.TypeFor[appsv1.StatefulSet]().Name()
+	ReplicaSet  = reflect.TypeFor[appsv1.ReplicaSet]().Name()
+	Job         = reflect.TypeFor[batchv1.Job]().Name()
+	CronJob     = reflect.TypeFor[batchv1.CronJob]().Name()
+	Pod         = reflect.TypeFor[corev1.Pod]().Name()
 
-	extractors = map[string]extractor{
+	extractors = map[string]extractorFn{
 		Deployment:  fromDeployment,
 		DaemonSet:   fromDaemonSet,
 		StatefulSet: fromStatefulSet,
 		ReplicaSet:  fromReplicaSet,
 		Job:         fromJob,
 		CronJob:     fromCronJob,
+		Pod:         fromPod,
 	}
 )
 
-func fromDeployment(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+func getResultFromRequest(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+	return extractFromReq(req, false)
+}
+
+// extractFromReq loads the labels and annotations from the object, can handle create and update requests.
+// Supports all kinds.
+func extractFromReq(req *admissionv1.AdmissionRequest, old bool) (*extractResult, error) {
+	extractFn, ok := extractors[req.Kind.Kind]
+	if !ok {
+		return nil, common.ErrorUnsupportedKind
+	}
+	if old {
+		return extractFn(req.OldObject)
+	}
+	return extractFn(req.Object)
+}
+
+func fromDeployment(obj runtime.RawExtension) (*extractResult, error) {
 	var deployment appsv1.Deployment
-	err := json.Unmarshal(req.Object.Raw, &deployment)
+	err := json.Unmarshal(obj.Raw, &deployment)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +90,9 @@ func fromDeployment(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 	}, nil
 }
 
-func fromDaemonSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+func fromDaemonSet(obj runtime.RawExtension) (*extractResult, error) {
 	var daemonSet appsv1.DaemonSet
-	err := json.Unmarshal(req.Object.Raw, &daemonSet)
+	err := json.Unmarshal(obj.Raw, &daemonSet)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +104,9 @@ func fromDaemonSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 	}, nil
 }
 
-func fromStatefulSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+func fromStatefulSet(obj runtime.RawExtension) (*extractResult, error) {
 	var statefulSet appsv1.StatefulSet
-	err := json.Unmarshal(req.Object.Raw, &statefulSet)
+	err := json.Unmarshal(obj.Raw, &statefulSet)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +118,9 @@ func fromStatefulSet(req *admissionv1.AdmissionRequest) (*extractResult, error) 
 	}, nil
 }
 
-func fromReplicaSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+func fromReplicaSet(obj runtime.RawExtension) (*extractResult, error) {
 	var replicaSet appsv1.ReplicaSet
-	err := json.Unmarshal(req.Object.Raw, &replicaSet)
+	err := json.Unmarshal(obj.Raw, &replicaSet)
 	if err != nil {
 		return nil, err
 	}
@@ -112,9 +132,9 @@ func fromReplicaSet(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 	}, nil
 }
 
-func fromJob(req *admissionv1.AdmissionRequest) (*extractResult, error) {
+func fromJob(obj runtime.RawExtension) (*extractResult, error) {
 	var job batchv1.Job
-	err := json.Unmarshal(req.Object.Raw, &job)
+	err := json.Unmarshal(obj.Raw, &job)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +146,9 @@ func fromJob(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 	}, nil
 }
 
-func fromCronJob(req *admissionv1.AdmissionRequest) (*extractResult, error) {
-	var cronJob batchv1Beta.CronJob
-	err := json.Unmarshal(req.Object.Raw, &cronJob)
+func fromCronJob(obj runtime.RawExtension) (*extractResult, error) {
+	var cronJob batchv1.CronJob
+	err := json.Unmarshal(obj.Raw, &cronJob)
 	if err != nil {
 		return nil, err
 	}
@@ -137,5 +157,19 @@ func fromCronJob(req *admissionv1.AdmissionRequest) (*extractResult, error) {
 		annotations: cronJob.Spec.JobTemplate.Spec.Template.Annotations,
 		labels:      cronJob.Spec.JobTemplate.Spec.Template.Labels,
 		path:        cronJobPodAnnotationsPath,
+	}, nil
+}
+
+func fromPod(obj runtime.RawExtension) (*extractResult, error) {
+	var pod corev1.Pod
+	err := json.Unmarshal(obj.Raw, &pod)
+	if err != nil {
+		return nil, err
+	}
+
+	return &extractResult{
+		annotations: pod.Annotations,
+		labels:      pod.Labels,
+		path:        PodAnnotationsPath,
 	}, nil
 }
