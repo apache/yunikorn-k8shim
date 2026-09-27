@@ -103,6 +103,14 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	priorityClassInformer := informerFactory.Scheduling().V1().PriorityClasses()
 	volumeAttachmentInformer := informerFactory.Storage().V1().VolumeAttachments()
+	// Pre-register informers required by the PodTopologySpread scheduler plugin.
+	// These are not stored as Clients fields (no direct yunikorn usage), but must be
+	// registered before InformerFactory.Start() so they are started and synced alongside
+	// the other informers.
+	informerFactory.Core().V1().Services()
+	informerFactory.Core().V1().ReplicationControllers()
+	informerFactory.Apps().V1().ReplicaSets()
+	informerFactory.Apps().V1().StatefulSets()
 
 	var capacityCheck = volumebinding.CapacityCheck{
 		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
