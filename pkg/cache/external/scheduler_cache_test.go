@@ -729,58 +729,34 @@ func TestGetNodesInfoPodsWithReqNonHostScopedAntiAffinity(t *testing.T) {
 
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
-	node := createNode(host1, "default", nodeUID1)
+	node := newTestNode(host1, "default", nodeUID1)
 	nodeInfo := framework.NewNodeInfo()
 	nodeInfo.SetNode(node)
 
-	newNode := createNode(host2, "default", nodeUID2)
+	newNode := newTestNode(host2, "default", nodeUID2)
 	newNodeInfo := framework.NewNodeInfo()
 	newNodeInfo.SetNode(newNode)
 
-	newNode1 := createNode(host3, "default", nodeUID3)
+	newNode1 := newTestNode(host3, "default", nodeUID3)
 	newNodeInfo1 := framework.NewNodeInfo()
 	newNodeInfo1.SetNode(newNode1)
 
 	tests := []struct {
-		name                         string
-		pod                          *v1.Pod
-		node                         *v1.Node
-		removeNode                   bool
-		removePod                    bool
-		resetCache                   bool
-		expectedNodeInfoBeforeRemove []fwk.NodeInfo
-		expectedNodeInfoAfterRemove  []fwk.NodeInfo
+		name             string
+		pod              *v1.Pod
+		node             *v1.Node
+		expectedNodeInfo []fwk.NodeInfo
 	}{
-		{"empty pod and node", nil, nil, false, false, true, nil, nil},
-		{"a pod with anti affinity - region as topology key with remove pod", createPodWithAntiAffinity(podName1, host1, podUID1, v1.LabelTopologyRegion), node, false, true, true, []fwk.NodeInfo{nodeInfo}, []fwk.NodeInfo{}},
-		{"a pod with anti affinity - region as topology key without any removal", createPodWithAntiAffinity(podName1, host1, podUID1, v1.LabelTopologyRegion), node, false, false, true, []fwk.NodeInfo{nodeInfo}, []fwk.NodeInfo{nodeInfo}},
-		{"another pod with anti affinity - zone as topology key with remove node", createPodWithAntiAffinity(podName2, host2, podUID2, v1.LabelTopologyZone), newNode, true, false, true, []fwk.NodeInfo{nodeInfo, newNodeInfo}, []fwk.NodeInfo{nodeInfo}},
-		{"another pod with anti affinity - zone as topology key without any removal", createPodWithAntiAffinity(podName2, host2, podUID2, v1.LabelTopologyZone), newNode, false, false, true, []fwk.NodeInfo{nodeInfo, newNodeInfo}, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
-		{"another pod with anti affinity - hostname as topology key", createPodWithAntiAffinity(podName3, host3, podUID3, v1.LabelHostname), newNode1, false, false, true, []fwk.NodeInfo{nodeInfo, newNodeInfo}, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
-		{"another pod without anti affinity", createPod(podName3, podUID3), nil, false, false, false, []fwk.NodeInfo{nodeInfo, newNodeInfo}, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
+		{"a pod with anti affinity - region as topology key", newTestPodWithAntiAffinity(podName1, host1, podUID1, v1.LabelTopologyRegion), node, []fwk.NodeInfo{nodeInfo}},
+		{"another pod with anti affinity - zone as topology key", newTestPodWithAntiAffinity(podName2, host2, podUID2, v1.LabelTopologyZone), newNode, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
+		{"another pod with anti affinity - hostname as topology key", newTestPodWithAntiAffinity(podName3, host3, podUID3, v1.LabelHostname), newNode1, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
+		{"another pod without anti affinity", newTestPod(podName3, podUID3), newNode1, []fwk.NodeInfo{nodeInfo, newNodeInfo}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.node != nil {
-				cache.UpdateNode(test.node)
-			}
-			if test.pod != nil {
-				cache.AssumePod(test.pod, true)
-			}
-			if test.resetCache {
-				assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity == nil, "node list was not invalidated")
-			} else {
-				assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity != nil, "node list was not invalidated")
-			}
-			assertNodes(t, cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity(), test.expectedNodeInfoBeforeRemove)
-			if test.removePod {
-				cache.RemovePod(test.pod)
-				assertNodes(t, cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity(), test.expectedNodeInfoAfterRemove)
-			}
-			if test.removeNode {
-				cache.removeNode(test.node)
-				assertNodes(t, cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity(), test.expectedNodeInfoAfterRemove)
-			}
+			cache.UpdateNode(test.node)
+			cache.AssumePod(test.pod, true)
+			assertNodes(t, cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity(), test.expectedNodeInfo)
 		})
 	}
 }
@@ -962,9 +938,9 @@ func TestUpdatePod(t *testing.T) {
 // owned by the informer cache
 func TestUpdateAssumedPod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	cache.UpdateNode(newTestNode())
+	cache.UpdateNode(newTestNode(host1, "default", nodeUID1))
 
-	pod := newTestPod()
+	pod := newTestPod(podName1, podUID1)
 	cache.UpdatePod(pod)
 
 	assumedPod := pod.DeepCopy()
@@ -988,9 +964,9 @@ func TestUpdateAssumedPod(t *testing.T) {
 // and an update for the still unassigned pod must not bring the assignment back
 func TestForgetPod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	cache.UpdateNode(newTestNode())
+	cache.UpdateNode(newTestNode(host1, "default", nodeUID1))
 
-	pod := newTestPod()
+	pod := newTestPod(podName1, podUID1)
 	cache.UpdatePod(pod)
 
 	assumedPod := pod.DeepCopy()
@@ -1028,9 +1004,9 @@ func TestForgetPod(t *testing.T) {
 // anymore, leaves the node assignment in place
 func TestForgetBoundPod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	cache.UpdateNode(newTestNode())
+	cache.UpdateNode(newTestNode(host1, "default", nodeUID1))
 
-	pod := newTestPod()
+	pod := newTestPod(podName1, podUID1)
 	pod.Spec.NodeName = host1
 	pod.Status.Phase = v1.PodRunning
 	cache.UpdatePod(pod)
@@ -1044,15 +1020,15 @@ func TestForgetBoundPod(t *testing.T) {
 }
 
 // newTestNode returns a node with a name of host1 and enough capacity for the test pods
-func newTestNode() *v1.Node {
+func newTestNode(name, namespace string, uid types.UID) *v1.Node {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
 	resourceList[v1.ResourceName("cpu")] = *resource.NewQuantity(10, resource.DecimalSI)
 	return &v1.Node{
 		ObjectMeta: apis.ObjectMeta{
-			Name:      host1,
-			Namespace: "default",
-			UID:       nodeUID1,
+			Name:      name,
+			Namespace: namespace,
+			UID:       uid,
 		},
 		Status: v1.NodeStatus{
 			Allocatable: resourceList,
@@ -1064,22 +1040,39 @@ func newTestNode() *v1.Node {
 }
 
 // newTestPod returns an unassigned pod with a name of podName1
-func newTestPod() *v1.Pod {
+func newTestPod(name string, uid types.UID) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Name:      podName1,
+			Name:      name,
 			Namespace: "default",
-			UID:       podUID1,
+			UID:       uid,
 		},
 		Spec: v1.PodSpec{},
 	}
 }
 
+func newTestPodWithAntiAffinity(name, node string, uid types.UID, topologyKey string) *v1.Pod {
+	pod := newTestPod(name, uid)
+	pod.Spec = v1.PodSpec{
+		Affinity: &v1.Affinity{
+			PodAntiAffinity: &v1.PodAntiAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{
+					TopologyKey: topologyKey,
+				}},
+			},
+		},
+		NodeName: node,
+	}
+	return pod
+}
+
 func TestRemovePod(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 
 	pod1 := &v1.Pod{
@@ -1134,6 +1127,25 @@ func TestRemovePod(t *testing.T) {
 	// verify removal of pod with unknown node doesn't crash
 	pod1.Spec.NodeName = "missing-node"
 	cache.RemovePod(pod1)
+
+	nonHostScopedPodNode := newTestNode(host2, "default", nodeUID2)
+	cache.UpdateNode(nonHostScopedPodNode)
+	nonHostScopedPod := newTestPodWithAntiAffinity(podName1, host2, podUID1, v1.LabelTopologyRegion)
+	cache.AssumePod(nonHostScopedPod, true)
+	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 1, "wrong pod count after add of pod1")
+
+	// Host scoped pod should not make it to the cache and does not reset the cache at all
+	hostScopedPodNode := newTestPodWithAntiAffinity(podName3, host2, podUID3, v1.LabelHostname)
+	cache.AssumePod(hostScopedPodNode, true)
+	assert.Check(t, len(cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity) == 1, "wrong pod count after add of pod1")
+
+	cache.RemovePod(nonHostScopedPod)
+	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 0, "wrong pod count after add of pod1")
+
+	// Host scoped pod should not make it to the cache
+	hostScopedPodNode1 := newTestPodWithAntiAffinity(podName1, host2, podUID1, v1.LabelHostname)
+	cache.AssumePod(hostScopedPodNode1, true)
+	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 0, "wrong pod count after add of pod1")
 }
 
 func TestUpdatePriorityClass(t *testing.T) {
@@ -1419,11 +1431,14 @@ func TestOrphanPods(t *testing.T) {
 // instead of orphaning the pod: the bind never happened, so the pod must not be adopted, and
 // recovered as an existing allocation, when the node comes back
 func TestRemoveNodeWithAssumedPod(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
+
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	node := newTestNode()
+	node := newTestNode(host1, "default", nodeUID1)
 	cache.UpdateNode(node)
 
-	pod := newTestPod()
+	pod := newTestPod(podName1, podUID1)
 	cache.UpdatePod(pod)
 
 	assumedPod := pod.DeepCopy()
@@ -1446,16 +1461,24 @@ func TestRemoveNodeWithAssumedPod(t *testing.T) {
 	assert.Equal(t, len(cache.assignedPods), 0, "pod is in the assigned pods after the node came back")
 	// nolint:staticcheck
 	assert.Equal(t, len(cache.GetNode(host1).Pods), 0, "pod is added to the node that came back")
+
+	nonHostScopedPodNode := newTestNode(host2, "default", nodeUID2)
+	cache.UpdateNode(nonHostScopedPodNode)
+	nonHostScopedPod := newTestPodWithAntiAffinity(podName1, host2, podUID1, v1.LabelTopologyRegion)
+	cache.AssumePod(nonHostScopedPod, true)
+	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 1, "wrong pod count after add of pod1")
+	cache.RemoveNode(nonHostScopedPodNode)
+	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 0, "wrong pod count after add of pod1")
 }
 
 // this test verifies that a pod which the cluster reports as assigned to a node is orphaned when
 // that node is removed and is adopted again when the node comes back: that assignment is real
 func TestRemoveNodeWithBoundPod(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
-	node := newTestNode()
+	node := newTestNode(host1, "default", nodeUID1)
 	cache.UpdateNode(node)
 
-	pod := newTestPod()
+	pod := newTestPod(podName1, podUID1)
 	pod.Spec.NodeName = host1
 	pod.Status.Phase = v1.PodRunning
 	cache.UpdatePod(pod)
@@ -1474,49 +1497,6 @@ func TestRemoveNodeWithBoundPod(t *testing.T) {
 	assert.Equal(t, cache.assignedPods[podUID1], host1, "adopted pod is not in the assigned pods")
 	// nolint:staticcheck
 	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "adopted pod is not added to the node")
-}
-
-func createPod(name string, uid types.UID) *v1.Pod {
-	pod := &v1.Pod{
-		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: apis.ObjectMeta{
-			Name: name,
-			UID:  uid,
-		},
-	}
-	return pod
-}
-
-func createPodWithAntiAffinity(name, node string, uid types.UID, topologyKey string) *v1.Pod {
-	pod := createPod(name, uid)
-	pod.Spec = v1.PodSpec{
-		Affinity: &v1.Affinity{
-			PodAntiAffinity: &v1.PodAntiAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{
-					TopologyKey: topologyKey,
-				}},
-			},
-		},
-		NodeName: node,
-	}
-	return pod
-}
-
-func createNode(name, namespace string, uid types.UID) *v1.Node {
-	node := &v1.Node{
-		ObjectMeta: apis.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			UID:       uid,
-		},
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-		},
-	}
-	return node
 }
 
 func assertNodes(t *testing.T, got []fwk.NodeInfo, expected []fwk.NodeInfo) {
