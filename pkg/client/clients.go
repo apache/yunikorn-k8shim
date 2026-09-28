@@ -90,7 +90,12 @@ func (c *Clients) WaitForSync() {
 }
 
 func (c *Clients) Run(stopCh <-chan struct{}) {
+	// ConfigMap informer uses a separate namespace-scoped factory; start it directly.
 	go c.ConfigMapInformer.Informer().Run(stopCh)
+	// PriorityClass informer uses the shared factory but also start it explicitly to
+	// ensure the goroutine runs with a fresh context before InformerFactory.Start().
+	// RunWithContext is idempotent: a second call returns immediately if already started.
+	go c.PriorityClassInformer.Informer().Run(stopCh)
 	if c.InformerFactory != nil {
 		c.InformerFactory.Start(stopCh)
 	}
