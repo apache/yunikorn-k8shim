@@ -65,14 +65,14 @@ var (
 const (
 	mockPreFilterPlugin = "mock-prefilter-plugin"
 	mockFilterPlugin    = "mock-filter-plugin"
-	injectReason        = "injected status"
-	injectFilterReason  = "injected filter status"
 )
 
 type injectedResult struct {
 	PreFilterResult *fwk.PreFilterResult `json:"preFilterResult,omitempty"`
 	PreFilterStatus int                  `json:"preFilterStatus,omitempty"`
+	PreFilterReason string               `json:"preFilterReason,omitempty"`
 	FilterStatus    int                  `json:"filterStatus,omitempty"`
+	FilterReason    string               `json:"filterReason,omitempty"`
 }
 
 // MockPreFilterPlugin implements PreFilter interface.
@@ -90,7 +90,7 @@ func (pl *MockPreFilterPlugin) Name() string {
 }
 
 func (pl *MockPreFilterPlugin) PreFilter(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodes []fwk.NodeInfo) (*fwk.PreFilterResult, *fwk.Status) {
-	return pl.inj.PreFilterResult, fwk.NewStatus(fwk.Code(pl.inj.PreFilterStatus), injectReason)
+	return pl.inj.PreFilterResult, fwk.NewStatus(fwk.Code(pl.inj.PreFilterStatus), pl.inj.PreFilterReason)
 }
 
 // MockFilterPlugin implements Filter interface.
@@ -100,7 +100,7 @@ type MockFilterPlugin struct {
 }
 
 func (pl *MockFilterPlugin) Filter(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
-	return fwk.NewStatus(fwk.Code(pl.inj.FilterStatus), injectFilterReason)
+	return fwk.NewStatus(fwk.Code(pl.inj.FilterStatus), pl.inj.FilterReason)
 }
 
 func (pl *MockFilterPlugin) Name() string {
@@ -250,9 +250,9 @@ func TestPodFitsHost(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(test.node)
-			plugin, err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
+			err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -393,9 +393,9 @@ func TestPodFitsHostPorts(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -1092,9 +1092,9 @@ func TestPodFitsSelector(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -1235,9 +1235,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -2186,9 +2186,9 @@ func TestInterPodAffinity(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			pl, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, pl)
+			pluginErr := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -2214,14 +2214,14 @@ func TestReserveAlloc(t *testing.T) {
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
 	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	assert.NilError(t, err, "error should have been nil, no predicates given")
+	pluginErr := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	assert.NilError(t, pluginErr, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
 	predicateManager = newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	assert.NilError(t, err, "error should have been nil, node is schedulable")
+	pluginErr = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	assert.NilError(t, pluginErr, "error should have been nil, node is schedulable")
 
 	// make the node unschedulable
 	node, _, err = taints.AddOrUpdateTaint(nodeInfo.Node(), &v1.Taint{
@@ -2231,8 +2231,8 @@ func TestReserveAlloc(t *testing.T) {
 	node.Spec.Unschedulable = true
 	assert.NilError(t, err, "failed to add taint")
 	nodeInfo.SetNode(node)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	if err == nil {
+	pluginErr = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	if pluginErr == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
 	}
 }
@@ -2276,12 +2276,12 @@ func TestReserveNodeSelector(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(pod, nodeInfo, cycleState, false)
-			log.Log(log.Test).Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
+			pluginErr := predicateManager.Filter(pod, nodeInfo, cycleState, false)
+			log.Log(log.Test).Info("reservation predicates called", zap.Error(err))
 			if tc.errorExpected {
-				assert.Assert(t, err != nil, "An error is expected")
+				assert.Assert(t, pluginErr != nil, "An error is expected")
 			} else {
-				assert.NilError(t, err, "No error expected")
+				assert.NilError(t, pluginErr, "No error expected")
 			}
 		})
 	}
@@ -2340,24 +2340,24 @@ func TestPreFilter(t *testing.T) {
 
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable), PreFilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			[]string{},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable), PreFilterReason: "Unschedulable"}},
 			},
 			[]string{},
-			nil, errors.New("unschedulable"),
+			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error), PreFilterReason: "PreFilter plugin \"mock-prefilter-plugin\" failed"}},
 			},
 			[]string{},
-			nil, errors.New("error"),
+			nil, errors.New("PreFilter plugin \"mock-prefilter-plugin\" failed"),
 		},
 	}
 	for _, tc := range testCases {
@@ -2401,6 +2401,9 @@ func TestPreFilter(t *testing.T) {
 				}
 				if tc.errorExpected != nil {
 					assert.Assert(t, filterErr != nil, "error should not be nil")
+					assert.Equal(t, filterErr.Error(), tc.errorExpected.Error(), "error should match")
+				} else {
+					assert.NilError(t, err, filterErr)
 				}
 			}
 		})
@@ -2441,21 +2444,21 @@ func TestFilter(t *testing.T) {
 		},
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable), FilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable), FilterReason: "Unschedulable"}},
 			},
-			nil, errors.New("unschedulable"),
+			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error), FilterReason: "Filter plugin \"mock-filter-plugin\" failed"}},
 			},
-			nil, errors.New("error"),
+			nil, errors.New("filter plugin \"mock-filter-plugin\" failed"),
 		},
 	}
 
@@ -2492,12 +2495,11 @@ func TestFilter(t *testing.T) {
 				}
 				nodeInfo := framework.NewNodeInfo()
 				nodeInfo.SetNode(node)
-				filter, err := p.Filter(tc.pod, nodeInfo, cycleState, allocate)
+				pluginErr := p.Filter(tc.pod, nodeInfo, cycleState, allocate)
 				if tc.errorExpected != nil {
-					assert.Assert(t, err != nil, "error should not be nil")
-					assert.Equal(t, filter, tc.filterPlugins[0].Name())
+					assert.Assert(t, pluginErr != nil, "error should not be nil")
 				} else {
-					assert.Equal(t, filter, "")
+					assert.NilError(t, pluginErr, "error should be nil")
 				}
 			}
 		})
