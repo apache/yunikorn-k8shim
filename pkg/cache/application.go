@@ -606,13 +606,13 @@ func (app *Application) onReserving() {
 				}
 				dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
 					fmt.Sprintf("%s: %s", constants.ApplicationPlaceholderCreateFailure, err.Error())))
-			} else {
-				if originator != nil {
-					events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
-						"PlaceholderCreateFailed", "Application %s placeholder creation failed, fall back to normal scheduling, reason: %s", app.applicationID, err.Error())
-				}
-				dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
+				return
 			}
+			if originator != nil {
+				events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+					"PlaceholderCreateFailed", "Application %s placeholder creation failed, fall back to normal scheduling, reason: %s", app.applicationID, err.Error())
+			}
+			dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 		}
 	}()
 }
