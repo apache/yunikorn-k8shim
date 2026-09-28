@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 1 // only ConfigMapInformer is started via explicit Run(); main factory informers are started via InformerFactory.Start()
+	noOfInformers = 2 // ConfigMapInformer and PriorityClassInformer are started via explicit Run(); main factory informers are started via InformerFactory.Start()
 )
 
 func TestWaitForSync(t *testing.T) {
