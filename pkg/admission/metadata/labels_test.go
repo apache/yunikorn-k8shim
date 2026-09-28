@@ -34,7 +34,7 @@ func TestGetLabelFromWorkload(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run("TestGetLabelsFromWorkload#"+testCase.kind, func(t *testing.T) {
 			req := getAdmissionRequest(t, testCase.obj, testCase.kind)
-			labels, supported, err := le.GetLabelsFromWorkload(req)
+			labels, supported, err := le.GetLabelsFromRequest(req, false)
 			assert.Assert(t, supported)
 			assert.NilError(t, err)
 			assert.Assert(t, labels != nil)
@@ -51,7 +51,7 @@ func TestGetLabelFromWorkloadFails(t *testing.T) {
 		t.Run("TestGetLabelFromWorkloadFails#"+testCase.kind, func(t *testing.T) {
 			req := getAdmissionRequest(t, nil, testCase.kind)
 			req.Object.Raw = []byte{0, 1, 2, 3, 4}
-			labels, supported, err := le.GetLabelsFromWorkload(req)
+			labels, supported, err := le.GetLabelsFromRequest(req, false)
 			assert.Assert(t, supported)
 			assert.ErrorContains(t, err, "invalid character")
 			assert.Assert(t, labels == nil)
@@ -66,7 +66,7 @@ func TestGetLabelFromUnknownObject(t *testing.T) {
 			Kind: "Unknown",
 		},
 	}
-	labels, supported, err := le.GetLabelsFromWorkload(req)
+	labels, supported, err := le.GetLabelsFromRequest(req, false)
 	assert.Check(t, labels == nil)
 	assert.Check(t, !supported)
 	assert.NilError(t, err)
@@ -76,7 +76,7 @@ func TestGetLabelFromInvalidObject(t *testing.T) {
 	req := getAdmissionRequest(t, nil, "Deployment")
 	req.Object.Raw = []byte{0, 1, 2, 3, 4}
 	le := &LabelExtractor{}
-	labels, supported, err := le.GetLabelsFromWorkload(req)
+	labels, supported, err := le.GetLabelsFromRequest(req, false)
 	assert.Check(t, labels == nil)
 	assert.Check(t, supported)
 	assert.ErrorContains(t, err, "invalid character")

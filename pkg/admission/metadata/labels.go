@@ -18,17 +18,23 @@
 
 package metadata
 
-import admissionv1 "k8s.io/api/admission/v1"
+import (
+	"errors"
+
+	admissionv1 "k8s.io/api/admission/v1"
+
+	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
+)
 
 type LabelExtractor struct{}
 
-func (l *LabelExtractor) GetLabelsFromWorkload(req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
-	extractFn, ok := extractors[req.Kind.Kind]
-	if !ok {
+// GetLabelsFromRequest loads the labels from the workload object, can handle create and update requests.
+func (l *LabelExtractor) GetLabelsFromRequest(req *admissionv1.AdmissionRequest, old bool) (map[string]string, bool, error) {
+	result, err := extractFromReq(req, old)
+	if errors.Is(err, common.ErrorUnsupportedKind) {
 		return nil, false, nil
 	}
-	result, err := extractFn(req)
-	if result == nil {
+	if err != nil {
 		return nil, true, err
 	}
 	return result.labels, true, err

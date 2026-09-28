@@ -84,8 +84,34 @@ func convert2Namespace(obj interface{}) *v1.Namespace {
 
 // changedAppID returns true if the application ID has changed in an update
 func changedAppID(oldPod, newPod *v1.Pod) bool {
-	oldID := utils.GetApplicationIDValue(oldPod)
-	newID := utils.GetApplicationIDValue(newPod)
+	oldID := getApplicationIDValue(oldPod.Labels, oldPod.Annotations)
+	newID := getApplicationIDValue(newPod.Labels, newPod.Annotations)
 
 	return oldID != newID
+}
+
+// getApplicationIDValue retrieves the application ID from the pod based on the predefined order
+// Application ID can be defined in multiple places
+// The application ID is determined by the following order.
+// 1. Label: constants.CanonicalLabelApplicationID
+// 2. Annotation: constants.AnnotationApplicationID
+// 3. Label: constants.LabelApplicationID
+// 4. Label: constants.SparkLabelAppID
+func getApplicationIDValue(labels, annotations map[string]string) string {
+	appID := labels[constants.CanonicalLabelApplicationID]
+
+	if appID == "" {
+		appID = annotations[constants.AnnotationApplicationID]
+	}
+	if appID == "" {
+		appID = labels[constants.LabelApplicationID]
+	}
+	if appID == "" {
+		appID = labels[constants.SparkLabelAppID]
+	}
+	return appID
+}
+
+func isScheduledByYuniKorn(pod *v1.Pod) bool {
+	return pod.Spec.SchedulerName == constants.SchedulerName
 }
