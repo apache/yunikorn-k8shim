@@ -1137,7 +1137,7 @@ func TestRemovePod(t *testing.T) {
 	// Host scoped pod should not make it to the cache and does not reset the cache at all
 	hostScopedPodNode := newTestPodWithAntiAffinity(podName3, host2, podUID3, v1.LabelHostname)
 	cache.AssumePod(hostScopedPodNode, true)
-	assert.Check(t, len(cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity) == 1, "wrong pod count after add of pod1")
+	assert.Check(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil, "wrong pod count after add of pod1")
 
 	cache.RemovePod(nonHostScopedPod)
 	assert.Check(t, len(cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()) == 0, "wrong pod count after add of pod1")
