@@ -758,13 +758,14 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	if targetNode == nil {
 		return ErrorNodeNotFound
 	}
-	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
-	defer ctx.schedulerCache.UnlockForReads()
+
 	cycleState := ctx.schedulerCache.GetCycleState(pod)
 	if cycleState == nil {
 		return ErrorCycleStateNotFound
 	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
 	err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
 	return err
 }
@@ -772,30 +773,46 @@ func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) *si.PreemptionPredicatesResponse {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	var pluginErrors map[string]int32
-	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
-		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			// need to lock cache here as predicates need a stable view into the cache
-			ctx.schedulerCache.LockForReads()
-			defer ctx.schedulerCache.UnlockForReads()
-			if cycleState := ctx.schedulerCache.GetCycleState(pod); cycleState != nil {
-				// look up each victim in the scheduler cache
-				victims := make([]*v1.Pod, len(allocations))
-				for index, uid := range allocations {
-					victim := ctx.schedulerCache.GetPodNoLock(uid)
-					victims[index] = victim
-				}
+	pluginErrors := make(map[string]int32)
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
+		pluginErrors[ErrorPodNotFound.Error()]++
+	}
+	targetNode := ctx.schedulerCache.GetNode(node)
+	if targetNode == nil {
+		pluginErrors[ErrorNodeNotFound.Error()]++
+	}
+	cycleState := ctx.schedulerCache.GetCycleState(pod)
+	if cycleState == nil {
+		pluginErrors[ErrorCycleStateNotFound.Error()]++
+	}
+	if len(pluginErrors) > 0 {
+		log.Log(log.ShimContext).Error("failed running Preemption filter plugin",
+			zap.String("pod", name),
+			zap.Any("pluginErrors", pluginErrors))
+		return &si.PreemptionPredicatesResponse{
+			Success:      false,
+			Index:        -1,
+			ErrorMessage: pluginErrors,
+		}
+	}
 
-				// check predicates for a match
-				var index int
-				if index, pluginErrors = ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
-					return &si.PreemptionPredicatesResponse{
-						Success: true,
-						Index:   int32(index), // nolint:gosec
-					}
-				}
-			}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+
+	// look up each victim in the scheduler cache
+	victims := make([]*v1.Pod, len(allocations))
+	for index, uid := range allocations {
+		victim := ctx.schedulerCache.GetPodNoLock(uid)
+		victims[index] = victim
+	}
+	// check predicates for a match
+	var index int
+	if index, pluginErrors = ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+		return &si.PreemptionPredicatesResponse{
+			Success: true,
+			Index:   int32(index), // nolint:gosec
 		}
 	}
 	return &si.PreemptionPredicatesResponse{
