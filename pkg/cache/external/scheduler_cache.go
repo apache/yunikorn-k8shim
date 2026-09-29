@@ -667,24 +667,29 @@ func (cache *SchedulerCache) updatePVCRefCounts(node *framework.NodeInfo, remove
 }
 
 func (cache *SchedulerCache) GetCycleState(pod *v1.Pod) *framework.CycleState {
+	if pod == nil {
+		return nil
+	}
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
 	return cache.podsCycleState[string(pod.UID)]
 }
 
 func (cache *SchedulerCache) StoreCycleState(pod *v1.Pod, cycleState *framework.CycleState) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
 	if pod == nil {
 		return
 	}
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
 	cache.podsCycleState[string(pod.UID)] = cycleState
 }
 
 func (cache *SchedulerCache) DeleteCycleState(pod *v1.Pod) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
 	if pod == nil {
 		return
 	}
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
 	delete(cache.podsCycleState, string(pod.UID))
 }
 
