@@ -414,7 +414,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 				cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 			}
 			if podWithRequiredNonHostScopedAntiAffinity(pod) {
-				cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity = nil
+				cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Store(nil)
 			}
 			cache.updatePVCRefCounts(nodeInfo, false)
 		}
