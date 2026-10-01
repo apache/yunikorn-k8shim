@@ -616,7 +616,8 @@ func TestPreemptionPredicates(t *testing.T) {
 
 	// pod not found
 	resp := callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, StartIndex: 0})
-	assert.Assert(t, !resp.Success, "response should have failed")
+	assert.Assert(t, !resp.GetSuccess(), "response should have failed")
+	assert.Assert(t, resp.GetErrorMessage()[ErrorPodNotFound.Error()] == 1, "incorrect plugin error")
 	assert.Assert(t, callback.context.schedulerCache.GetCycleState(&v1.Pod{ObjectMeta: apis.ObjectMeta{
 		Name: "unknown",
 		UID:  "unknown",
@@ -625,11 +626,13 @@ func TestPreemptionPredicates(t *testing.T) {
 
 	// pod found, node not found
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: "unknown", StartIndex: 0})
-	assert.Assert(t, !resp.Success, "response should have failed")
+	assert.Assert(t, !resp.GetSuccess(), "response should have failed")
+	assert.Assert(t, resp.GetErrorMessage()[ErrorNodeNotFound.Error()] == 1, "incorrect plugin error")
 
 	// both pod and node found, cycle state not found
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0})
-	assert.Assert(t, !resp.Success, "response should have failed")
+	assert.Assert(t, !resp.GetSuccess(), "response should have failed")
+	assert.Assert(t, resp.GetErrorMessage()[ErrorCycleStateNotFound.Error()] == 1, "incorrect plugin error")
 
 	// pod, node & cycle state found
 	results := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
@@ -722,8 +725,8 @@ func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *frame
 	return nil
 }
 
-func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) int {
-	return 0
+func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (int, map[string]int32) {
+	return 0, nil
 }
 
 func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
