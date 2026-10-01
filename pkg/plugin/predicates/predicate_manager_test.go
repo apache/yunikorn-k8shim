@@ -75,14 +75,30 @@ type injectedResult struct {
 	FilterReason    string               `json:"filterReason,omitempty"`
 }
 
+type MockPreFilterExtension struct {
+	failRemovePod bool
+}
+
+func (m *MockPreFilterExtension) AddPod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
+	return nil
+}
+
+func (m *MockPreFilterExtension) RemovePod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
+	if m.failRemovePod {
+		return fwk.NewStatus(fwk.Error, "mock error in RemovePod")
+	}
+	return nil
+}
+
 // MockPreFilterPlugin implements PreFilter interface.
 type MockPreFilterPlugin struct {
 	name string
 	inj  injectedResult
+	ext  fwk.PreFilterExtensions
 }
 
 func (pl *MockPreFilterPlugin) PreFilterExtensions() fwk.PreFilterExtensions {
-	return nil
+	return pl.ext
 }
 
 func (pl *MockPreFilterPlugin) Name() string {
@@ -268,6 +284,82 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	}
 	indexNonExistent := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
 	assert.Equal(t, indexNonExistent, -1, "PreemptionFilter should return -1 when victim removal fails")
+}
+
+func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
+	tests := []struct {
+		name            string
+		preFilterStatus fwk.Code
+		startIndex      int
+		wantIndex       int
+	}{
+		{
+			name:            "skipped prefilter plugin is bypassed and succeeds",
+			preFilterStatus: fwk.Skip,
+			startIndex:      0,
+			wantIndex:       0,
+		},
+		{
+			name:            "failing extension at predicate loop aborts preemption",
+			preFilterStatus: fwk.Success,
+			startIndex:      0,
+			wantIndex:       -1,
+		},
+		{
+			name:            "failing extension before startIndex aborts preemption",
+			preFilterStatus: fwk.Success,
+			startIndex:      1,
+			wantIndex:       -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pluginName := "mock-prefilter-ext-plugin"
+			mockPreFilter := &MockPreFilterPlugin{
+				name: pluginName,
+				inj:  injectedResult{PreFilterStatus: int(tt.preFilterStatus)},
+				ext:  &MockPreFilterExtension{failRemovePod: true},
+			}
+			mockFilter := &MockFilterPlugin{
+				name: "mock-filter",
+				inj:  injectedResult{FilterStatus: int(fwk.Success)},
+			}
+
+			r := make(runtime.Registry)
+			err := r.Register(pluginName, func(_ context.Context, _ runtime2.Object, _ fwk.Handle) (fwk.Plugin, error) {
+				return mockPreFilter, nil
+			})
+			assert.NilError(t, err)
+			err = r.Register("mock-filter", func(_ context.Context, _ runtime2.Object, _ fwk.Handle) (fwk.Plugin, error) {
+				return mockFilter, nil
+			})
+			assert.NilError(t, err)
+
+			eps := []string{pluginName, "mock-filter"}
+			config, err := prepareConfig(eps)
+			assert.NilError(t, err)
+			handle, _ := getFrameworkHandle()
+			p := newPredicateManagerInternal(handle, r, config, nil, map[string]bool{pluginName: true}, nil, map[string]bool{"mock-filter": true})
+
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod", UID: "pod-uid"}}
+			node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node"}}
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+
+			victim := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "victim", UID: "victim-uid"}}
+			nodeInfo.AddPod(victim)
+
+			_, cycleState, err := p.PreFilter(pod, true)
+			assert.NilError(t, err)
+			if tt.preFilterStatus == fwk.Skip {
+				assert.Assert(t, cycleState.GetSkipFilterPlugins().Has(pluginName), "plugin should be skipped")
+			}
+
+			idx := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, tt.startIndex)
+			assert.Equal(t, idx, tt.wantIndex)
+		})
+	}
 }
 
 func TestEventsToRegister(t *testing.T) {

@@ -190,7 +190,14 @@ func (p *predicateManagerImpl) removePod(ctx context.Context, node fwk.NodeInfo,
 	if err != nil {
 		return err
 	}
+	var skipPlugins sets.Set[string]
+	if state != nil {
+		skipPlugins = state.GetSkipFilterPlugins()
+	}
 	for _, pl := range *p.allocationPreFilters {
+		if skipPlugins.Has(pl.Name()) {
+			continue
+		}
 		if ext := pl.PreFilterExtensions(); ext != nil {
 			if status := ext.RemovePod(ctx, state, podToSchedule, podInfo, node); status != nil && !status.IsSuccess() {
 				log.Log(log.ShimPredicates).Debug("Failed to remove pod in prefilter extension",
