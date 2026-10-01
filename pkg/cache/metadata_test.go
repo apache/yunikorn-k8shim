@@ -356,3 +356,22 @@ func TestGetOwnerReferences(t *testing.T) {
 	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }
+
+func TestPlaceholderWithGangSchedulingDisabled(t *testing.T) {
+	previous := conf.GetSchedulerConf().DisableGangScheduling
+	conf.GetSchedulerConf().DisableGangScheduling = true
+	t.Cleanup(func() { conf.GetSchedulerConf().DisableGangScheduling = previous })
+	pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{
+		Name: "placeholder", Namespace: "default",
+		Labels: map[string]string{"applicationId": "app-placeholder"},
+		Annotations: map[string]string{
+			constants.AnnotationPlaceholderFlag: "true",
+			constants.AnnotationTaskGroupName:   "group",
+		},
+		OwnerReferences: []apis.OwnerReference{{Kind: "Pod"}},
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
+	meta, ok := getTaskMetadata(pod)
+	assert.Assert(t, ok)
+	assert.Equal(t, meta.TaskGroupName, "")
+	assert.Equal(t, meta.Placeholder, false)
+}
