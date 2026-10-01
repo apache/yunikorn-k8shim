@@ -30,7 +30,6 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -144,21 +143,17 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 		if req.Kind.Kind == metadata.Pod {
 			return c.processPodUpdate(req, namespace)
 		}
-
-		// resource types other than pods are ignored for UPDATE operations
-		return admissionResponseBuilder(string(req.UID), true, "", nil)
+		return c.processWorkloadUpdate(req, namespace)
 	}
 
 	if req.Kind.Kind == metadata.Pod {
 		return c.processPod(req, namespace)
 	}
-
 	return c.processWorkload(req, namespace)
 }
 
 func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
-	var patch []common.PatchOperation
-	var uid = string(req.UID)
+	uid := string(req.UID)
 
 	var pod v1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
@@ -193,6 +188,7 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 		return failureResponse
 	}
 
+	var patch []common.PatchOperation
 	if !userInfoSet && !c.conf.GetBypassAuth() {
 		log.Log(log.Admission).Info("setting user info metadata on pod")
 		patchOp, err := c.annotationHandler.GetPatchForPod(pod.Annotations, userName, groups)
@@ -224,16 +220,13 @@ func (c *AdmissionController) processPod(req *admissionv1.AdmissionRequest, name
 }
 
 func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
-	var uid = string(req.UID)
+	uid := string(req.UID)
 
 	if !c.shouldProcessWorkload(req) {
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
-	var supported bool
-	var err error
-	var labels map[string]string
-	labels, supported, err = c.labelExtractor.GetLabelsFromWorkload(req)
+	labels, supported, err := c.labelExtractor.GetLabelsFromRequest(req, false)
 	if !supported {
 		// Unknown request kind - pass
 		return admissionResponseBuilder(uid, true, "", nil)
@@ -241,20 +234,14 @@ func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest,
 	if err != nil {
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
+	// this cannot return unsupported or an error as we have already pulled the labels from the same object which
+	// extracts the exact same data returning a different piece.
+	annotations, _, _ := c.annotationHandler.GetAnnotationsFromRequest(req, false) //nolint: errcheck
 
-	if !c.shouldProcessAdmissionReview(namespace, labels) {
+	appID := getApplicationIDValue(labels, annotations)
+	if !c.shouldProcessAdmissionReview(namespace, appID) {
 		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
-	}
-
-	var annotations map[string]string
-	annotations, supported, err = c.annotationHandler.GetAnnotationsFromRequestKind(req)
-	if !supported {
-		// Unknown request kind - pass
-		return admissionResponseBuilder(uid, true, "", nil)
-	}
-	if err != nil {
-		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
 	userName := req.UserInfo.Username
@@ -268,13 +255,14 @@ func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest,
 	}
 
 	if !userInfoSet && !c.conf.GetBypassAuth() {
-		patch, err := c.annotationHandler.GetPatchForWorkload(req, userName, groups)
+		var patch *common.PatchOperation
+		patch, err = c.annotationHandler.GetPatchForWorkload(req, userName, groups)
 		if err != nil {
 			log.Log(log.Admission).Error("could not generate patch for workload", zap.Error(err))
 			return admissionResponseBuilder(uid, false, err.Error(), nil)
 		}
 
-		patchBytes, patchErr := json.Marshal(patch)
+		patchBytes, patchErr := json.Marshal([]common.PatchOperation{*patch})
 		if patchErr != nil {
 			log.Log(log.Admission).Error("failed to marshal patch", zap.Error(patchErr))
 			return admissionResponseBuilder(uid, false, patchErr.Error(), nil)
@@ -315,15 +303,18 @@ func (c *AdmissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 		log.Log(log.Admission).Info("Non YuniKorn pod in scheduler namespace", zap.String("UID", uid))
 	}
 
-	if !c.shouldProcessAdmissionReview(namespace, newPod.Labels) {
-		log.Log(log.Admission).Info("pod update - bypassing namespace", zap.String("namespace", namespace))
+	// schedulername can only be set on create if it is not YuniKorn when we get here we should not process it as
+	// the name was not patched
+	if !isScheduledByYuniKorn(&newPod) {
+		log.Log(log.Admission).Info("pod update - not scheduled by YuniKorn", zap.String("namespace", namespace))
 		return admissionResponseBuilder(uid, true, "", nil)
 	}
 
 	originalUserInfo := oldPod.Annotations[common.UserInfoAnnotation]
 	newUserInfo := newPod.Annotations[common.UserInfoAnnotation]
 
-	log.Log(log.Admission).Debug("checking original and new pod annotation", zap.String("original", originalUserInfo),
+	log.Log(log.Admission).Debug("checking original and new pod annotation",
+		zap.String("original", originalUserInfo),
 		zap.String("new", newUserInfo))
 
 	if originalUserInfo != newUserInfo {
@@ -338,9 +329,65 @@ func (c *AdmissionController) processPodUpdate(req *admissionv1.AdmissionRequest
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
-func (c *AdmissionController) shouldProcessAdmissionReview(namespace string, labels map[string]string) bool {
-	if c.shouldProcessNamespace(namespace) &&
-		(labels[constants.CanonicalLabelApplicationID] != "" || labels[constants.LabelApplicationID] != "" || labels[constants.SparkLabelAppID] != "" || c.shouldLabelNamespace(namespace)) {
+func (c *AdmissionController) processWorkloadUpdate(req *admissionv1.AdmissionRequest, namespace string) *admissionv1.AdmissionResponse {
+	var uid = string(req.UID)
+
+	if !c.shouldProcessWorkload(req) {
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+
+	labels, supported, err := c.labelExtractor.GetLabelsFromRequest(req, false)
+	if !supported {
+		// Unknown request kind - pass
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+	if err != nil {
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	var oldLabels map[string]string
+	oldLabels, supported, err = c.labelExtractor.GetLabelsFromRequest(req, true)
+	if !supported {
+		// Unknown request kind - pass
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+	if err != nil {
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	// these cannot fail as we have done both object earlier
+	annotations, _, _ := c.annotationHandler.GetAnnotationsFromRequest(req, false)   //nolint: errcheck
+	oldAnnotations, _, _ := c.annotationHandler.GetAnnotationsFromRequest(req, true) //nolint: errcheck
+	oldAppID := getApplicationIDValue(oldLabels, oldAnnotations)
+	newAppID := getApplicationIDValue(labels, annotations)
+	// This might look strange, but we just need to know if old or new appID are not empty.
+	// Both can be empty and the resulting pod could get a generated ID but if set it should be taken into account
+	if !c.shouldProcessAdmissionReview(namespace, oldAppID+newAppID) {
+		log.Log(log.Admission).Info("bypassing namespace", zap.String("namespace", namespace))
+		return admissionResponseBuilder(uid, true, "", nil)
+	}
+	originalUserInfo := oldAnnotations[common.UserInfoAnnotation]
+	newUserInfo := annotations[common.UserInfoAnnotation]
+
+	log.Log(log.Admission).Debug("checking original and new workload user annotations",
+		zap.String("original", originalUserInfo),
+		zap.String("new", newUserInfo))
+
+	if originalUserInfo != newUserInfo {
+		log.Log(log.Admission).Info("workload update - userinfo annotation change not allowed", zap.String("UID", uid))
+		return admissionResponseBuilder(uid, false, "user info annotation change is not allowed", nil)
+	}
+
+	if oldAppID != newAppID {
+		log.Log(log.Admission).Info("workload update - application ID change not allowed", zap.String("UID", uid))
+		return admissionResponseBuilder(uid, false, "applicationID change is not allowed", nil)
+	}
+
+	return admissionResponseBuilder(uid, true, "", nil)
+}
+
+func (c *AdmissionController) shouldProcessAdmissionReview(namespace string, appID string) bool {
+	if c.shouldProcessNamespace(namespace) && (appID != "" || c.shouldLabelNamespace(namespace)) {
 		return true
 	}
 
@@ -415,7 +462,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 
 	// check for an existing patch on annotations and update it
 	for _, p := range patch {
-		if p.Op == "add" && p.Path == "/metadata/annotations" {
+		if p.Op == "add" && p.Path == metadata.PodAnnotationsPath {
 			if annotations, ok := p.Value.(map[string]string); ok {
 				annotations[constants.AnnotationAllowPreemption] = value
 				return patch
@@ -426,7 +473,7 @@ func (c *AdmissionController) updatePreemptionInfo(pod *v1.Pod, patch []common.P
 	result := updatePodAnnotation(pod, constants.AnnotationAllowPreemption, value)
 	patch = append(patch, common.PatchOperation{
 		Op:    "add",
-		Path:  "/metadata/annotations",
+		Path:  metadata.PodAnnotationsPath,
 		Value: result,
 	})
 

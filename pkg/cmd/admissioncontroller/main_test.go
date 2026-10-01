@@ -16,26 +16,21 @@
  limitations under the License.
 */
 
-package metadata
+package main
 
 import (
-	"errors"
+	"crypto/tls"
+	"testing"
 
-	admissionv1 "k8s.io/api/admission/v1"
-
-	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
+	"gotest.tools/v3/assert"
 )
 
-type LabelExtractor struct{}
-
-// GetLabelsFromRequest loads the labels from the workload object, can handle create and update requests.
-func (l *LabelExtractor) GetLabelsFromRequest(req *admissionv1.AdmissionRequest, old bool) (map[string]string, bool, error) {
-	result, err := extractFromReq(req, old)
-	if errors.Is(err, common.ErrorUnsupportedKind) {
-		return nil, false, nil
+func TestWebhookStartupShutdownRace(t *testing.T) {
+	webhook := CreateWebhook(nil, 0)
+	for i := 0; i < 100; i++ {
+		webhook.Startup(&tls.Certificate{})
+		assert.Assert(t, webhook.server != nil, "startup must set the server")
+		webhook.Shutdown()
+		assert.Assert(t, webhook.server == nil, "shutdown must clear the server")
 	}
-	if err != nil {
-		return nil, true, err
-	}
-	return result.labels, true, err
 }

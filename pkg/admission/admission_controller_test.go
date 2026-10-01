@@ -28,16 +28,17 @@ import (
 	"testing"
 
 	"gotest.tools/v3/assert"
-
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authv1 "k8s.io/api/authentication/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/apache/yunikorn-k8shim/pkg/admission/common"
 	"github.com/apache/yunikorn-k8shim/pkg/admission/conf"
+	"github.com/apache/yunikorn-k8shim/pkg/admission/metadata"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	schedulerconf "github.com/apache/yunikorn-k8shim/pkg/conf"
 )
@@ -59,7 +60,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -96,7 +97,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -132,7 +133,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -171,7 +172,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -201,7 +202,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -229,7 +230,7 @@ func TestUpdateLabels(t *testing.T) {
 
 	pod = &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
+			Kind:       metadata.Pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{},
@@ -389,6 +390,10 @@ func prepareConfigMap(data string) *v1.ConfigMap {
 func prepareController(t *testing.T, url string, processNs string, bypassNs string, labelNs string, noLabelNs string, bypassAuth bool, trustControllers bool) *AdmissionController {
 	pcCache := createPriorityClassCacheForTest()
 	nsCache := createNamespaceClassCacheForTest()
+	nsCache.nameSpaces["disabled"] = nsFlags{
+		enableYuniKorn: FALSE,
+		generateAppID:  FALSE,
+	}
 	if bypassNs == "" {
 		bypassNs = "^kube-system$"
 	}
@@ -460,7 +465,7 @@ func TestMutateYuniKorn(t *testing.T) {
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: schedulerconf.GetSchedulerNamespace(),
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err := json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -486,7 +491,7 @@ func TestMutateYuniKorn(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -508,7 +513,7 @@ func TestMutatePod(t *testing.T) {
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err := json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -526,7 +531,7 @@ func TestMutatePod(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -553,7 +558,7 @@ func TestMutatePod(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "bypass",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -569,7 +574,7 @@ func TestMutatePod(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "nolabel",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -586,7 +591,7 @@ func TestMutatePod(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 	}
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
@@ -614,7 +619,7 @@ func TestMutateObject(t *testing.T) {
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Deployment"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Deployment},
 		UserInfo: authv1.UserInfo{
 			Username: "testExtUser",
 		},
@@ -662,7 +667,7 @@ func TestMutateObject(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "ReplicaSet"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.ReplicaSet},
 		UserInfo: authv1.UserInfo{
 			Username: "system:serviceaccount:kube-system:deployment-controller",
 			Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
@@ -691,7 +696,7 @@ func TestMutateUpdate(t *testing.T) {
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err := json.Marshal(pod)
@@ -708,7 +713,7 @@ func TestMutateUpdate(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "bypass",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -725,7 +730,7 @@ func TestMutateUpdate(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -753,7 +758,7 @@ func TestMutateUpdate(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -777,14 +782,14 @@ func TestMutateUser(t *testing.T) {
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace:   schedulerconf.GetSchedulerNamespace(),
 		Annotations: map[string]string{common.UserInfoAnnotation: validUserInfoAnnotation},
-	}}
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
 	oldPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: schedulerconf.GetSchedulerNamespace(),
-	}}
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: schedulerconf.GetSchedulerNamespace(),
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	// non yunikorn pod cannot change
@@ -825,11 +830,11 @@ func TestMutateAppID(t *testing.T) {
 	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "test-ns",
 		Labels:    map[string]string{constants.CanonicalLabelApplicationID: "app-1"},
-	}}
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err := json.Marshal(pod)
@@ -846,11 +851,11 @@ func TestMutateAppID(t *testing.T) {
 	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace:   "test-ns",
 		Annotations: map[string]string{constants.AnnotationApplicationID: "app-1"},
-	}}
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		Operation: admissionv1.Update,
 	}
 	podJSON, err = json.Marshal(pod)
@@ -862,6 +867,190 @@ func TestMutateAppID(t *testing.T) {
 	req.OldObject = runtime.RawExtension{Raw: podJSON}
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response allowed for appID mutation")
+
+	// app-1 pod adding canonical label overrides app annotation not scheduled by YuniKorn
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace:   "test-ns",
+		Annotations: map[string]string{constants.AnnotationApplicationID: "app-1"},
+	}, Spec: v1.PodSpec{SchedulerName: "default"}}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
+		Operation: admissionv1.Update,
+	}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	pod.Labels = map[string]string{constants.CanonicalLabelApplicationID: "app-2"}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.OldObject = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for appID mutation not scheduled by yunikorn")
+
+	// appID change for yunikorn scheduled pod not allowed
+	pod = v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test-ns",
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.Object = runtime.RawExtension{Raw: podJSON}
+	pod.Labels = map[string]string{constants.CanonicalLabelApplicationID: "app-2"}
+	podJSON, err = json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	req.OldObject = runtime.RawExtension{Raw: podJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response allowed for appID mutation scheduled by yunikorn")
+}
+
+func TestMutateUpdateObjectUnknown(t *testing.T) {
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{},
+		Data:       map[string][]byte{"mysecret": {1, 2, 3}},
+	}
+	secretJSON, err := json.Marshal(secret)
+	assert.NilError(t, err, "failed to marshal secret")
+	req := &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: "Secret"},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+		Operation: admissionv1.Update,
+	}
+	req.Object = runtime.RawExtension{Raw: secretJSON}
+	req.OldObject = runtime.RawExtension{Raw: secretJSON}
+	resp := ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for secret mutation")
+	job := &batchv1.Job{
+		Spec: batchv1.JobSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					SchedulerName: constants.SchedulerName,
+				},
+			},
+		},
+	}
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Job},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+		Operation: admissionv1.Update,
+	}
+	jobJSON, err := json.Marshal(job)
+	assert.NilError(t, err, "failed to marshal job")
+	req.Object = runtime.RawExtension{Raw: jobJSON}
+	req.OldObject = runtime.RawExtension{Raw: []byte{1, 2, 3}}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response allowed for corrupt job mutation")
+
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "disabled",
+		Kind:      metav1.GroupVersionKind{Kind: metadata.CronJob},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+		Operation: admissionv1.Update,
+	}
+	cronJob := &batchv1.CronJob{
+		Spec: batchv1.CronJobSpec{
+			JobTemplate: batchv1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							SchedulerName: "default",
+						},
+					},
+				},
+			},
+		},
+	}
+	cronJobJSON, err := json.Marshal(cronJob)
+	assert.NilError(t, err, "failed to marshal cronjob")
+	req.Object = runtime.RawExtension{Raw: cronJobJSON}
+	cronJob.Spec.JobTemplate.Spec.Template.Annotations = map[string]string{common.UserInfoAnnotation: "testExtUser"}
+	req.OldObject = runtime.RawExtension{Raw: cronJobJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response allowed for non yunikorn namespace")
+}
+
+func TestMutateUpdateObject(t *testing.T) {
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+
+	// nil request
+	resp := ac.mutate(nil)
+	assert.Check(t, !resp.Allowed, "response allowed with nil request")
+
+	deployment := &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						common.UserInfoAnnotation: validUserInfoAnnotation,
+					},
+				},
+			},
+		},
+	}
+	req := &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Deployment},
+		UserInfo: authv1.UserInfo{
+			Username: "testExtUser",
+		},
+		Operation: admissionv1.Update,
+	}
+	deploymentJSON, err := json.Marshal(deployment)
+	assert.NilError(t, err, "failed to marshal deployment")
+	req.Object = runtime.RawExtension{Raw: deploymentJSON}
+	req.OldObject = runtime.RawExtension{Raw: deploymentJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response not allowed for deployment")
+
+	// no user in old deployment
+	deployment.Spec.Template.Annotations = map[string]string{}
+	deploymentJSON, err = json.Marshal(deployment)
+	assert.NilError(t, err, "failed to marshal deployment")
+	req.OldObject = runtime.RawExtension{Raw: deploymentJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response allowed for deployment user change")
+
+	// appID in old deployment
+	deployment.Spec.Template.Annotations = map[string]string{common.UserInfoAnnotation: validUserInfoAnnotation}
+	deployment.Spec.Template.Labels = map[string]string{constants.CanonicalLabelApplicationID: "app-1"}
+	deploymentJSON, err = json.Marshal(deployment)
+	assert.NilError(t, err, "failed to marshal deployment")
+	req.OldObject = runtime.RawExtension{Raw: deploymentJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, !resp.Allowed, "response allowed for deployment appID change")
+
+	// update replicaset
+	req = &admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Namespace: "test-ns",
+		Kind:      metav1.GroupVersionKind{Kind: metadata.ReplicaSet},
+		UserInfo: authv1.UserInfo{
+			Username: "system:serviceaccount:kube-system:deployment-controller",
+			Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},
+		},
+		Operation: admissionv1.Update,
+	}
+	replSet := &appsv1.ReplicaSet{}
+	replSetJSON, err := json.Marshal(replSet)
+	assert.NilError(t, err, "failed to marshal replSet")
+	req.OldObject = runtime.RawExtension{Raw: replSetJSON}
+	req.Object = runtime.RawExtension{Raw: replSetJSON}
+	resp = ac.mutate(req)
+	assert.Check(t, resp.Allowed, "response allowed for replSet change")
 }
 
 func TestExternalAuthentication(t *testing.T) {
@@ -879,14 +1068,14 @@ func TestExternalAuthentication(t *testing.T) {
 	req := &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		UserInfo: authv1.UserInfo{
 			Username: "test",
 			Groups:   []string{"dev"},
 		},
 	}
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.Pod}
 	resp := ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "not allowed to set user annotation"))
@@ -895,14 +1084,14 @@ func TestExternalAuthentication(t *testing.T) {
 	req = &admissionv1.AdmissionRequest{
 		UID:       "test-uid",
 		Namespace: "test-ns",
-		Kind:      metav1.GroupVersionKind{Kind: "Pod"},
+		Kind:      metav1.GroupVersionKind{Kind: metadata.Pod},
 		UserInfo: authv1.UserInfo{
 			Username: "testExtUser",
 			Groups:   []string{"dev"},
 		},
 	}
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.Pod}
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed")
 
@@ -916,7 +1105,7 @@ func TestExternalAuthentication(t *testing.T) {
 	podJSON, err = json.Marshal(pod)
 	assert.NilError(t, err, "failed to marshal pod")
 	req.Object = runtime.RawExtension{Raw: podJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Pod"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.Pod}
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
 	assert.Check(t, strings.Contains(resp.Result.Message, "invalid character 'x'"))
@@ -937,7 +1126,7 @@ func TestExternalAuthentication(t *testing.T) {
 	deploymentJSON, err2 := json.Marshal(deployment)
 	assert.NilError(t, err2, "failed to marshal deployment")
 	req.Object = runtime.RawExtension{Raw: deploymentJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.Deployment}
 	resp = ac.mutate(req)
 	assert.Check(t, resp.Allowed, "response not allowed")
 
@@ -945,7 +1134,7 @@ func TestExternalAuthentication(t *testing.T) {
 	deployment.Spec.Template.Annotations[common.UserInfoAnnotation] = "xyzxyz"
 	deploymentJSON, err = json.Marshal(deployment)
 	req.Object = runtime.RawExtension{Raw: deploymentJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "Deployment"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.Deployment}
 	assert.NilError(t, err, "failed to marshal deployment")
 	resp = ac.mutate(req)
 	assert.Check(t, !resp.Allowed, "response was allowed")
@@ -967,7 +1156,7 @@ func TestExternalAuthentication(t *testing.T) {
 	replicaSetJSON, err3 := json.Marshal(replicaSet)
 	assert.NilError(t, err3, "failed to marshal replicaset")
 	req.Object = runtime.RawExtension{Raw: replicaSetJSON}
-	req.Kind = metav1.GroupVersionKind{Kind: "ReplicaSet"}
+	req.Kind = metav1.GroupVersionKind{Kind: metadata.ReplicaSet}
 	req.UserInfo = authv1.UserInfo{
 		Username: "system:serviceaccount:kube-system:deployment-controller",
 		Groups:   []string{"system:serviceaccounts", "system:serviceaccounts:kube-system"},

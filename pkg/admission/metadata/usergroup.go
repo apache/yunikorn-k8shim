@@ -20,6 +20,7 @@ package metadata
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"go.uber.org/zap"
@@ -45,6 +46,7 @@ func NewUserGroupAnnotationHandler(conf *conf.AdmissionControllerConf) *UserGrou
 const (
 	defaultPodAnnotationsPath = "/spec/template/metadata/annotations"
 	cronJobPodAnnotationsPath = "/spec/jobTemplate/spec/template/metadata/annotations"
+	PodAnnotationsPath        = "/metadata/annotations"
 )
 
 func (u *UserGroupAnnotationHandler) IsAnnotationAllowed(userName string, groups []string) bool {
@@ -93,24 +95,19 @@ func (u *UserGroupAnnotationHandler) IsAnnotationValid(userInfoAnnotation string
 	return nil
 }
 
-func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequestKind(req *admissionv1.AdmissionRequest) (map[string]string, bool, error) {
-	extractFn, ok := extractors[req.Kind.Kind]
-	if !ok {
+func (u *UserGroupAnnotationHandler) GetAnnotationsFromRequest(req *admissionv1.AdmissionRequest, old bool) (map[string]string, bool, error) {
+	result, err := extractFromReq(req, old)
+	if errors.Is(err, common.ErrorUnsupportedKind) {
 		return nil, false, nil
 	}
-	result, err := extractFn(req)
-	if result == nil {
+	if err != nil {
 		return nil, true, err
 	}
 	return result.annotations, true, err
 }
 
-func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.AdmissionRequest, user string, groups []string) ([]common.PatchOperation, error) {
-	extractFn, ok := extractors[req.Kind.Kind]
-	if !ok {
-		return nil, nil
-	}
-	result, err := extractFn(req)
+func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.AdmissionRequest, user string, groups []string) (*common.PatchOperation, error) {
+	result, err := getResultFromRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -119,15 +116,11 @@ func (u *UserGroupAnnotationHandler) GetPatchForWorkload(req *admissionv1.Admiss
 	if patchErr != nil {
 		return nil, patchErr
 	}
-
-	patch := make([]common.PatchOperation, 1)
-	patch[0] = *patchOp
-
-	return patch, nil
+	return patchOp, nil
 }
 
 func (u *UserGroupAnnotationHandler) GetPatchForPod(annotations map[string]string, user string, groups []string) (*common.PatchOperation, error) {
-	patchOp, err := u.getPatchOperation(annotations, "/metadata/annotations", user, groups)
+	patchOp, err := u.getPatchOperation(annotations, PodAnnotationsPath, user, groups)
 	if err != nil {
 		return nil, err
 	}
