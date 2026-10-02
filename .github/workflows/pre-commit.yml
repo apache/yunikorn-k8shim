@@ -33,6 +33,10 @@ jobs:
         run: make check_scripts
       - name: Unit tests
         run: make test
+      - name: Verify generated Queue API artifacts
+        run: make verify-generated
+      - name: Queue operator envtests
+        run: make test-envtest
       - name: Code coverage
         uses: codecov/codecov-action@v5
         with:
@@ -81,6 +85,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-e2e-
       - run: ./scripts/run-e2e-tests.sh -a "test" -n "yk8s" -v "kindest/node:${KIND_NODE_IMAGE}"
+        env:
+          KIND_NODE_IMAGE: ${{ matrix.k8s }}
+      - name: Run Queue operator lifecycle tests
+        if: ${{ matrix.k8s == 'v1.37.0' }}
+        run: |
+          make stop-cluster CLUSTER_NAME=yk8s
+          make kind-qop-e2e CLUSTER_NAME=yk8s-queue-operator K8S_VERSION=${KIND_NODE_IMAGE}
         env:
           KIND_NODE_IMAGE: ${{ matrix.k8s }}
       - name: Upload artifacts

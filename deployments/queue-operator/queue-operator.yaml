@@ -1,0 +1,196 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: yunikorn-queue-operator-webhook-ca
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yunikorn-queue-operator-webhook
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+spec:
+  selector:
+    app: yunikorn
+    component: yunikorn-queue-operator
+  ports:
+    - name: webhook
+      port: 443
+      targetPort: webhook
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+webhooks:
+  - name: vqueue.yunikorn.apache.org
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: yunikorn-queue-operator-webhook
+        namespace: yunikorn
+        path: /validate-yunikorn-apache-org-v1alpha1-queue
+        port: 443
+    # Keep Queue admission fail closed while the operator initializes trust and
+    # its serving endpoint. PKI maintenance does not depend on Queue writes.
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    rules:
+      - apiGroups:
+          - yunikorn.apache.org
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - queues
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: yunikorn
+      component: yunikorn-queue-operator
+  template:
+    metadata:
+      labels:
+        app: yunikorn
+        component: yunikorn-queue-operator
+      name: yunikorn-queue-operator
+    spec:
+      serviceAccountName: yunikorn-queue-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: yunikorn-queue-operator
+          image: apache/yunikorn:queue-operator-amd64-latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect
+            - --webhook-enabled
+            - --webhook-cert-path=/var/run/yunikorn/webhook-certs
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=0
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Namespace where the yunikorn-configs ConfigMap lives. The
+            # operator will create/update the ConfigMap in this namespace.
+            - name: TARGET_NAMESPACE
+              value: yunikorn
+            # Optional: name of the YuniKorn partition to graft the queues
+            # under. Defaults to "default".
+            - name: PARTITION_NAME
+              value: default
+            # Optional partition-level node sorting policy. The value may be a
+            # policy name or a YAML object with type and resourceweights.
+            # - name: NODE_SORT_POLICY
+            #   value: binpacking
+            # Optional YAML string-to-string map for generated root properties.
+            # - name: ROOT_PROPERTIES
+            #   value: |
+            #     application.sort.policy: fair
+          ports:
+            - containerPort: 9443
+              name: webhook
+            - containerPort: 8081
+              name: health
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /var/run/yunikorn/webhook-certs
+      volumes:
+        - name: webhook-certs
+          emptyDir:
+            medium: Memory
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: yunikorn
+              component: yunikorn-queue-operator
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: yunikorn-queue-operator
+  labels:
+    app: yunikorn
+    component: yunikorn-queue-operator
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: yunikorn
+      component: yunikorn-queue-operator
