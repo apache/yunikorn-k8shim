@@ -94,7 +94,7 @@ const (
 )
 
 var (
-	testGroups = []string{"dev", "yunikorn"}
+	testGroups = []string{"dev", yunikorn}
 )
 
 func initContextForTest() *Context {
@@ -116,7 +116,7 @@ func setVolumeBinder(ctx *Context, binder volumebinding.SchedulerVolumeBinder) {
 func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPhase v1.PodPhase) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -154,7 +154,7 @@ func TestAddNodes(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -186,7 +186,7 @@ func TestUpdateNodes(t *testing.T) {
 	oldNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 		Status: v1.NodeStatus{
@@ -200,7 +200,7 @@ func TestUpdateNodes(t *testing.T) {
 	newNode := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 		Status: v1.NodeStatus{
@@ -235,7 +235,7 @@ func TestAddCordonedNodeDoesNotEnable(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 		Spec: v1.NodeSpec{
@@ -272,7 +272,7 @@ func TestUpdateNodeSchedulability(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -335,7 +335,7 @@ func TestDeleteNodes(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -450,7 +450,7 @@ func TestAddPod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -460,11 +460,11 @@ func TestAddPod(t *testing.T) {
 				constants.AnnotationApplicationID: appID1,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -474,7 +474,7 @@ func TestAddPod(t *testing.T) {
 				constants.AnnotationApplicationID: appID2,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 		Status: v1.PodStatus{
 			Phase: v1.PodSucceeded,
 		},
@@ -494,7 +494,7 @@ func TestAddForeignPod(t *testing.T) {
 	context := initContextForTest()
 	foreign := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -502,7 +502,7 @@ func TestAddForeignPod(t *testing.T) {
 			UID:  podForeignUID,
 		},
 		Spec: v1.PodSpec{
-			SchedulerName: "default",
+			SchedulerName: Default,
 		},
 	}
 	context.AddPod(foreign)
@@ -519,7 +519,7 @@ func TestUpdatePod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -530,11 +530,11 @@ func TestUpdatePod(t *testing.T) {
 				"test.state":                      "new",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -545,11 +545,11 @@ func TestUpdatePod(t *testing.T) {
 				"test.state":                      "updated",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -560,7 +560,7 @@ func TestUpdatePod(t *testing.T) {
 				"test.state":                      "updated",
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 		Status: v1.PodStatus{
 			Phase: v1.PodSucceeded,
 		},
@@ -603,7 +603,7 @@ func TestUpdateSchedulingGates(t *testing.T) {
 	defer events.SetRecorder(events.NewMockedRecorder())
 	pod4 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -614,7 +614,7 @@ func TestUpdateSchedulingGates(t *testing.T) {
 			},
 		},
 		Spec: v1.PodSpec{
-			SchedulerName: "yunikorn",
+			SchedulerName: yunikorn,
 			SchedulingGates: []v1.PodSchedulingGate{
 				{Name: "gate1"},
 				{Name: "gate2"},
@@ -668,7 +668,7 @@ func TestDeletePod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -678,11 +678,11 @@ func TestDeletePod(t *testing.T) {
 				constants.AnnotationApplicationID: appID1,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -692,7 +692,7 @@ func TestDeletePod(t *testing.T) {
 				constants.AnnotationApplicationID: appID2,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 
 	context.AddPod(pod1)
@@ -1210,7 +1210,7 @@ func TestGetTask(t *testing.T) {
 	context.applications[appID3] = app3
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1220,7 +1220,7 @@ func TestGetTask(t *testing.T) {
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1302,7 +1302,7 @@ func TestNodeEventPublishedCorrectly(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -1361,7 +1361,7 @@ func TestFilteredEventsNotPublished(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -1673,18 +1673,18 @@ func TestGetStateDump(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
-			Namespace: "default",
+			Namespace: Default,
 			Name:      appID1,
 			UID:       uid1,
 			Annotations: map[string]string{
 				constants.AnnotationApplicationID: appID1,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 	context.AddPod(pod1)
 
@@ -1806,7 +1806,7 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	}
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1854,12 +1854,12 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 func TestGetExistingAllocation(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name:      "pod00001",
-			Namespace: "default",
+			Namespace: Default,
 			UID:       "UID-POD-00001",
 			Labels: map[string]string{
 				"applicationId": appID1,
@@ -1935,7 +1935,7 @@ func TestInitializeState(t *testing.T) {
 	podLister.AddPod(foreignRunning)
 
 	// add a pending yunikorn-managed pod
-	pending := newPodHelper("pending", "default", podName1, "", appID1, v1.PodPending)
+	pending := newPodHelper("pending", Default, podName1, "", appID1, v1.PodPending)
 	pending.Spec.Containers = []v1.Container{{
 		Resources: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -1948,7 +1948,7 @@ func TestInitializeState(t *testing.T) {
 	podLister.AddPod(pending)
 
 	// add a running yunikorn-managed pod
-	running := newPodHelper("running", "default", podName2, nodeName1, appID2, v1.PodRunning)
+	running := newPodHelper("running", Default, podName2, nodeName1, appID2, v1.PodRunning)
 	running.Spec.Containers = []v1.Container{{
 		Resources: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -1960,7 +1960,7 @@ func TestInitializeState(t *testing.T) {
 	podLister.AddPod(running)
 
 	// add an orphaned yunikorn-managed pod
-	orphaned := newPodHelper("running", "default", podName3, nodeName2, appID3, v1.PodRunning)
+	orphaned := newPodHelper("running", Default, podName3, nodeName2, appID3, v1.PodRunning)
 	orphaned.Spec.Containers = []v1.Container{{
 		Resources: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -1971,7 +1971,7 @@ func TestInitializeState(t *testing.T) {
 	}}
 	podLister.AddPod(orphaned)
 	// add an orphan foreign pod
-	orphanForeign := newPodHelper(podForeignName, "default", podForeignUID, nodeName2, "", v1.PodRunning)
+	orphanForeign := newPodHelper(podForeignName, Default, podForeignUID, nodeName2, "", v1.PodRunning)
 	orphanForeign.Spec.SchedulerName = ""
 	podLister.AddPod(orphanForeign)
 
@@ -2078,7 +2078,7 @@ func TestPodAdoption(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host1,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -2166,7 +2166,7 @@ func TestOrphanPodDelete(t *testing.T) {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      Host2,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -2364,7 +2364,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	blockOwnerDeletion := true
 	ref := apis.OwnerReference{
 		APIVersion:         "v1",
-		Kind:               "Pod",
+		Kind:               pod,
 		Name:               "originator-01",
 		UID:                uid1,
 		Controller:         &controller,
@@ -2375,7 +2375,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	// Real driver pod
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2386,13 +2386,13 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 				"queue":         queueNameA,
 			},
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 
 	// Placeholder pod 1
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2407,13 +2407,13 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 			},
 			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 
 	// Placeholder pod 1
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2428,7 +2428,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 			},
 			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
 		},
-		Spec: v1.PodSpec{SchedulerName: "yunikorn"},
+		Spec: v1.PodSpec{SchedulerName: yunikorn},
 	}
 
 	// Add the ph pods first and then real driver pod at the last
@@ -2472,7 +2472,7 @@ func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
 	node := v1.Node{
 		ObjectMeta: apis.ObjectMeta{
 			Name:      fakeNodeName,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 	}
@@ -2578,7 +2578,7 @@ func nodeForTest(nodeID, memory, cpu string) *v1.Node {
 		},
 		ObjectMeta: apis.ObjectMeta{
 			Name:      nodeID,
-			Namespace: "default",
+			Namespace: Default,
 			UID:       uid1,
 		},
 		Spec: v1.NodeSpec{},
@@ -2602,7 +2602,7 @@ func foreignPod(podName, memory, cpu string) *v1.Pod {
 
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       "Pod",
+			Kind:       pod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2714,11 +2714,11 @@ func TestTerminatedOrphanedForeignPodNotAdopted(t *testing.T) {
 			// 1. Add two foreign pods assigned to Host1 before Host1 is added:
 			//    - pod 1: will terminate while orphaned
 			//    - pod 2: remains running (live control)
-			deadPod := newPodHelper("dead-foreign-pod", "default", uid1, Host1, "", v1.PodRunning)
+			deadPod := newPodHelper("dead-foreign-pod", Default, uid1, Host1, "", v1.PodRunning)
 			deadPod.Spec.SchedulerName = "default-scheduler"
 			context.AddPod(deadPod)
 
-			livePod := newPodHelper("live-foreign-pod", "default", uid2, Host1, "", v1.PodRunning)
+			livePod := newPodHelper("live-foreign-pod", Default, uid2, Host1, "", v1.PodRunning)
 			livePod.Spec.SchedulerName = "default-scheduler"
 			context.AddPod(livePod)
 
@@ -2745,7 +2745,7 @@ func TestTerminatedOrphanedForeignPodNotAdopted(t *testing.T) {
 			node := v1.Node{
 				ObjectMeta: apis.ObjectMeta{
 					Name:      Host1,
-					Namespace: "default",
+					Namespace: Default,
 					UID:       uid1,
 				},
 				Status: v1.NodeStatus{

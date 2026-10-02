@@ -77,6 +77,8 @@ const (
 	ReplicaSet  = "ReplicaSet"
 	Job         = "Job"
 	CronJob     = "CronJob"
+	cpu         = "cpu"
+	memory      = "memory"
 )
 
 var fw *portforward.PortForwarder
