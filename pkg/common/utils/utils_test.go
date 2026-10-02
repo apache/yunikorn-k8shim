@@ -1113,42 +1113,55 @@ func TestGetTaskGroupFromPodSpec(t *testing.T) {
 }
 
 func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
-	testCases := []struct {
-		description             string
-		pod                     *v1.Pod
-		expectedPlaceholderFlag bool
+	controller := true
+	nonController := false
+	tests := []struct {
+		name   string
+		flag   string
+		group  string
+		owners []metav1.OwnerReference
+		want   bool
 	}{
-		{"Setting by annotation", &v1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "pod-01",
-				UID:  "UID-01",
-				Annotations: map[string]string{
-					constants.AnnotationPlaceholderFlag: "true",
-				},
-			},
-		}, true},
-		{"Pod without placeholder annotation", &v1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "pod-01",
-				UID:  "UID-01",
-			},
-		}, false},
+		{"valid", "true", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, true},
+		{"controller omitted", "true", "group", []metav1.OwnerReference{{Kind: "Pod"}}, true},
+		{"missing flag", "", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"false flag", "false", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"invalid flag", "invalid", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"missing task group", "true", "", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"missing owner", "true", "group", nil, false},
+		{"multiple owners", "true", "group", []metav1.OwnerReference{{Kind: "Pod"}, {Kind: "Pod"}}, false},
+		{"non pod owner", "true", "group", []metav1.OwnerReference{{Kind: "ReplicaSet"}}, false},
+		{"controller owner", "true", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &controller}}, false},
 	}
-
-	for _, tc := range testCases {
-		t.Run(tc.description, func(t *testing.T) {
-			placeHolderFlag := GetPlaceholderFlagFromPodSpec(tc.pod)
-			assert.Equal(t, placeHolderFlag, tc.expectedPlaceholderFlag)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: tt.flag,
+					constants.AnnotationTaskGroupName:   tt.group,
+					constants.AnnotationTaskGroups:      "[]",
+				},
+				OwnerReferences: tt.owners,
+			}}
+			original := pod.DeepCopy()
+			assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), tt.want)
+			assert.DeepEqual(t, pod, original)
 		})
 	}
+}
+
+func TestGetPlaceholderFlagWithGangSchedulingDisabled(t *testing.T) {
+	previous := conf.GetSchedulerConf().DisableGangScheduling
+	conf.GetSchedulerConf().DisableGangScheduling = true
+	t.Cleanup(func() { conf.GetSchedulerConf().DisableGangScheduling = previous })
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Annotations: map[string]string{
+			constants.AnnotationPlaceholderFlag: "true",
+			constants.AnnotationTaskGroupName:   "group",
+		},
+		OwnerReferences: []metav1.OwnerReference{{Kind: "Pod"}},
+	}}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), false)
 }
 
 func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {

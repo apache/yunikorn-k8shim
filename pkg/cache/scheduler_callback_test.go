@@ -772,6 +772,8 @@ func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCall
 	}
 	if placeholder {
 		pod.Annotations[constants.AnnotationPlaceholderFlag] = constants.True
+		pod.Annotations[constants.AnnotationTaskGroupName] = "test-group-1"
+		pod.OwnerReferences = []apis.OwnerReference{{Kind: "Pod", Name: "originator", UID: "originator-uid"}}
 	}
 	context.AddPod(pod)
 	task := context.getTask(appID, taskUID1)
