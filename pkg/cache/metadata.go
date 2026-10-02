@@ -54,7 +54,7 @@ func getTaskMetadata(pod *v1.Pod) (TaskMetadata, bool) {
 		ApplicationID: appID,
 		TaskID:        string(pod.UID),
 		Pod:           pod,
-		Placeholder:   placeholder && taskGroupName != "",
+		Placeholder:   placeholder,
 		TaskGroupName: taskGroupName,
 	}, true
 }

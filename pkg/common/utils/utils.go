@@ -416,9 +416,13 @@ func GetTaskGroupFromPodSpec(pod *v1.Pod) string {
 
 // GetPlaceholderFlagFromPodSpec validates the placeholder annotation against the
 // task group and the single, non-controller Pod owner used by generated placeholders.
+// Placeholders are ignored when gang scheduling is disabled.
 // Invalid flags are ignored without changing the pod. These structural checks do
 // not authenticate the owner: user-supplied metadata can still imitate a placeholder.
 func GetPlaceholderFlagFromPodSpec(pod *v1.Pod) bool {
+	if conf.GetSchedulerConf().DisableGangScheduling {
+		return false
+	}
 	if GetTaskGroupFromPodSpec(pod) == "" || len(pod.OwnerReferences) != 1 {
 		return false
 	}

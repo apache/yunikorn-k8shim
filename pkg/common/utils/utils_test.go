@@ -1150,6 +1150,20 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 	}
 }
 
+func TestGetPlaceholderFlagWithGangSchedulingDisabled(t *testing.T) {
+	previous := conf.GetSchedulerConf().DisableGangScheduling
+	conf.GetSchedulerConf().DisableGangScheduling = true
+	t.Cleanup(func() { conf.GetSchedulerConf().DisableGangScheduling = previous })
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Annotations: map[string]string{
+			constants.AnnotationPlaceholderFlag: "true",
+			constants.AnnotationTaskGroupName:   "group",
+		},
+		OwnerReferences: []metav1.OwnerReference{{Kind: "Pod"}},
+	}}
+	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), false)
+}
+
 func TestGetCoreSchedulerConfigFromConfigMap(t *testing.T) {
 	// case: mapping
 	cm := map[string]string{
