@@ -73,6 +73,9 @@ type Application struct {
 
 const transitionErr = "no transition"
 
+// a guard callback that calls event.Cancel() deliberately drops the event, it is not a failure
+const canceledErr = "transition canceled"
+
 // String is called from paths that already hold the application lock, so it must stay
 // lock-free. It reads only fields fixed at construction plus the state machine, which
 // guards its own current state.
@@ -134,7 +137,7 @@ func (app *Application) runTransition(ev events.ApplicationEvent) (*Context, err
 		removeFrom = app.context
 	}
 	// handle the same state transition not nil error (limit of fsm).
-	if err != nil && err.Error() != transitionErr {
+	if err != nil && err.Error() != transitionErr && !strings.HasPrefix(err.Error(), canceledErr) {
 		return removeFrom, err
 	}
 	return removeFrom, nil
@@ -674,6 +677,24 @@ func (app *Application) handleCompleteApplicationEvent() {
 	go func() {
 		getPlaceholderManager().cleanUp(app)
 	}()
+}
+
+// hasActiveTasks reports whether any task is still in a non-terminal state.
+// No locking, must be called while holding the application lock.
+func (app *Application) hasActiveTasks() bool {
+	for _, task := range app.taskMap {
+		terminated := false
+		for _, state := range TaskStates().Terminated {
+			if task.GetTaskState() == state {
+				terminated = true
+				break
+			}
+		}
+		if !terminated {
+			return true
+		}
+	}
+	return false
 }
 
 func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
