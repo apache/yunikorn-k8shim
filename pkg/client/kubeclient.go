@@ -172,7 +172,7 @@ func (nc SchedulerKubeClient) Get(podNamespace string, podName string) (*v1.Pod,
 	return pod, nil
 }
 
-func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
+func (nc SchedulerKubeClient) UpdateStatus(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	var updatedPod *v1.Pod
 	var updateErr error
 	newPodStatus := pod.Status
@@ -181,14 +181,14 @@ func (nc SchedulerKubeClient) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Pod before attempting status update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the API server
-		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, apis.GetOptions{})
+		latestPod, getErr := nc.clientSet.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, apis.GetOptions{})
 		if getErr != nil {
 			log.Log(log.ShimClient).Warn("failed to get latest version of Pod",
 				zap.Error(getErr))
 		}
 		latestPod.Status = newPodStatus
 
-		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(context.Background(), latestPod, apis.UpdateOptions{}); updateErr != nil {
+		if updatedPod, updateErr = nc.clientSet.CoreV1().Pods(pod.Namespace).UpdateStatus(ctx, latestPod, apis.UpdateOptions{}); updateErr != nil {
 			log.Log(log.ShimClient).Warn("failed to update pod status",
 				zap.String("namespace", pod.Namespace),
 				zap.String("podName", pod.Name),

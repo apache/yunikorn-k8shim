@@ -697,6 +697,34 @@ func TestUpdateContainerSchedulingState(t *testing.T) {
 	assert.Equal(t, TaskSchedFailed, task.GetTaskSchedulingState())
 }
 
+func TestUpdateContainerSchedulingStatePassesStopCtx(t *testing.T) {
+	_, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	cancelCtx, cancel := ctx.WithCancel(ctx.Background())
+	cancel()
+	callback := NewAsyncRMCallback(context, cancelCtx)
+
+	var updateCtx ctx.Context
+	apiProvider, ok := context.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok)
+	apiProvider.MockUpdateStatusFn(func(c ctx.Context, pod *v1.Pod) (*v1.Pod, error) {
+		updateCtx = c
+		return pod, c.Err()
+	})
+	context.getTask(appID, taskUID1).sm.SetState(TaskStates().Scheduling)
+
+	callback.UpdateContainerSchedulingState(&si.UpdateContainerSchedulingStateRequest{
+		State:         si.UpdateContainerSchedulingStateRequest_FAILED,
+		ApplicationID: appID,
+		AllocationKey: taskUID1,
+	})
+
+	assert.Assert(t, updateCtx != nil, "pod status update was not attempted")
+	assert.ErrorIs(t, updateCtx.Err(), ctx.Canceled)
+}
+
 func TestCallbackGetStateDump(t *testing.T) {
 	callback, _ := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()

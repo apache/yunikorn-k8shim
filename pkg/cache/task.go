@@ -196,7 +196,7 @@ func (task *Task) DeleteTaskPod() error {
 }
 
 func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
-	return task.context.apiProvider.GetAPIs().KubeClient.UpdateStatus(pod)
+	return task.context.apiProvider.GetAPIs().KubeClient.UpdateStatus(context.Background(), pod)
 }
 
 func (task *Task) isTerminated() bool {
