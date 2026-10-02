@@ -199,10 +199,6 @@ func (task *Task) UpdateTaskPodStatus(pod *v1.Pod) (*v1.Pod, error) {
 	return task.context.apiProvider.GetAPIs().KubeClient.UpdateStatus(pod)
 }
 
-func (task *Task) UpdateTaskPod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error) {
-	return task.context.apiProvider.GetAPIs().KubeClient.UpdatePod(pod, podMutator)
-}
-
 func (task *Task) isTerminated() bool {
 	for _, states := range TaskStates().Terminated {
 		if task.GetTaskState() == states {
