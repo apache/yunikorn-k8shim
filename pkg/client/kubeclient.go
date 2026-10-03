@@ -197,6 +197,10 @@ func (nc SchedulerKubeClient) UpdateStatus(ctx context.Context, pod *v1.Pod) (*v
 		}
 		return nil
 	})
+	// RetryOnConflict reports a cancelled context as success when no conflict preceded it
+	if retryErr == nil {
+		retryErr = updateErr
+	}
 	if retryErr != nil {
 		log.Log(log.ShimClient).Error("Update pod status failed",
 			zap.String("namespace", pod.Namespace),
