@@ -76,18 +76,21 @@ type injectedResult struct {
 }
 
 type MockPreFilterExtension struct {
-	failRemovePod bool
+	removePodStatus map[string]*fwk.Status
 }
 
 func (m *MockPreFilterExtension) AddPod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
 	return nil
 }
 
-func (m *MockPreFilterExtension) RemovePod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
-	if m.failRemovePod {
-		return fwk.NewStatus(fwk.Error, "mock error in RemovePod")
+func (m *MockPreFilterExtension) RemovePod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, podInfo fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
+	if podInfo == nil || podInfo.GetPod() == nil {
+		return nil
 	}
-	return nil
+	if status, ok := m.removePodStatus[string(podInfo.GetPod().UID)]; ok {
+		return status
+	}
+	return fwk.NewStatus(fwk.Success)
 }
 
 // MockPreFilterPlugin implements PreFilter interface.
@@ -200,27 +203,18 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 
 	nodeName := "preemption-node"
 	node := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nodeName,
-			Labels: map[string]string{
-				v1.LabelHostname: nodeName,
-			},
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: nodeName, Labels: map[string]string{v1.LabelHostname: nodeName}},
 	}
-
 	victim := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "victim",
-			UID:       "victim-pod-uid",
-			Namespace: defaultNS,
-			Labels:    map[string]string{"app": "conflict"},
-		},
-		Spec: v1.PodSpec{
-			NodeName: nodeName,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim", UID: "victim-pod-uid", Namespace: defaultNS, Labels: map[string]string{"app": "conflict"}},
+		Spec:       v1.PodSpec{NodeName: nodeName},
+	}
+	resourceVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "resource-victim", UID: "resource-victim-uid", Namespace: defaultNS},
+		Spec:       v1.PodSpec{NodeName: nodeName},
 	}
 
-	nodeInfo := framework.NewNodeInfo(victim)
+	nodeInfo := framework.NewNodeInfo(victim, resourceVictim)
 	nodeInfo.SetNode(node)
 	lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
 
@@ -255,7 +249,7 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	_, cycleState, err := predicateManager.PreFilter(pod, true)
 	assert.NilError(t, err)
 
-	// Direct Filter check should fail because victim exists on node0
+	// Direct Filter check should fail because victim exists on the node
 	filterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
 	assert.Assert(t, filterErr != nil, "Filter should fail due to anti-affinity conflict")
 
@@ -268,9 +262,6 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	assert.Assert(t, originalFilterErr != nil, "Original cycleState should remain unmodified")
 
 	// PreemptionFilter with startIndex > 0 (earlier resource victims removed)
-	resourceVictim := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "resource-victim", UID: "resource-victim-uid", Namespace: defaultNS},
-	}
 	indexStartIndex := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{resourceVictim, victim}, 1)
 	assert.Equal(t, indexStartIndex, 1, "PreemptionFilter should succeed with startIndex > 0")
 
@@ -278,12 +269,40 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	indexNil := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nil, victim}, 0)
 	assert.Equal(t, indexNil, 1, "PreemptionFilter should skip nil victims safely")
 
-	// PreemptionFilter with non-existent victim (triggers RemovePod error path safely)
+	// PreemptionFilter with non-existent victim (safely tolerated without crashing or aborting, succeeds once conflicting victim is removed)
 	nonExistentVictim := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "non-existent-victim", UID: "non-existent-victim-uid", Namespace: defaultNS},
 	}
-	indexNonExistent := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
-	assert.Equal(t, indexNonExistent, -1, "PreemptionFilter should return -1 when victim removal fails")
+	indexNonExistent := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim, victim}, 0)
+	assert.Equal(t, indexNonExistent, 1, "PreemptionFilter should tolerate non-existent victim and succeed at index 1")
+
+	// PreemptionFilter with only non-existent victim fails because conflicting victim remains on node
+	indexUnresolved := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
+	assert.Equal(t, indexUnresolved, -1, "PreemptionFilter should return -1 as conflicting victim is not removed")
+
+	// PreemptionFilter with malformed victim (NewPodInfo error aborts preemption safely)
+	malformedVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "malformed-victim", UID: "malformed-victim-uid", Namespace: defaultNS},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{Key: "app", Operator: "InvalidOperator"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	nodeInfo.AddPod(malformedVictim)
+	indexMalformed := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{malformedVictim, victim}, 0)
+	assert.Equal(t, indexMalformed, -1, "PreemptionFilter should return -1 when victim NewPodInfo fails")
 }
 
 func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
@@ -291,25 +310,36 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 		name            string
 		preFilterStatus fwk.Code
 		startIndex      int
+		nodeVictims     []string
 		wantIndex       int
 	}{
 		{
 			name:            "skipped prefilter plugin is bypassed and succeeds",
 			preFilterStatus: fwk.Skip,
 			startIndex:      0,
+			nodeVictims:     []string{"victim0", "victim1"},
 			wantIndex:       0,
 		},
 		{
 			name:            "failing extension at predicate loop aborts preemption",
 			preFilterStatus: fwk.Success,
 			startIndex:      0,
+			nodeVictims:     []string{"victim0", "victim1"},
 			wantIndex:       -1,
 		},
 		{
 			name:            "failing extension before startIndex aborts preemption",
 			preFilterStatus: fwk.Success,
 			startIndex:      1,
+			nodeVictims:     []string{"victim0", "victim1"},
 			wantIndex:       -1,
+		},
+		{
+			name:            "failing extension on non-existent victim is ignored when node.RemovePod fails",
+			preFilterStatus: fwk.Success,
+			startIndex:      1,
+			nodeVictims:     []string{"victim1"},
+			wantIndex:       1,
 		},
 	}
 
@@ -319,7 +349,11 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 			mockPreFilter := &MockPreFilterPlugin{
 				name: pluginName,
 				inj:  injectedResult{PreFilterStatus: int(tt.preFilterStatus)},
-				ext:  &MockPreFilterExtension{failRemovePod: true},
+				ext: &MockPreFilterExtension{
+					removePodStatus: map[string]*fwk.Status{
+						"victim0-uid": fwk.NewStatus(fwk.Error, "mock error in RemovePod"),
+					},
+				},
 			}
 			mockFilter := &MockFilterPlugin{
 				name: "mock-filter",
@@ -347,8 +381,13 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(node)
 
-			victim := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "victim", UID: "victim-uid"}}
-			nodeInfo.AddPod(victim)
+			allVictims := map[string]*v1.Pod{
+				"victim0": {ObjectMeta: metav1.ObjectMeta{Name: "victim0", UID: "victim0-uid"}},
+				"victim1": {ObjectMeta: metav1.ObjectMeta{Name: "victim1", UID: "victim1-uid"}},
+			}
+			for _, name := range tt.nodeVictims {
+				nodeInfo.AddPod(allVictims[name])
+			}
 
 			_, cycleState, err := p.PreFilter(pod, true)
 			assert.NilError(t, err)
@@ -356,7 +395,7 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 				assert.Assert(t, cycleState.GetSkipFilterPlugins().Has(pluginName), "plugin should be skipped")
 			}
 
-			idx := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, tt.startIndex)
+			idx := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{allVictims["victim0"], allVictims["victim1"]}, tt.startIndex)
 			assert.Equal(t, idx, tt.wantIndex)
 		})
 	}
