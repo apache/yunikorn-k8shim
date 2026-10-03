@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -37,7 +38,7 @@ type KubeClientMock struct {
 	bindFn         func(pod *v1.Pod, hostID string) error
 	deleteFn       func(pod *v1.Pod) error
 	createFn       func(pod *v1.Pod) (*v1.Pod, error)
-	updateStatusFn func(pod *v1.Pod) (*v1.Pod, error)
+	updateStatusFn func(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 	getFn          func(podName string) (*v1.Pod, error)
 	clientSet      kubernetes.Interface
 	pods           map[string]*v1.Pod
@@ -79,7 +80,7 @@ func NewKubeClientMock(err bool) *KubeClientMock {
 				zap.String("PodName", pod.Name))
 			return pod, nil
 		},
-		updateStatusFn: func(pod *v1.Pod) (*v1.Pod, error) {
+		updateStatusFn: func(_ context.Context, pod *v1.Pod) (*v1.Pod, error) {
 			if err {
 				return pod, fmt.Errorf("error updating pod status")
 			}
@@ -156,11 +157,11 @@ func (c *KubeClientMock) Create(pod *v1.Pod) (*v1.Pod, error) {
 	return c.createFn(pod)
 }
 
-func (c *KubeClientMock) UpdateStatus(pod *v1.Pod) (*v1.Pod, error) {
+func (c *KubeClientMock) UpdateStatus(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.pods[getPodKey(pod)] = pod
-	return c.updateStatusFn(pod)
+	return c.updateStatusFn(ctx, pod)
 }
 
 func (c *KubeClientMock) Get(podNamespace string, podName string) (*v1.Pod, error) {
