@@ -49,7 +49,7 @@ const (
 	GroupsUsagePath   = "ws/v1/partition/%s/usage/groups"
 	HealthCheckPath   = "ws/v1/scheduler/healthcheck"
 	ValidateConfPath  = "ws/v1/validate-conf"
-	FullStateDumpPath = "ws/v1/fullstatedump"
+	FullStateDumpPath = "debug/fullstatedump"
 
 	// YuniKorn Service Details
 	DefaultYuniKornHost   = "localhost"
