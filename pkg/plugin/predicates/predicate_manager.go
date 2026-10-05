@@ -139,15 +139,26 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	// clone node so that we can modify it here for predicate checks
 	preemptingNode := node.Snapshot()
 
+	stateCopy := framework.NewCycleState()
+	if cycleState != nil {
+		if cs, ok := cycleState.Clone().(*framework.CycleState); ok {
+			stateCopy = cs
+		}
+	}
+
 	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
 	for i := 0; i < startIndex && i < len(victims); i++ {
-		p.removePodFromNodeNoFail(preemptingNode, victims[i])
+		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
+			return -1
+		}
 	}
 
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
-		p.removePodFromNodeNoFail(preemptingNode, victims[i])
-		status := p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, preemptingNode)
+		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
+			return -1
+		}
+		status := p.runFilterPlugins(ctx, *p.allocationFilters, stateCopy, pod, preemptingNode)
 		if status.IsSuccess() {
 			return i
 		}
@@ -160,17 +171,39 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	return -1
 }
 
-func (p *predicateManagerImpl) removePodFromNodeNoFail(node fwk.NodeInfo, pod *v1.Pod) {
-	if pod == nil {
-		return
+func (p *predicateManagerImpl) removePod(ctx context.Context, node fwk.NodeInfo, state *framework.CycleState, podToSchedule *v1.Pod, victim *v1.Pod) error {
+	if victim == nil {
+		return nil
 	}
-	if err := node.RemovePod(p.klogger, pod); err != nil {
-		// annoyingly, RemovePod() throws an error if the pod is gone; just log at debug and continue
+	if err := node.RemovePod(p.klogger, victim); err != nil {
 		log.Log(log.ShimPredicates).Debug("Failed to remove pod from nodeInfo during preemption check",
-			zap.String("podUID", string(pod.UID)),
-			zap.String("nodeID", node.Node().Name),
+			zap.String("podUID", string(victim.UID)),
 			zap.Error(err))
+		return nil
 	}
+	podInfo, err := framework.NewPodInfo(victim)
+	if err != nil {
+		return err
+	}
+	var skipPlugins sets.Set[string]
+	if state != nil {
+		skipPlugins = state.GetSkipFilterPlugins()
+	}
+	for _, pl := range *p.allocationPreFilters {
+		if skipPlugins.Has(pl.Name()) {
+			continue
+		}
+		if ext := pl.PreFilterExtensions(); ext != nil {
+			if status := ext.RemovePod(ctx, state, podToSchedule, podInfo, node); !status.IsSuccess() {
+				log.Log(log.ShimPredicates).Debug("Failed to remove pod in prefilter extension",
+					zap.String("plugin", pl.Name()),
+					zap.String("podUID", string(victim.UID)),
+					zap.String("status", status.Message()))
+				return status.AsError()
+			}
+		}
+	}
+	return nil
 }
 
 func (p *predicateManagerImpl) PreFilter(pod *v1.Pod, allocate bool) (map[string]*si.Empty, *framework.CycleState, error) {
