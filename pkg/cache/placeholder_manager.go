@@ -79,6 +79,9 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 		tgCounts[ph.GetTaskGroupName()]++
 	}
 
+	// pods created in this attempt; rolled back if a later create fails (tasks may not be in taskMap yet)
+	var createdPods []*v1.Pod
+
 	// iterate all task groups, create placeholders for all the min members
 	for _, tg := range app.getTaskGroups() {
 		count := tgCounts[tg.Name]
@@ -91,14 +94,49 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 			if err != nil {
 				log.Log(log.ShimCachePlaceholder).Error("failed to create placeholder pod",
 					zap.Error(err))
+				mgr.deletePlaceholderPods(createdPods)
 				return err
 			}
 			log.Log(log.ShimCachePlaceholder).Info("placeholder created",
 				zap.Stringer("placeholder", placeholder))
+			createdPods = append(createdPods, placeholder.pod)
 		}
 	}
 
 	return nil
+}
+
+// deletePlaceholderPods removes placeholder pods from the cluster. Caller must hold mgr lock.
+func (mgr *PlaceholderManager) deletePlaceholderPods(pods []*v1.Pod) {
+	for _, pod := range pods {
+		mgr.deletePlaceholderPodLocked(pod)
+	}
+}
+
+// DeletePlaceholderPod removes a placeholder pod from the cluster (e.g. late informer after create failure).
+func (mgr *PlaceholderManager) DeletePlaceholderPod(pod *v1.Pod) {
+	if pod == nil {
+		return
+	}
+	mgr.Lock()
+	defer mgr.Unlock()
+	mgr.deletePlaceholderPodLocked(pod)
+}
+
+func (mgr *PlaceholderManager) deletePlaceholderPodLocked(pod *v1.Pod) {
+	err := mgr.clients.KubeClient.Delete(pod)
+	if err != nil {
+		log.Log(log.ShimCachePlaceholder).Warn("failed to delete placeholder pod",
+			zap.String("podName", pod.Name),
+			zap.Error(err))
+		if !strings.Contains(err.Error(), "not found") {
+			mgr.orphanPods[string(pod.UID)] = pod
+		}
+		return
+	}
+	log.Log(log.ShimCachePlaceholder).Info("placeholder pod deleted",
+		zap.String("namespace", pod.Namespace),
+		zap.String("podName", pod.Name))
 }
 
 // clean up all the placeholders for an application
@@ -108,15 +146,7 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 	log.Log(log.ShimCachePlaceholder).Info("start to clean up app placeholders",
 		zap.String("appID", app.GetApplicationID()))
 	for _, task := range app.GetPlaceHolderTasks() {
-		// remove pod
-		err := mgr.clients.KubeClient.Delete(task.GetTaskPod())
-		if err != nil {
-			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
-				zap.Error(err))
-			if !strings.Contains(err.Error(), "not found") {
-				mgr.orphanPods[task.GetTaskID()] = task.GetTaskPod()
-			}
-		}
+		mgr.deletePlaceholderPodLocked(task.GetTaskPod())
 	}
 	log.Log(log.ShimCachePlaceholder).Info("finished cleaning up app placeholders",
 		zap.String("appID", app.GetApplicationID()))

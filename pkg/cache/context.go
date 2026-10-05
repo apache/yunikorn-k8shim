@@ -1157,6 +1157,18 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
 		existingTask := app.GetTask(request.Metadata.TaskID)
 		if existingTask == nil {
+			if request.Metadata.Placeholder && rejectLatePlaceholderTask(app.GetApplicationState()) {
+				log.Log(log.ShimContext).Info("rejecting late placeholder pod for application",
+					zap.String("appID", app.applicationID),
+					zap.String("appState", app.GetApplicationState()),
+					zap.String("taskID", request.Metadata.TaskID))
+				if request.Metadata.Pod != nil {
+					pod := request.Metadata.Pod.DeepCopy()
+					go getPlaceholderManager().DeletePlaceholderPod(pod)
+				}
+				return nil
+			}
+
 			var originator bool
 
 			// Is this task the originator of the application?
@@ -1875,4 +1887,22 @@ func convertToNode(obj interface{}) (*v1.Node, error) {
 		return node, nil
 	}
 	return nil, fmt.Errorf("cannot convert to *v1.Node: %v", obj)
+}
+
+// rejectLatePlaceholderTask returns true when a placeholder pod should not be tracked because
+// the application has already left gang reservation (e.g. after create failure or normal progression).
+func rejectLatePlaceholderTask(appState string) bool {
+	switch appState {
+	case ApplicationStates().Running,
+		ApplicationStates().Resuming,
+		ApplicationStates().Failing,
+		ApplicationStates().Failed,
+		ApplicationStates().Rejected,
+		ApplicationStates().Completed,
+		ApplicationStates().Killing,
+		ApplicationStates().Killed:
+		return true
+	default:
+		return false
+	}
 }
