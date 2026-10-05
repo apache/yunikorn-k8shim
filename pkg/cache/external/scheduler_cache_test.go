@@ -1019,7 +1019,7 @@ func TestForgetBoundPod(t *testing.T) {
 	assert.Equal(t, len(cache.GetNode(host1).Pods), 1, "bound pod is not added to the node")
 }
 
-// newTestNode returns a node with a name of host1 and enough capacity for the test pods
+// newTestNode returns a node with the given name, namespace, uid and enough capacity for the test pods
 func newTestNode(name, namespace string, uid types.UID) *v1.Node {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	resourceList[v1.ResourceName("memory")] = *resource.NewQuantity(1024*1000*1000, resource.DecimalSI)
@@ -1039,7 +1039,7 @@ func newTestNode(name, namespace string, uid types.UID) *v1.Node {
 	}
 }
 
-// newTestPod returns an unassigned pod with a name of podName1
+// newTestPod returns an unassigned pod with the given name and uid
 func newTestPod(name string, uid types.UID) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
