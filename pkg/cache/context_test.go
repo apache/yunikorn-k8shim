@@ -2404,6 +2404,8 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 			},
 			Annotations: map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
+				constants.AnnotationTaskGroupName:   "test-group-1",
+				constants.AnnotationTaskGroups:      taskGroupInfo,
 			},
 			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
 		},
@@ -2425,6 +2427,8 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 			},
 			Annotations: map[string]string{
 				constants.AnnotationPlaceholderFlag: "true",
+				constants.AnnotationTaskGroupName:   "test-group-1",
+				constants.AnnotationTaskGroups:      taskGroupInfo,
 			},
 			OwnerReferences: ownerRefs, // Add owner references because every ph reuse the app placeholder owner references.
 		},
@@ -2777,4 +2781,38 @@ func TestContextStop(t *testing.T) {
 
 	context.Stop()
 	assert.Assert(t, context.resourceSliceTracker == nil)
+}
+
+func TestOriginatorWithInvalidPlaceholderFlag(t *testing.T) {
+	for _, group := range []string{"", "test-group-1"} {
+		t.Run("task group="+group, func(t *testing.T) {
+			context := initContextForTest()
+			pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{
+				Name: "originator", Namespace: "default", UID: uid1,
+				Labels: map[string]string{"applicationId": "app-originator", "queue": queueNameA},
+				Annotations: map[string]string{
+					constants.AnnotationPlaceholderFlag: "true",
+					constants.AnnotationTaskGroupName:   group,
+					constants.AnnotationTaskGroups:      taskGroupInfo,
+				},
+				OwnerReferences: []apis.OwnerReference{{Kind: "Job", Name: "job", UID: "job-uid"}},
+			}, Spec: v1.PodSpec{SchedulerName: "yunikorn"}}
+			context.AddPod(pod)
+			app := context.getApplication("app-originator")
+			assert.Assert(t, app != nil)
+			originator := app.GetOriginatingTask()
+			assert.Assert(t, originator != nil)
+			assert.Equal(t, originator.taskID, string(uid1))
+			assert.Equal(t, originator.IsPlaceholder(), false)
+			holder := newPlaceholder("placeholder", app, app.taskGroups[0])
+			assert.DeepEqual(t, holder.pod.OwnerReferences, getOwnerReference(pod))
+			assert.Equal(t, utils.GetPlaceholderFlagFromPodSpec(holder.pod), true)
+			allocation := getExistingAllocation(pod)
+			assert.Assert(t, allocation != nil)
+			assert.Equal(t, allocation.Placeholder, false)
+			allocation = getExistingAllocation(holder.pod)
+			assert.Assert(t, allocation != nil)
+			assert.Equal(t, allocation.Placeholder, true)
+		})
+	}
 }
