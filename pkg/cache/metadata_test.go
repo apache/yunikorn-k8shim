@@ -367,7 +367,7 @@ func TestPlaceholderClassificationWithGangScheduling(t *testing.T) {
 			constants.AnnotationPlaceholderFlag: "true",
 			constants.AnnotationTaskGroupName:   "group",
 		},
-		OwnerReferences: []apis.OwnerReference{{Kind: "Pod", Name: "originator", UID: "originator-uid"}},
+		OwnerReferences: getOwnerReference(&v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "originator", UID: "originator-uid"}}),
 	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName, NodeName: "node-1"}}
 	original := pod.DeepCopy()
 	for _, disabled := range []bool{false, true} {

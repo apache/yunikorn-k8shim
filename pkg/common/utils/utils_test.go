@@ -1123,14 +1123,14 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 		want   bool
 	}{
 		{"valid", "true", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, true},
-		{"controller omitted", "true", "group", []metav1.OwnerReference{{Kind: "Pod"}}, true},
-		{"missing flag", "", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
-		{"false flag", "false", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
-		{"invalid flag", "invalid", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
-		{"missing task group", "true", "", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"controller omitted", "true", "group", []metav1.OwnerReference{{Kind: "Pod"}}, false},
+		{"missing flag", "", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, false},
+		{"false flag", "false", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, false},
+		{"invalid flag", "invalid", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, false},
+		{"missing task group", "true", "", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}}, false},
 		{"missing owner", "true", "group", nil, false},
-		{"multiple owners", "true", "group", []metav1.OwnerReference{{Kind: "Pod"}, {Kind: "Pod"}}, false},
-		{"non pod owner", "true", "group", []metav1.OwnerReference{{Kind: "ReplicaSet"}}, false},
+		{"multiple owners", "true", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}, {Kind: "Pod", Controller: &nonController}}, false},
+		{"non pod owner", "true", "group", []metav1.OwnerReference{{Kind: "ReplicaSet", Controller: &nonController}}, false},
 		{"controller owner", "true", "group", []metav1.OwnerReference{{Kind: "Pod", Controller: &controller}}, false},
 	}
 	for _, tt := range tests {
@@ -1151,6 +1151,7 @@ func TestGetPlaceholderFlagFromPodSpec(t *testing.T) {
 }
 
 func TestGetPlaceholderFlagWithGangSchedulingDisabled(t *testing.T) {
+	nonController := false
 	previous := conf.GetSchedulerConf().DisableGangScheduling
 	conf.GetSchedulerConf().DisableGangScheduling = true
 	t.Cleanup(func() { conf.GetSchedulerConf().DisableGangScheduling = previous })
@@ -1159,7 +1160,7 @@ func TestGetPlaceholderFlagWithGangSchedulingDisabled(t *testing.T) {
 			constants.AnnotationPlaceholderFlag: "true",
 			constants.AnnotationTaskGroupName:   "group",
 		},
-		OwnerReferences: []metav1.OwnerReference{{Kind: "Pod"}},
+		OwnerReferences: []metav1.OwnerReference{{Kind: "Pod", Controller: &nonController}},
 	}}
 	assert.Equal(t, GetPlaceholderFlagFromPodSpec(pod), false)
 }
