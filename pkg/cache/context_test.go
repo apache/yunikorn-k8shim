@@ -116,7 +116,7 @@ func setVolumeBinder(ctx *Context, binder volumebinding.SchedulerVolumeBinder) {
 func newPodHelper(name, namespace, podUID, nodeName string, appID string, podPhase v1.PodPhase) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -450,7 +450,7 @@ func TestAddPod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -464,7 +464,7 @@ func TestAddPod(t *testing.T) {
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -494,7 +494,7 @@ func TestAddForeignPod(t *testing.T) {
 	context := initContextForTest()
 	foreign := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -519,7 +519,7 @@ func TestUpdatePod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -534,7 +534,7 @@ func TestUpdatePod(t *testing.T) {
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -549,7 +549,7 @@ func TestUpdatePod(t *testing.T) {
 	}
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -603,7 +603,7 @@ func TestUpdateSchedulingGates(t *testing.T) {
 	defer events.SetRecorder(events.NewMockedRecorder())
 	pod4 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -668,7 +668,7 @@ func TestDeletePod(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -682,7 +682,7 @@ func TestDeletePod(t *testing.T) {
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1210,7 +1210,7 @@ func TestGetTask(t *testing.T) {
 	context.applications[appID3] = app3
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1220,7 +1220,7 @@ func TestGetTask(t *testing.T) {
 	}
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1673,7 +1673,7 @@ func TestGetStateDump(t *testing.T) {
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1806,7 +1806,7 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	}
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -1854,7 +1854,7 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 func TestGetExistingAllocation(t *testing.T) {
 	pod := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2364,7 +2364,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	blockOwnerDeletion := true
 	ref := apis.OwnerReference{
 		APIVersion:         "v1",
-		Kind:               pod,
+		Kind:               kindPod,
 		Name:               "originator-01",
 		UID:                uid1,
 		Controller:         &controller,
@@ -2375,7 +2375,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	// Real driver pod
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2392,7 +2392,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	// Placeholder pod 1
 	pod2 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2415,7 +2415,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 	// Placeholder pod 1
 	pod3 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{
@@ -2606,7 +2606,7 @@ func foreignPod(podName, memory, cpu string) *v1.Pod {
 
 	return &v1.Pod{
 		TypeMeta: apis.TypeMeta{
-			Kind:       pod,
+			Kind:       kindPod,
 			APIVersion: "v1",
 		},
 		ObjectMeta: apis.ObjectMeta{

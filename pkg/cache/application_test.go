@@ -51,6 +51,7 @@ const (
 	yunikorn    = "yunikorn"
 	container01 = "container-01"
 	pod         = "pod-test-00001"
+	kindPod     = "Pod"
 	task01      = "task01"
 	task02      = "task02"
 	testGroup1  = "test-group-1"
