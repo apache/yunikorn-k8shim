@@ -27,7 +27,7 @@ const (
 	TaskSchedAllocated
 )
 
-var taskSchedulingStateNames = []string{"Pending", "Skipped", "Failed", "Allocated"}
+var taskSchedulingStateNames = []string{"Pending", "Skipped", Failed, "Allocated"}
 
 func (tss TaskSchedulingState) String() string {
 	return taskSchedulingStateNames[tss]
