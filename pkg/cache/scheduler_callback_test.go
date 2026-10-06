@@ -156,7 +156,10 @@ func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "placeholder task has not transitioned to Failed state")
 	// FailWithEvent emits a Warning/"AssumePodError" event; afterTaskFail emits a Normal/"TaskFailed" event.
-	assert.Equal(t, 2, len(recorder.Events), "expected two K8s events to be recorded")
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 2
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected two K8s events to be recorded, got %d", len(recorder.Events))
 	assumePodErrorFound := false
 	for i := 0; i < 2; i++ {
 		event := <-recorder.Events
@@ -374,7 +377,10 @@ func TestUpdateApplication_Rejected(t *testing.T) {
 		return app.sm.Current() == ApplicationStates().Failed
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "application has not transitioned to Failed state")
-	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 1
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected one K8s event to be recorded, got %d", len(recorder.Events))
 	event := <-recorder.Events
 	assert.Assert(t, strings.Contains(event, "test failure"), "event does not contain 'test failure': %s", event)
 }
@@ -489,7 +495,10 @@ func testUpdateApplicationFailure(t *testing.T, state string) {
 		return app.sm.Current() == ApplicationStates().Failing
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "application has not transitioned to %s state", state)
-	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 1
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected one K8s event to be recorded, got %d", len(recorder.Events))
 	event := <-recorder.Events
 	assert.Assert(t, strings.Contains(event, "test failure"), "event does not contain 'test failure': %s", event)
 }
