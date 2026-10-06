@@ -1837,17 +1837,17 @@ func TestCtxUpdatePodCondition(t *testing.T) {
 	})
 
 	// task state is not Scheduling
-	updated := context.updatePodCondition(task, &condition)
+	updated := context.updatePodCondition(t.Context(), task, &condition)
 	assert.Equal(t, false, updated)
 
 	// no update
 	task.sm.SetState(TaskStates().Scheduling)
-	updated = context.updatePodCondition(task, &condition)
+	updated = context.updatePodCondition(t.Context(), task, &condition)
 	assert.Equal(t, false, updated)
 
 	// update status
 	condition.Status = v1.ConditionFalse
-	updated = context.updatePodCondition(task, &condition)
+	updated = context.updatePodCondition(t.Context(), task, &condition)
 	assert.Equal(t, true, updated)
 }
 
