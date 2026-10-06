@@ -138,6 +138,18 @@ func (cache *SchedulerCache) GetNodesInfoPodsWithReqAntiAffinity() []fwk.NodeInf
 	return nodeList
 }
 
+// invalidateAffinityLists drops the cached affinity node lists only when a node crosses the
+// boundary between holding zero and some pods with (anti-)affinity: membership of the lists is
+// "which nodes have such a pod", so adding or removing a non-first/non-last pod leaves it unchanged.
+func (cache *SchedulerCache) invalidateAffinityLists(nodeInfo *framework.NodeInfo, affinityBefore, antiAffinityBefore int) {
+	if (affinityBefore == 0) != (len(nodeInfo.PodsWithAffinity) == 0) {
+		cache.nodesInfoPodsWithAffinity.Store(nil)
+	}
+	if (antiAffinityBefore == 0) != (len(nodeInfo.PodsWithRequiredAntiAffinity) == 0) {
+		cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
+	}
+}
+
 func (cache *SchedulerCache) LockForReads() {
 	cache.lock.RLock()
 }
@@ -198,8 +210,8 @@ func (cache *SchedulerCache) updateNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 		nodeInfo.SetNode(node)
 	}
 
-	cache.nodesInfoPodsWithAffinity.Store(nil)
-	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
+	// affinity lists only depend on pod membership: adopted pods are handled by updatePod and
+	// SetNode does not change which pods a node holds, so there is nothing to invalidate here
 	cache.updatePVCRefCounts(nodeInfo, false)
 
 	return prevNode, adopted
@@ -250,8 +262,13 @@ func (cache *SchedulerCache) removeNode(node *v1.Node) (*v1.Node, []*v1.Pod) {
 	log.Log(log.ShimCacheExternal).Debug("Removing node from cache", zap.String("nodeName", node.Name))
 	delete(cache.nodesMap, node.Name)
 	cache.nodesInfo.Store(nil)
-	cache.nodesInfoPodsWithAffinity.Store(nil)
-	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
+	// the node drops out of the cached lists only if it actually held affinity pods
+	if len(nodeInfo.PodsWithAffinity) > 0 {
+		cache.nodesInfoPodsWithAffinity.Store(nil)
+	}
+	if len(nodeInfo.PodsWithRequiredAntiAffinity) > 0 {
+		cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
+	}
 	cache.updatePVCRefCounts(nodeInfo, true)
 
 	return result, orphans
@@ -340,6 +357,8 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 		if ok {
 			nodeInfo, ok := cache.nodesMap[nodeName]
 			if ok {
+				affinityBefore := len(nodeInfo.PodsWithAffinity)
+				antiAffinityBefore := len(nodeInfo.PodsWithRequiredAntiAffinity)
 				if err := nodeInfo.RemovePod(cache.klogger, currState); err != nil {
 					log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 						zap.String("podName", currState.Name),
@@ -347,12 +366,7 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 						zap.Error(err))
 				}
 				cache.updatePVCRefCounts(nodeInfo, false)
-				if podWithAffinity(pod) {
-					cache.nodesInfoPodsWithAffinity.Store(nil)
-				}
-				if podWithRequiredAntiAffinity(pod) {
-					cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
-				}
+				cache.invalidateAffinityLists(nodeInfo, affinityBefore, antiAffinityBefore)
 			}
 			if pod.Spec.NodeName == "" && cache.isAssumedPod(key) {
 				// new pod wasn't assigned to a node, but the pod is assumed on one, so use the
@@ -383,14 +397,11 @@ func (cache *SchedulerCache) updatePod(pod *v1.Pod) bool {
 			cache.orphanedPods[key] = pod
 			result = false
 		} else {
+			affinityBefore := len(nodeInfo.PodsWithAffinity)
+			antiAffinityBefore := len(nodeInfo.PodsWithRequiredAntiAffinity)
 			nodeInfo.AddPod(pod)
 			cache.assignedPods[key] = pod.Spec.NodeName
-			if podWithAffinity(pod) {
-				cache.nodesInfoPodsWithAffinity.Store(nil)
-			}
-			if podWithRequiredAntiAffinity(pod) {
-				cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
-			}
+			cache.invalidateAffinityLists(nodeInfo, affinityBefore, antiAffinityBefore)
 			cache.updatePVCRefCounts(nodeInfo, false)
 		}
 	}
@@ -427,12 +438,15 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	if ok {
 		nodeInfo, ok := cache.nodesMap[nodeName]
 		if ok {
+			affinityBefore := len(nodeInfo.PodsWithAffinity)
+			antiAffinityBefore := len(nodeInfo.PodsWithRequiredAntiAffinity)
 			if err := nodeInfo.RemovePod(cache.klogger, pod); err != nil {
 				log.Log(log.ShimCacheExternal).Warn("BUG: Failed to remove pod from node",
 					zap.String("podName", pod.Name),
 					zap.String("nodeName", nodeName),
 					zap.Error(err))
 			}
+			cache.invalidateAffinityLists(nodeInfo, affinityBefore, antiAffinityBefore)
 		}
 		cache.updatePVCRefCounts(nodeInfo, false)
 	}
@@ -441,8 +455,6 @@ func (cache *SchedulerCache) removePod(pod *v1.Pod) {
 	delete(cache.assumedPods, key)
 	delete(cache.orphanedPods, key)
 	delete(cache.podsCycleState, key)
-	cache.nodesInfoPodsWithAffinity.Store(nil)
-	cache.nodesInfoPodsWithReqAntiAffinity.Store(nil)
 }
 
 func (cache *SchedulerCache) GetPod(uid string) *v1.Pod {
@@ -753,15 +765,4 @@ func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
 		PriorityClasses: priorityClasses,
 		SchedulingPods:  podSchedulingInfoByName,
 	}
-}
-
-func podWithAffinity(p *v1.Pod) bool {
-	affinity := p.Spec.Affinity
-	return affinity != nil && (affinity.PodAffinity != nil || affinity.PodAntiAffinity != nil)
-}
-
-func podWithRequiredAntiAffinity(p *v1.Pod) bool {
-	affinity := p.Spec.Affinity
-	return affinity != nil && affinity.PodAntiAffinity != nil &&
-		len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
 }
