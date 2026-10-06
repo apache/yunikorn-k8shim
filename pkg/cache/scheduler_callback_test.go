@@ -340,7 +340,7 @@ func TestUpdateAllocation_AllocationReleased_DeleteFailureRedrive(t *testing.T) 
 	var closeSecondDeleteGate sync.Once
 	defer closeSecondDeleteGate.Do(func() { close(allowSecondDeleteToFinish) })
 	deleteUIDs := make(chan string, 2)
-	context.apiProvider.(*client.MockedAPIProvider).MockDeleteFn(func(pod *v1.Pod) error { //nolint:errcheck
+	apiProvider.MockDeleteFn(func(pod *v1.Pod) error {
 		deleteUIDs <- string(pod.UID)
 		switch deleteAttempts.Add(1) {
 		case 1:
