@@ -728,6 +728,37 @@ func TestReqAntiAffinityListInvalidationBoundaries(t *testing.T) {
 	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "removing the last anti-affinity pod must invalidate the list")
 }
 
+// TestReqNonHostScopedAntiAffinityListInvalidationBoundaries is the required non host scoped
+// anti-affinity counterpart of TestAffinityListInvalidationBoundaries.
+func TestReqNonHostScopedAntiAffinityListInvalidationBoundaries(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
+
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: host1, Namespace: "default", UID: nodeUID1},
+	})
+
+	podA := newTestPodWithAntiAffinity(podName1, host1, podUID1, v1.LabelTopologyRegion)
+	podB := newTestPodWithAntiAffinity(podName2, host1, podUID2, v1.LabelTopologyRegion)
+
+	cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil)
+
+	cache.AssumePod(podA, true)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() == nil, "first non host scoped anti-affinity pod on a node must invalidate the list")
+	cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()
+
+	cache.AssumePod(podB, true)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil, "second non host scoped anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podB)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil, "removing a non-last non host scoped anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podA)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() == nil, "removing the last non host scoped anti-affinity pod must invalidate the list")
+}
+
 func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
 	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
 	cache.UpdateNode(&v1.Node{
