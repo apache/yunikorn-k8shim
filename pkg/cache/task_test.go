@@ -1253,3 +1253,84 @@ func TestPostTaskAllocated_VolumeBindNoRetryOnBindingVolumesError(t *testing.T) 
 	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 }
+
+// A release must not retain either FSM lock: core callbacks may update the
+// recovered task state, and another task event may need the event mutex.
+func TestTaskReleaseOutsideFSMLocks(t *testing.T) {
+	for _, eventType := range []TaskEventType{CompleteTask, TaskFail, TaskAllocated} {
+		for _, probe := range []string{"event mutex", "state mutex"} {
+			t.Run(eventType.String()+"/"+probe, func(t *testing.T) {
+				ctx := initContextForTest()
+				provider, ok := ctx.apiProvider.(*client.MockedAPIProvider)
+				assert.Assert(t, ok)
+				app := NewApplication("release-app", "root.default", "user", nil, nil, newMockSchedulerAPI())
+				app.sm.SetState(ApplicationStates().Running)
+				task := NewTask("release-task", app, ctx, &v1.Pod{})
+				var event events.TaskEvent
+				switch eventType {
+				case CompleteTask:
+					event = NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
+				case TaskFail:
+					event = NewFailTaskEvent(app.applicationID, task.taskID, "test failure")
+				case TaskAllocated:
+					task.sm.SetState(TaskStates().Completed)
+					event = NewAllocateTaskEvent(app.applicationID, task.taskID, task.taskID, "node-1")
+				}
+				probeDone := make(chan struct{})
+				called := false
+				provider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+					called = true
+					assert.Equal(t, request.Releases.AllocationsToRelease[0].AllocationKey, task.taskID)
+					go func() {
+						if probe == "event mutex" {
+							task.sm.Can(CompleteTask.String())
+						} else {
+							task.sm.SetState(task.sm.Current())
+						}
+						close(probeDone)
+					}()
+					select {
+					case <-probeDone:
+					case <-time.After(time.Second):
+						t.Errorf("release holds FSM %s", probe)
+					}
+					return nil
+				})
+				assert.NilError(t, task.handle(event))
+				assert.Assert(t, called, "release must run, including Completed -> Completed")
+				select {
+				case <-probeDone:
+				case <-time.After(time.Second):
+					t.Fatal("FSM probe did not finish after event returned")
+				}
+			})
+		}
+	}
+}
+
+// Application event handlers hold app.lock while inspecting tasks. Task
+// completion must therefore be able to defer its release without this lock.
+func TestTaskDeferredReleaseWithApplicationLocked(t *testing.T) {
+	ctx := initContextForTest()
+	provider, ok := ctx.apiProvider.(*client.MockedAPIProvider)
+	assert.Assert(t, ok)
+	app := NewApplication("deferred-app", "root.default", "user", nil, nil, newMockSchedulerAPI())
+	task := NewTask("deferred-task", app, ctx, &v1.Pod{})
+	app.lock.Lock()
+	done := make(chan error, 1)
+	go func() {
+		done <- task.handle(NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask))
+	}()
+	select {
+	case err := <-done:
+		app.lock.Unlock()
+		assert.NilError(t, err)
+	case <-time.After(time.Second):
+		app.lock.Unlock()
+		assert.NilError(t, <-done)
+		t.Fatal("task release waits for application lock")
+	}
+	assert.Equal(t, task.GetTaskState(), TaskStates().Completed)
+	assert.Equal(t, len(app.releaseableTasks), 1)
+	assert.Equal(t, provider.GetSchedulerAPIUpdateAllocationCount(), int32(0))
+}

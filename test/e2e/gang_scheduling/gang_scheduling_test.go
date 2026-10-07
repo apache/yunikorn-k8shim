@@ -655,6 +655,51 @@ var _ = Describe("", func() {
 		}
 	})
 
+	ginkgo.DescribeTable("Verify_Originator_With_Invalid_Placeholder_Flag", func(taskGroupName string) {
+		const members = 3
+		remainingPlaceholders := members
+		if taskGroupName != "" {
+			// The originator replaces one placeholder when it belongs to the group.
+			remainingPlaceholders--
+		}
+		By("Create an originator with a placeholder flag but no owner reference")
+		pod, err := k8s.InitTestPod(k8s.TestPodConfig{
+			Name:   "gang-driver-pod-" + common.RandSeq(5),
+			Labels: map[string]string{"applicationId": appID},
+			Annotations: &k8s.PodAnnotation{
+				TaskGroupName: taskGroupName,
+				TaskGroups: []cache.TaskGroup{
+					{Name: groupA, MinMember: members, MinResource: minResource},
+				},
+				SchedulingPolicyParams: "placeholderTimeoutInSeconds=600",
+				Other:                  map[string]string{constants.AnnotationPlaceholderFlag: constants.True},
+			},
+			Resources: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": minResource["cpu"], "memory": minResource["memory"]},
+			},
+		})
+		Ω(err).NotTo(HaveOccurred())
+		Ω(pod.OwnerReferences).To(gomega.BeEmpty())
+		originator, err := kClient.CreatePod(pod, ns)
+		Ω(err).NotTo(HaveOccurred())
+		Ω(kClient.WaitForPodRunning(ns, originator.Name, 60*time.Second)).To(Succeed())
+
+		By("Verify originator classification and generated placeholder ownership")
+		verifyOriginatorAndPlaceholders(originator, remainingPlaceholders)
+
+		// Recovery can replenish a placeholder replaced by a task-group member.
+		// Keep this recovery check independent of that placeholder-count behavior.
+		if taskGroupName == "" {
+			By("Restart the scheduler and verify recovered allocations")
+			yunikorn.RestartYunikorn(&kClient)
+			yunikorn.RestorePortForwarding(&kClient)
+			verifyOriginatorAndPlaceholders(originator, remainingPlaceholders)
+		}
+	},
+		ginkgo.Entry("without a task-group name", ""),
+		ginkgo.Entry("with a task-group name", groupA),
+	)
+
 	AfterEach(func() {
 		tests.DumpClusterInfoIfSpecFailed(suiteName, []string{ns})
 
@@ -883,4 +928,38 @@ func verifyOriginatorDeletionCase(withOwnerRef bool) {
 	appInfo, restErr := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
 	Ω(restErr).NotTo(HaveOccurred())
 	Ω(appInfo.Allocations).To(gomega.BeEmpty())
+}
+
+// Poll the complete allocation set so a missing originator cannot pass unnoticed.
+func verifyOriginatorAndPlaceholders(originator *v1.Pod, placeholders int) {
+	gomega.Eventually(func(g gomega.Gomega) {
+		app, err := restClient.GetAppInfo(configmanager.DefaultPartition, nsQueue, appID)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(app).NotTo(BeNil())
+		g.Expect(app.Allocations).To(gomega.HaveLen(placeholders + 1))
+		originators, holders := 0, 0
+		for _, allocation := range app.Allocations {
+			podName := allocation.AllocationTags["kubernetes.io/meta/podName"]
+			if podName == originator.Name {
+				originators++
+				g.Expect(allocation.Originator).To(gomega.BeTrue())
+				g.Expect(allocation.Placeholder).To(gomega.BeFalse())
+				continue
+			}
+			holders++
+			g.Expect(allocation.Originator).To(gomega.BeFalse())
+			g.Expect(allocation.Placeholder).To(gomega.BeTrue())
+			pod, err := kClient.GetPod(podName, ns)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(pod.OwnerReferences).To(gomega.HaveLen(1))
+			owner := pod.OwnerReferences[0]
+			g.Expect(owner.Kind).To(Equal("Pod"))
+			g.Expect(owner.Name).To(Equal(originator.Name))
+			g.Expect(owner.UID).To(Equal(originator.UID))
+			g.Expect(owner.Controller).To(gomega.HaveValue(gomega.BeFalse()))
+			g.Expect(pod.Annotations[constants.AnnotationTaskGroups]).NotTo(gomega.BeEmpty())
+		}
+		g.Expect(originators).To(Equal(1))
+		g.Expect(holders).To(Equal(placeholders))
+	}, 60*time.Second, time.Second).Should(Succeed())
 }

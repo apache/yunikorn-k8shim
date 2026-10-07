@@ -21,6 +21,7 @@ package cache
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -416,4 +417,44 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	mgr.Stop()
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has stopped")
+}
+
+// TestCreateAppPlaceholdersWithConcurrentTaskUpdates exercises createAppPlaceholders while
+// the informer path keeps adding tasks to the same application. createAppPlaceholders only
+// holds the placeholder manager lock, so the task map walk must take the application lock
+// itself. Run with -race: without that lock the walk races with addTask.
+func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
+	app := createAppWIthTaskGroupForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+
+	readerDone := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// writer: simulates the informer adding pods to the application until the reader finishes
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-readerDone:
+				return
+			default:
+			}
+			pod := &v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					Name:      fmt.Sprintf("pod-%d", i),
+					Namespace: namespace,
+				},
+			}
+			app.addTask(NewTask(fmt.Sprintf("task-%d", i), app, nil, pod))
+		}
+	}()
+
+	// reader: the reserving path creating placeholders for the same application
+	for i := 0; i < 50; i++ {
+		assert.NilError(t, mgr.createAppPlaceholders(app))
+	}
+	close(readerDone)
+	wg.Wait()
 }

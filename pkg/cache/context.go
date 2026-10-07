@@ -39,7 +39,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
-	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
@@ -122,8 +121,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
 			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
 			SliceInformer:          informerFactory.Resource().V1().ResourceSlices(),
-			ClassInformer:          informerFactory.Resource().V1().DeviceClasses(),
-			TaintInformer:          informerFactory.Resource().V1beta2().DeviceTaintRules()})
+			TaintInformer:          informerFactory.Resource().V1().DeviceTaintRules()})
 		if err != nil {
 			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil
@@ -706,11 +704,6 @@ func (ctx *Context) setConfigMap(index int, configMap *v1.ConfigMap) map[string]
 	return schedulerconf.FlattenConfigMaps(ctx.configMaps)
 }
 
-// EventsToRegister returns the Kubernetes events that should be watched for updates which may effect predicate processing
-func (ctx *Context) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	return ctx.predManager.EventsToRegister(queueingHintFn)
-}
-
 // PreFilter evaluates given prefilter based predicates based on current context
 func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicatesResponse {
 	ctx.lock.RLock()
@@ -1280,12 +1273,12 @@ func (ctx *Context) PublishEvents(eventRecords []*si.EventRecord) {
 
 // update task's pod condition when the condition has not yet updated,
 // return true if the update was done and false if the update is skipped due to any error, or a dup operation
-func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition) bool {
+func (ctx *Context) updatePodCondition(stopCtx context.Context, task *Task, podCondition *v1.PodCondition) bool {
 	if task.GetTaskState() == TaskStates().Scheduling {
 		// only update the pod when pod condition changes
 		// minimize the overhead added to the api-server/etcd
 		if ok, podCopy := task.UpdatePodCondition(podCondition); ok {
-			_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(podCopy)
+			_, err := ctx.apiProvider.GetAPIs().KubeClient.UpdateStatus(stopCtx, podCopy)
 			if err == nil {
 				return true
 			}
@@ -1301,7 +1294,7 @@ func (ctx *Context) updatePodCondition(task *Task, podCondition *v1.PodCondition
 // this function handles the pod scheduling failures with respect to the different causes,
 // and update the pod condition accordingly. the cluster autoscaler depends on the certain
 // pod condition in order to trigger auto-scaling.
-func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedulingStateRequest) {
+func (ctx *Context) HandleContainerStateUpdate(stopCtx context.Context, request *si.UpdateContainerSchedulingStateRequest) {
 	// the allocationKey equals to the taskID
 	if task := ctx.getTask(request.ApplicationID, request.AllocationKey); task != nil {
 		switch request.State {
@@ -1309,7 +1302,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 			// auto-scaler scans pods whose pod condition is PodScheduled=false && reason=Unschedulable
 			// if the pod is skipped because the queue quota has been exceeded, we do not trigger the auto-scaling
 			task.SetTaskSchedulingState(TaskSchedSkipped)
-			if ctx.updatePodCondition(task,
+			if ctx.updatePodCondition(stopCtx, task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
 					Status:  v1.ConditionFalse,
@@ -1323,7 +1316,7 @@ func (ctx *Context) HandleContainerStateUpdate(request *si.UpdateContainerSchedu
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
 			task.SetTaskSchedulingState(TaskSchedFailed)
 			// set pod condition to Unschedulable in order to trigger auto-scaling
-			if ctx.updatePodCondition(task,
+			if ctx.updatePodCondition(stopCtx, task,
 				&v1.PodCondition{
 					Type:    v1.PodScheduled,
 					Status:  v1.ConditionFalse,
