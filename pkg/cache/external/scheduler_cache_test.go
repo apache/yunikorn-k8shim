@@ -360,7 +360,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "adding an empty node must not invalidate the affinity list")
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -399,7 +399,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(updatedNode)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "updating an existing node must not invalidate the affinity list")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -421,13 +421,13 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 		},
 	}
 	cache.AssumePod(pod2, true)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "adding another affinity pod to a node already in the list must not invalidate it")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
 	// remove pod
 	cache.RemovePod(pod2)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "removing one of several affinity pods must not invalidate the list")
 	nodesInfo = cache.GetNodesInfoPodsWithAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -469,7 +469,7 @@ func TestGetNodesInfoPodsWithAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod4, true)
 	cache.updatePod(pod4)
-	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "adding an affinity pod to a node already in the list must not invalidate it")
 }
 
 //nolint:funlen
@@ -521,7 +521,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(newNode)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "nodesInfo list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "adding an empty node must not invalidate the anti-affinity list")
 	cache.AssumePod(&v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
@@ -562,7 +562,7 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.UpdateNode(updatedNode)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "updating an existing node must not invalidate the anti-affinity list")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -586,13 +586,13 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 		},
 	}
 	cache.AssumePod(pod2, true)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "adding another anti-affinity pod to a node already in the list must not invalidate it")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
 	// remove pod
 	cache.RemovePod(pod2)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "removing one of several anti-affinity pods must not invalidate the list")
 	nodesInfo = cache.GetNodesInfoPodsWithReqAntiAffinity()
 	expectHost(t, host1, nodesInfo)
 
@@ -636,7 +636,127 @@ func TestGetNodesInfoPodsWithReqAntiAffinity(t *testing.T) {
 	expectHost(t, host1, nodesInfo)
 	cache.assumePod(pod4, true)
 	cache.updatePod(pod4)
-	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "node list was not invalidated")
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "adding an anti-affinity pod to a node already in the list must not invalidate it")
+}
+
+// TestAffinityListInvalidationBoundaries verifies the cached affinity node list is dropped only
+// when a node crosses the boundary between holding zero and some pods with affinity: the first
+// affinity pod added and the last one removed, but not the ones in between.
+func TestAffinityListInvalidationBoundaries(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: host1, Namespace: "default", UID: nodeUID1},
+	})
+
+	podA := &v1.Pod{
+		TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: apis.ObjectMeta{Name: podName1, UID: podUID1},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{PodAffinity: &v1.PodAffinity{}},
+			NodeName: host1,
+		},
+	}
+	podB := &v1.Pod{
+		TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: apis.ObjectMeta{Name: podName2, UID: podUID2},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{PodAffinity: &v1.PodAffinity{}},
+			NodeName: host1,
+		},
+	}
+
+	// populate the (empty) list so later invalidations are observable
+	cache.GetNodesInfoPodsWithAffinity()
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil)
+
+	// first affinity pod: the node joins the list, so it must be invalidated
+	cache.AssumePod(podA, true)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "first affinity pod on a node must invalidate the list")
+	cache.GetNodesInfoPodsWithAffinity()
+
+	// second affinity pod on the same node: membership unchanged
+	cache.AssumePod(podB, true)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "second affinity pod must not invalidate the list")
+
+	// removing a non-last affinity pod: membership unchanged
+	cache.RemovePod(podB)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() != nil, "removing a non-last affinity pod must not invalidate the list")
+
+	// removing the last affinity pod: the node leaves the list, so it must be invalidated
+	cache.RemovePod(podA)
+	assert.Assert(t, cache.nodesInfoPodsWithAffinity.Load() == nil, "removing the last affinity pod must invalidate the list")
+}
+
+// TestReqAntiAffinityListInvalidationBoundaries is the required anti-affinity counterpart of
+// TestAffinityListInvalidationBoundaries.
+func TestReqAntiAffinityListInvalidationBoundaries(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: host1, Namespace: "default", UID: nodeUID1},
+	})
+
+	reqAntiAffinity := &v1.Affinity{
+		PodAntiAffinity: &v1.PodAntiAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{}},
+		},
+	}
+	podA := &v1.Pod{
+		TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: apis.ObjectMeta{Name: podName1, UID: podUID1},
+		Spec:       v1.PodSpec{Affinity: reqAntiAffinity, NodeName: host1},
+	}
+	podB := &v1.Pod{
+		TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: apis.ObjectMeta{Name: podName2, UID: podUID2},
+		Spec:       v1.PodSpec{Affinity: reqAntiAffinity, NodeName: host1},
+	}
+
+	cache.GetNodesInfoPodsWithReqAntiAffinity()
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil)
+
+	cache.AssumePod(podA, true)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "first anti-affinity pod on a node must invalidate the list")
+	cache.GetNodesInfoPodsWithReqAntiAffinity()
+
+	cache.AssumePod(podB, true)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "second anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podB)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() != nil, "removing a non-last anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podA)
+	assert.Assert(t, cache.nodesInfoPodsWithReqAntiAffinity.Load() == nil, "removing the last anti-affinity pod must invalidate the list")
+}
+
+// TestReqNonHostScopedAntiAffinityListInvalidationBoundaries is the required non host scoped
+// anti-affinity counterpart of TestAffinityListInvalidationBoundaries.
+func TestReqNonHostScopedAntiAffinityListInvalidationBoundaries(t *testing.T) {
+	// ensure required K8s feature gates are enabled
+	predicates.EnableOptionalKubernetesFeatureGates()
+
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	cache.UpdateNode(&v1.Node{
+		ObjectMeta: apis.ObjectMeta{Name: host1, Namespace: "default", UID: nodeUID1},
+	})
+
+	podA := newTestPodWithAntiAffinity(podName1, host1, podUID1, v1.LabelTopologyRegion)
+	podB := newTestPodWithAntiAffinity(podName2, host1, podUID2, v1.LabelTopologyRegion)
+
+	cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil)
+
+	cache.AssumePod(podA, true)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() == nil, "first non host scoped anti-affinity pod on a node must invalidate the list")
+	cache.GetNodesInfoPodsWithRequiredNonHostScopedAntiAffinity()
+
+	cache.AssumePod(podB, true)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil, "second non host scoped anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podB)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() != nil, "removing a non-last non host scoped anti-affinity pod must not invalidate the list")
+
+	cache.RemovePod(podA)
+	assert.Assert(t, cache.nodesInfoPodsWithRequiredNonHostScopedAntiAffinity.Load() == nil, "removing the last non host scoped anti-affinity pod must invalidate the list")
 }
 
 func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
@@ -674,8 +794,8 @@ func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
 		},
 	}
 
-	// adding and removing a node invalidates all three lists, so every round leaves the readers
-	// with nothing cached to share
+	// adding and removing an empty node only invalidates the full node list: node2 holds no
+	// affinity pods, so the two affinity lists keep their single entry (host1) across every round
 	const rounds = 5
 	for i := 0; i < rounds; i++ {
 		cache.UpdateNode(node2)
