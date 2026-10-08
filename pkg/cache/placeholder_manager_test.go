@@ -77,6 +77,40 @@ func TestCreateAppPlaceholders(t *testing.T) {
 	assert.Error(t, err, fmt.Sprintf("failed to create pod %s", failed))
 }
 
+func TestCreateAppPlaceholdersRollbackOnFailure(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	app := createAppWIthTaskGroupForTest()
+	app.setTaskGroups([]TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 3,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+		},
+	})
+
+	var createCount int
+	deletedPods := make([]string, 0)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createCount++
+		if createCount == 3 {
+			return nil, fmt.Errorf("quota exceeded")
+		}
+		return pod, nil
+	})
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		deletedPods = append(deletedPods, pod.Name)
+		return nil
+	})
+
+	err := mgr.createAppPlaceholders(app)
+	assert.Error(t, err, "quota exceeded")
+	assert.Equal(t, 2, len(deletedPods), "pods created before the failure should be rolled back")
+}
+
 func TestCreateAppPlaceholdersWithExistingPods(t *testing.T) {
 	createdPods := make(map[string]*v1.Pod)
 	mockedAPIProvider := client.NewMockedAPIProvider(false)

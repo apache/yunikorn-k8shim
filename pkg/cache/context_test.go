@@ -915,6 +915,52 @@ func TestAddTask(t *testing.T) {
 	assert.Equal(t, len(context.applications[appID1].GetNewTasks()), 2)
 }
 
+func TestAddTaskRejectsLatePlaceholder(t *testing.T) {
+	context, mockedAPIProvider := initContextAndAPIProviderForTest()
+	NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID1,
+			QueueName:     queueNameA,
+			User:          testUser,
+		},
+	})
+	app := context.applications[appID1]
+	app.SetState(ApplicationStates().Running)
+
+	deleted := make(chan string, 1)
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		deleted <- pod.Name
+		return nil
+	})
+
+	phPod := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "late-placeholder",
+			Namespace: "default",
+			UID:       "placeholder-uid",
+		},
+	}
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: appID1,
+			TaskID:        "placeholder-uid",
+			Pod:           phPod,
+			Placeholder:   true,
+		},
+	})
+	assert.Assert(t, task == nil)
+	assert.Equal(t, len(app.GetNewTasks()), 0)
+
+	select {
+	case name := <-deleted:
+		assert.Equal(t, name, "late-placeholder")
+	case <-time.After(time.Second):
+		t.Fatal("expected late placeholder pod to be deleted")
+	}
+}
+
 //nolint:funlen
 func TestRecoverTask(t *testing.T) {
 	context, apiProvider := initContextAndAPIProviderForTest()
