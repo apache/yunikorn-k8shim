@@ -77,8 +77,8 @@ func TestNewPlaceholderManager(t *testing.T) {
 	if mgr.orphanPods == nil && len(mgr.orphanPods) != 0 {
 		t.Fatal("orphanPods map should be initialised and empty")
 	}
-	if mgr.stopChan == nil {
-		t.Fatal("stop channel should be initialised")
+	if mgr.lifecycleCtx == nil {
+		t.Fatal("lifecycle context should be initialised")
 	}
 }
 
@@ -338,7 +338,7 @@ func TestCleanUp(t *testing.T) {
 	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 }
 
-func TestPlaceholderCreationAndCleanupAreSerialized(t *testing.T) {
+func TestPlaceholderCreationAndCleanupRunConcurrently(t *testing.T) {
 	app := createAppWIthTaskGroupAndPodsForTest()
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	createStarted := make(chan struct{})
@@ -383,11 +383,9 @@ func TestPlaceholderCreationAndCleanupAreSerialized(t *testing.T) {
 	}()
 	select {
 	case <-deleteStarted:
+	case <-time.After(time.Second):
 		close(continueCreate)
-		<-createDone
-		<-cleanupDone
-		t.Fatal("placeholder cleanup started before creation completed")
-	case <-time.After(50 * time.Millisecond):
+		t.Fatal("placeholder cleanup blocked behind creation")
 	}
 
 	close(continueCreate)
@@ -643,6 +641,7 @@ func TestPlaceholderManagerStopCancelsBlockedCleanup(t *testing.T) {
 		t.Fatal("Stop did not cancel the blocked orphan deletion")
 	}
 	assertPlaceholderManagerStopped(t, mgr, true)
+	assert.Equal(t, mgr.getOrphanPodsLength(), 1, "canceled deletion must retain the orphan")
 }
 
 func TestPlaceholderManagerCleanup(t *testing.T) {
@@ -753,12 +752,11 @@ func TestPlaceholderManagerOperationsAfterStop(t *testing.T) {
 	assert.Equal(t, deletes.Load(), int32(0), "cleanup must reject work after shutdown")
 }
 
-func TestPlaceholderManagerStopCancelsCreationWithQueuedCleanup(t *testing.T) {
+func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T) {
 	app := createAppWIthTaskGroupAndPodsForTest()
 	provider := client.NewMockedAPIProvider(false)
 	createStarted := make(chan struct{})
 	releaseCreate := make(chan struct{})
-	var deletes atomic.Int32
 	provider.GetAPIs().KubeClient = &concurrentKubeClient{
 		KubeClient: provider.GetAPIs().KubeClient,
 		createFn: func(ctx context.Context, _ *v1.Pod) (*v1.Pod, error) {
@@ -770,9 +768,9 @@ func TestPlaceholderManagerStopCancelsCreationWithQueuedCleanup(t *testing.T) {
 				return nil, fmt.Errorf("test released blocked Create")
 			}
 		},
-		deleteFn: func(_ context.Context, _ *v1.Pod) error {
-			deletes.Add(1)
-			return nil
+		deleteFn: func(ctx context.Context, _ *v1.Pod) error {
+			<-ctx.Done()
+			return ctx.Err()
 		},
 	}
 	mgr := NewPlaceholderManager(provider.GetAPIs())
@@ -814,5 +812,82 @@ func TestPlaceholderManagerStopCancelsCreationWithQueuedCleanup(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("queued cleanup did not return")
 	}
-	assert.Equal(t, deletes.Load(), int32(0), "queued cleanup must observe cancellation before Delete")
+}
+
+func TestOrphanCleanupPreservesConcurrentAdditions(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	deleteStarted := make(chan struct{})
+	releaseDelete := make(chan struct{})
+	provider.MockDeleteWithContextFn(func(_ context.Context, _ *v1.Pod) error {
+		close(deleteStarted)
+		<-releaseDelete
+		return fmt.Errorf("delete failed")
+	})
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	original := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "original"}}
+	added := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "added"}}
+	mgr.orphanPods["original"] = original
+	done := make(chan struct{})
+	go func() {
+		mgr.cleanOrphanPlaceholders()
+		close(done)
+	}()
+	defer func() {
+		close(releaseDelete)
+		<-done
+		assert.Equal(t, mgr.getOrphanPodsLength(), 2)
+		assert.Equal(t, mgr.orphanPods["original"], original)
+		assert.Equal(t, mgr.orphanPods["added"], added)
+	}()
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("orphan deletion did not start")
+	}
+	updated := make(chan struct{})
+	go func() {
+		mgr.addOrphanPods(map[string]*v1.Pod{"added": added})
+		close(updated)
+	}()
+	select {
+	case <-updated:
+	case <-time.After(time.Second):
+		t.Fatal("orphan update blocked behind Kubernetes deletion")
+	}
+	assert.Equal(t, mgr.getOrphanPodsLength(), 1)
+}
+
+func TestPlaceholderCreationsRunConcurrently(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	provider.GetAPIs().KubeClient = &concurrentKubeClient{
+		KubeClient: provider.GetAPIs().KubeClient,
+		createFn: func(_ context.Context, _ *v1.Pod) (*v1.Pod, error) {
+			entered <- struct{}{}
+			<-release
+			return nil, fmt.Errorf("test creation failed")
+		},
+	}
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	app := createAppWIthTaskGroupForTest()
+	var done sync.WaitGroup
+	done.Add(2)
+	defer func() {
+		close(release)
+		done.Wait()
+	}()
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer done.Done()
+			assert.Error(t, mgr.createAppPlaceholders(app), "test creation failed")
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("placeholder creations did not run concurrently")
+		}
+	}
 }
