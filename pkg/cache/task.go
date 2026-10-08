@@ -373,14 +373,14 @@ func (task *Task) postTaskAllocated() {
 			log.Log(log.ShimCacheTask).Debug("dra bindings",
 				zap.String("podName", pod.Name),
 				zap.String("podUID", string(pod.UID)))
-			reserve := task.context.Reserve(pod.Name, nodeName)
+			reserve := task.context.reserve(pod.Name, nodeName)
 			reschedule := true
 			if reserve {
 				reschedule = false
-				preBind := task.context.PreBind(pod.Name, nodeName)
+				preBind := task.context.preBind(pod.Name, nodeName)
 				if !preBind {
 					reschedule = true
-					task.context.Unreserve(pod.Name, nodeName)
+					task.context.unreserve(pod.Name, nodeName)
 				}
 			}
 			if reschedule {
