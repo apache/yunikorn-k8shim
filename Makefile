@@ -97,6 +97,14 @@ else
   REPRO :=
 endif
 
+# Debug builds mode: disable optimisations and inlining so remote
+# debuggers (e.g. Delve) can map execution back to the source.
+ifeq ($(DEBUG_BUILDS),1)
+  GCFLAGS := -gcflags='all=-N -l'
+else
+  GCFLAGS :=
+endif
+
 # Release build requires using parent dir as base for buildroot
 RELEASE_BUILD := $(shell test -f "$(BASE_DIR)/.gitignore" ; echo $$?)
 ifeq ($(RELEASE_BUILD),1)
@@ -118,9 +126,14 @@ DATE := $(shell date +%FT%T%z)
 endif
 DATE := $(shell echo "$(DATE)" > "$(BASE_DIR)/build.date" ; cat "$(BASE_DIR)/build.date")
 
-# Version parameters
+# Version parameters: debug builds default to "debug" so they do not
+# overwrite production tags; an explicit VERSION always wins.
 ifeq ($(VERSION),)
+ifeq ($(DEBUG_BUILDS),1)
+VERSION := debug
+else
 VERSION := latest
+endif
 endif
 
 # Kernel (OS) Name
@@ -423,6 +436,7 @@ ifeq ($(REPRO),1)
 	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
+	${GCFLAGS} \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
 	-buildvcs=false \
@@ -432,6 +446,7 @@ ifeq ($(REPRO),1)
 else
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
+	${GCFLAGS} \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
 	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
@@ -517,6 +532,7 @@ ifeq ($(REPRO),1)
 	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
+	${GCFLAGS} \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
 	-trimpath \
 	-buildvcs=false \
@@ -526,6 +542,7 @@ ifeq ($(REPRO),1)
 else
 	CGO_ENABLED=0 GOOS=linux GOARCH="${EXEC_ARCH}" "$(GO)" build \
 	-a \
+	${GCFLAGS} \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
 	-trimpath \
 	-ldflags '-buildid= -extldflags "-static" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
