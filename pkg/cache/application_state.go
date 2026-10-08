@@ -486,6 +486,16 @@ func newAppState() *fsm.FSM { //nolint:funlen
 				reason := eventArgs[0]
 				app.handleRejectApplicationEvent(reason)
 			},
+			events.BeforeEvent + CompleteApplication.String(): func(_ context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				// the core can revive a completed application, so completing here while tasks are
+				// still live would strand them with no shim state to bind against
+				if app.hasActiveTasks() {
+					log.Log(log.ShimFSM).Info("ignoring application completion, tasks are still active",
+						zap.String("appID", app.applicationID))
+					event.Cancel()
+				}
+			},
 			CompleteApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.handleCompleteApplicationEvent()
