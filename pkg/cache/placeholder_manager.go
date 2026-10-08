@@ -221,7 +221,6 @@ func (mgr *PlaceholderManager) Start() {
 	go func() {
 		ticker := time.NewTicker(mgr.getCleanupTime())
 		defer func() {
-			ticker.Stop()
 			log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has been stopped")
 			// Closing broadcasts completion to every Stop caller; no send is needed.
 			close(mgr.doneChan)
