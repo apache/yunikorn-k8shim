@@ -40,6 +40,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -804,8 +805,8 @@ func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framew
 	return pod, targetNode, nil
 }
 
-// Reserve Binding Cycle - Reserve the node for binding process
-func (ctx *Context) Reserve(name, node string) bool {
+// reserve Binding Cycle - reserve the node for binding process
+func (ctx *Context) reserve(name, node string) bool {
 	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("reserve failed",
@@ -829,8 +830,8 @@ func (ctx *Context) Reserve(name, node string) bool {
 	return true
 }
 
-// PreBind Binding Cycle - PreBind the node for binding process
-func (ctx *Context) PreBind(name, node string) bool {
+// preBind Binding Cycle - preBind the node for binding process
+func (ctx *Context) preBind(name, node string) bool {
 	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("prebind failed",
@@ -854,8 +855,8 @@ func (ctx *Context) PreBind(name, node string) bool {
 	return true
 }
 
-// Unreserve Binding Cycle - Unreserve the node to clear out the binding work
-func (ctx *Context) Unreserve(name, node string) {
+// unreserve Binding Cycle - unreserve the node to clear out the binding work
+func (ctx *Context) unreserve(name, node string) {
 	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("unreserve failed",

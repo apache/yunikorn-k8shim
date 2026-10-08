@@ -10,10 +10,10 @@ github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e h1:4dAU9FXIyQktp
 github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e/go.mod h1:cEWa1LVoE5KvSD9ONXsZrj0z6KqySlCCNKHlLzbqAt4=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
-github.com/apache/yunikorn-core v0.0.0-20260928075017-917dc8aa26a5 h1:pk6RXHuDPdUuJtKi8m5lOWyE1tPwkee+TZ0tMGy9sug=
-github.com/apache/yunikorn-core v0.0.0-20260928075017-917dc8aa26a5/go.mod h1:y5zAuz89dgSqIRieVG7VgSiE1hfMXkYBT51beDWFisY=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20260925124318-4863b5cff479 h1:+xZSnT8f6tNCtW+uGDeREaLEvaWXy1DTJiWupVojHtE=
-github.com/apache/yunikorn-scheduler-interface v0.0.0-20260925124318-4863b5cff479/go.mod h1:NXYXemJnTY+kRe8Sx+Fa3UDTcmnIS5LmSHGmNlxk7Cg=
+github.com/apache/yunikorn-core v0.0.0-20261008055918-0ef9fd72000e h1:ots2EYmgNpg3JjPSUSBr8SS8ppVSZ48GD0w0oMXn8Ng=
+github.com/apache/yunikorn-core v0.0.0-20261008055918-0ef9fd72000e/go.mod h1:y5zAuz89dgSqIRieVG7VgSiE1hfMXkYBT51beDWFisY=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20261005015817-58254b18cb26 h1://Xg9YmscxwIoys/hldErfKqt4sDIQ2Te5mM+4SIllg=
+github.com/apache/yunikorn-scheduler-interface v0.0.0-20261005015817-58254b18cb26/go.mod h1:NXYXemJnTY+kRe8Sx+Fa3UDTcmnIS5LmSHGmNlxk7Cg=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

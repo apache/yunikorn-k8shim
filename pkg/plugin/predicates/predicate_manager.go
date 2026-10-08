@@ -119,7 +119,7 @@ func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleS
 		plugin := pl.Name()
 		status := pl.Reserve(context.Background(), cycleState, pod, node.Node().Name)
 		if status.IsError() {
-			log.Log(log.ShimPredicates).Error("failed running Reserve plugin",
+			log.Log(log.ShimPredicates).Error("failed running reserve plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.String("message", status.Message()))
@@ -135,7 +135,7 @@ func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleS
 		plugin := pl.Name()
 		status := pl.PreBind(context.Background(), cycleState, pod, node.Node().Name)
 		if status.IsError() {
-			log.Log(log.ShimPredicates).Error("failed running PreBind plugin",
+			log.Log(log.ShimPredicates).Error("failed running preBind plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
 				zap.String("message", status.Message()))
