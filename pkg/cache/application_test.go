@@ -254,7 +254,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 			Requests: resources,
 		},
 	})
-	pod1, err := mockClient.Create(&v1.Pod{
+	pod1, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -268,7 +268,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod2, err := mockClient.Create(&v1.Pod{
+	pod2, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -282,7 +282,7 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod3, err := mockClient.Create(&v1.Pod{
+	pod3, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -359,7 +359,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 			Requests: resources,
 		},
 	})
-	pod1, err := mockClient.Create(&v1.Pod{
+	pod1, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -373,7 +373,7 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err)
-	pod2, err := mockClient.Create(&v1.Pod{
+	pod2, err := mockClient.Create(t.Context(), &v1.Pod{
 		TypeMeta: apis.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
@@ -1136,7 +1136,7 @@ func TestOnReservingPlaceholderCreateFailure(t *testing.T) {
 			defer events.SetRecorder(events.NewMockedRecorder())
 
 			mockClient := mockedAPIProvider.GetAPIs().KubeClient
-			pod, err := mockClient.Create(&v1.Pod{
+			pod, err := mockClient.Create(t.Context(), &v1.Pod{
 				TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
 				ObjectMeta: apis.ObjectMeta{Name: "pod-test-01", Namespace: "default", UID: "UID-01"},
 				Status:     v1.PodStatus{Phase: v1.PodPending}})

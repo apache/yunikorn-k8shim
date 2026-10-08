@@ -19,17 +19,21 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -42,16 +46,41 @@ const (
 	priorityClassName = "test-priority-class"
 )
 
+type concurrentKubeClient struct {
+	client.KubeClient
+	createFn func(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
+	deleteFn func(ctx context.Context, pod *v1.Pod) error
+}
+
+func (c *concurrentKubeClient) Create(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return c.createFn(ctx, pod)
+}
+
+func (c *concurrentKubeClient) Delete(ctx context.Context, pod *v1.Pod) error {
+	return c.deleteFn(ctx, pod)
+}
+
+func assertPlaceholderManagerStopped(t *testing.T, mgr *PlaceholderManager, stopped bool) {
+	t.Helper()
+	select {
+	case <-mgr.doneChan:
+		assert.Assert(t, stopped, "placeholder manager stopped unexpectedly")
+	default:
+		assert.Assert(t, !stopped, "placeholder manager has not stopped")
+	}
+}
+
 func TestNewPlaceholderManager(t *testing.T) {
 	// the shim does not startup if it cannot get a kubeclient, no need to check for nil
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
-	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
+	assert.Equal(t, mgr.started.Load(), false, "new manager should not be started")
+	assertPlaceholderManagerStopped(t, mgr, false)
 	if mgr.orphanPods == nil && len(mgr.orphanPods) != 0 {
 		t.Fatal("orphanPods map should be initialised and empty")
 	}
-	if mgr.stopChan == nil {
-		t.Fatal("stop channel should be initialised")
+	if mgr.lifecycleCtx == nil {
+		t.Fatal("lifecycle context should be initialised")
 	}
 }
 
@@ -309,6 +338,144 @@ func TestCleanUp(t *testing.T) {
 	assert.Equal(t, len(placeholderMgr.orphanPods), 1)
 }
 
+func TestPlaceholderCreationAndCleanupRunConcurrently(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	createStarted := make(chan struct{})
+	continueCreate := make(chan struct{})
+	deleteStarted := make(chan struct{})
+	var createOnce sync.Once
+	var deleteOnce sync.Once
+	kubeClient := &concurrentKubeClient{
+		KubeClient: mockedAPIProvider.GetAPIs().KubeClient,
+		createFn: func(_ context.Context, pod *v1.Pod) (*v1.Pod, error) {
+			createOnce.Do(func() {
+				close(createStarted)
+				<-continueCreate
+			})
+			return pod, nil
+		},
+		deleteFn: func(_ context.Context, _ *v1.Pod) error {
+			deleteOnce.Do(func() {
+				close(deleteStarted)
+			})
+			return nil
+		},
+	}
+	mockedAPIProvider.GetAPIs().KubeClient = kubeClient
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+
+	createDone := make(chan struct{})
+	go func() {
+		defer close(createDone)
+		assert.NilError(t, mgr.createAppPlaceholders(app))
+	}()
+	select {
+	case <-createStarted:
+	case <-time.After(time.Second):
+		t.Fatal("placeholder creation did not start")
+	}
+
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		mgr.cleanUp(app)
+	}()
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		close(continueCreate)
+		t.Fatal("placeholder cleanup blocked behind creation")
+	}
+
+	close(continueCreate)
+	select {
+	case <-createDone:
+	case <-time.After(time.Second):
+		t.Fatal("placeholder creation did not complete")
+	}
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("placeholder cleanup did not start after creation completed")
+	}
+	select {
+	case <-cleanupDone:
+	case <-time.After(time.Second):
+		t.Fatal("placeholder cleanup did not complete")
+	}
+}
+
+func TestStopCancelsApplicationCleanup(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	deleteStarted := make(chan struct{})
+	deleteCanceled := make(chan struct{})
+	continueDelete := make(chan struct{})
+	var deleteOnce sync.Once
+	mockedAPIProvider.MockDeleteWithContextFn(func(ctx context.Context, _ *v1.Pod) error {
+		deleteOnce.Do(func() {
+			close(deleteStarted)
+			<-ctx.Done()
+			close(deleteCanceled)
+			<-continueDelete
+		})
+		return ctx.Err()
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+
+	app.handleCompleteApplicationEvent()
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("placeholder cleanup did not start")
+	}
+
+	stopDone := make(chan struct{})
+	go func() {
+		mgr.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-deleteCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("application cleanup was not canceled during manager shutdown")
+	}
+	select {
+	case <-stopDone:
+		close(continueDelete)
+		t.Fatal("manager stopped before application cleanup completed")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(continueDelete)
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("manager did not stop after application cleanup completed")
+	}
+}
+
+func TestApplicationCleanupRejectedOutsideManagerLifecycle(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	var deletes atomic.Int32
+	mockedAPIProvider.MockDeleteWithContextFn(func(_ context.Context, _ *v1.Pod) error {
+		deletes.Add(1)
+		return nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+
+	app.handleCompleteApplicationEvent()
+	assert.Equal(t, deletes.Load(), int32(0), "cleanup should not start before the manager starts")
+
+	mgr.Start()
+	mgr.Stop()
+	app.handleCompleteApplicationEvent()
+	assert.Equal(t, deletes.Load(), int32(0), "cleanup should not start after the manager stops")
+}
+
 func TestCleanOrphanPlaceholders(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
@@ -348,37 +515,133 @@ func TestCleanOrphanPlaceholders(t *testing.T) {
 func TestPlaceholderManagerStartStop(t *testing.T) {
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
-	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
+	assert.Equal(t, mgr.started.Load(), false, "new manager should not be started")
 	// start clean up goroutine
 	mgr.Start()
-	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
+	assert.Equal(t, mgr.started.Load(), true, "manager should be started")
+	assertPlaceholderManagerStopped(t, mgr, false)
 
 	// starting a second time should do nothing
 	mgr.Start()
-	assert.Equal(t, mgr.isRunning(), true, "sending start 2nd time should not do anything")
+	assertPlaceholderManagerStopped(t, mgr, false)
 
-	// this is a blocking call
+	// Stop waits until the cleanup goroutine has exited.
 	mgr.Stop()
-	// allow time for processing as the call can return faster than the flag is set
-	time.Sleep(5 * time.Millisecond)
-	// check manager has stopped
-	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
-	// this should not block anymore, flag should be set
+	assertPlaceholderManagerStopped(t, mgr, true)
+	// Repeated stops are safe and return immediately.
 	mgr.Stop()
-	assert.Equal(t, mgr.isRunning(), false, "stopping already stopped manager failed")
-
-	// make sure stop doesn't do anything on a non running manager
-	mgr = NewPlaceholderManager(mockedAPIProvider.GetAPIs())
-	assert.Equal(t, mgr.running.Load(), false, "new manager should not run")
-	mgr.Stop()
-	assert.Equal(t, mgr.isRunning(), false, "stopping new manager: nothing should happen")
+	assertPlaceholderManagerStopped(t, mgr, true)
+	// A stopped manager is one-shot and cannot be restarted.
 	mgr.Start()
-	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start (stop start sequence)")
+	assertPlaceholderManagerStopped(t, mgr, true)
+
+	// make sure stop doesn't do anything before the manager starts
+	mgr = NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	assert.Equal(t, mgr.started.Load(), false, "new manager should not be started")
+	mgr.Stop()
+	assertPlaceholderManagerStopped(t, mgr, false)
+	mgr.Start()
+	assert.Equal(t, mgr.started.Load(), true, "manager should start after a pre-start Stop")
+	assertPlaceholderManagerStopped(t, mgr, false)
 	// lets stop it again now things should stop correctly
 	mgr.Stop()
-	// allow time for processing as the call can return faster than the flag is set
-	time.Sleep(5 * time.Millisecond)
-	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has not stopped")
+	assertPlaceholderManagerStopped(t, mgr, true)
+}
+
+func TestPlaceholderManagerConcurrentStop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.Start()
+
+	const callers = 32
+	start := make(chan struct{})
+	var stopped sync.WaitGroup
+	stopped.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer stopped.Done()
+			<-start
+			mgr.Stop()
+		}()
+	}
+	close(start)
+
+	done := make(chan struct{})
+	go func() {
+		stopped.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("concurrent PlaceholderManager.Stop calls blocked")
+	}
+	assertPlaceholderManagerStopped(t, mgr, true)
+}
+
+func TestPlaceholderManagerConcurrentStartCreatesOneCleanupLoop(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	var deletes atomic.Int32
+	mockedAPIProvider.MockDeleteFn(func(_ *v1.Pod) error {
+		deletes.Add(1)
+		return nil
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.setCleanupTime(time.Millisecond)
+
+	const callers = 64
+	start := make(chan struct{})
+	var started sync.WaitGroup
+	started.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer started.Done()
+			<-start
+			mgr.Start()
+		}()
+	}
+	close(start)
+	started.Wait()
+	mgr.Stop()
+
+	mgr.Lock()
+	mgr.orphanPods["task01"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-01"}}
+	mgr.Unlock()
+	time.Sleep(10 * time.Millisecond)
+	assert.Equal(t, deletes.Load(), int32(0), "an extra cleanup loop remained after Stop")
+}
+
+func TestPlaceholderManagerStopCancelsBlockedCleanup(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	deleteStarted := make(chan struct{})
+	mockedAPIProvider.MockDeleteWithContextFn(func(ctx context.Context, _ *v1.Pod) error {
+		close(deleteStarted)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	mgr.setCleanupTime(time.Millisecond)
+	mgr.orphanPods["task01"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-01"}}
+	mgr.Start()
+
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("orphan cleanup did not start")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		mgr.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not cancel the blocked orphan deletion")
+	}
+	assertPlaceholderManagerStopped(t, mgr, true)
+	assert.Equal(t, mgr.getOrphanPodsLength(), 1, "canceled deletion must retain the orphan")
 }
 
 func TestPlaceholderManagerCleanup(t *testing.T) {
@@ -405,18 +668,228 @@ func TestPlaceholderManagerCleanup(t *testing.T) {
 	}
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	mgr.setCleanupTime(100 * time.Millisecond)
-	defer mgr.setCleanupTime(5 * time.Second)
 	mgr.Start()
-	assert.Equal(t, mgr.isRunning(), true, "manager should be running after start")
+	assertPlaceholderManagerStopped(t, mgr, false)
+	mgr.Lock()
 	mgr.orphanPods["task01"] = pod1
 	mgr.orphanPods["task02"] = pod2
+	mgr.Unlock()
 	assert.Equal(t, mgr.getOrphanPodsLength(), 2)
 	<-time.After(100 * time.Millisecond)
 	time.Sleep(5 * time.Millisecond)
 	assert.Equal(t, mgr.getOrphanPodsLength(), 0)
 	mgr.Stop()
-	time.Sleep(5 * time.Millisecond)
-	assert.Equal(t, mgr.isRunning(), false, "placeholder manager has stopped")
+	assertPlaceholderManagerStopped(t, mgr, true)
+}
+
+func TestPlaceholderManagerStopWaitsForCreation(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	provider := client.NewMockedAPIProvider(false)
+	createStarted := make(chan struct{})
+	releaseCreate := make(chan struct{})
+	var once sync.Once
+	provider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		once.Do(func() {
+			close(createStarted)
+			<-releaseCreate
+		})
+		return pod, nil
+	})
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	mgr.Start()
+	createDone := make(chan struct{})
+	go func() {
+		defer close(createDone)
+		assert.ErrorIs(t, mgr.createAppPlaceholders(app), context.Canceled)
+	}()
+	defer func() {
+		close(releaseCreate)
+		<-createDone
+		mgr.Stop()
+	}()
+	select {
+	case <-createStarted:
+	case <-time.After(time.Second):
+		t.Fatal("creation did not start")
+	}
+	stopDone := make(chan struct{})
+	go func() {
+		mgr.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-mgr.lifecycleCtx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not cancel the lifecycle context")
+	}
+	select {
+	case <-stopDone:
+		t.Fatal("Stop returned while placeholder creation was still active")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestPlaceholderManagerOperationsAfterStop(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	provider := client.NewMockedAPIProvider(false)
+	var creates, deletes atomic.Int32
+	provider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		creates.Add(1)
+		return pod, nil
+	})
+	provider.MockDeleteFn(func(_ *v1.Pod) error {
+		deletes.Add(1)
+		return nil
+	})
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	mgr.Start()
+	mgr.Stop()
+	assert.ErrorIs(t, mgr.createAppPlaceholders(app), context.Canceled)
+	mgr.cleanUp(app)
+	mgr.orphanPods["orphan"] = &v1.Pod{}
+	mgr.cleanOrphanPlaceholders()
+	assert.Equal(t, creates.Load(), int32(0), "creation must reject work after shutdown")
+	assert.Equal(t, deletes.Load(), int32(0), "cleanup must reject work after shutdown")
+}
+
+func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T) {
+	app := createAppWIthTaskGroupAndPodsForTest()
+	provider := client.NewMockedAPIProvider(false)
+	createStarted := make(chan struct{})
+	releaseCreate := make(chan struct{})
+	provider.GetAPIs().KubeClient = &concurrentKubeClient{
+		KubeClient: provider.GetAPIs().KubeClient,
+		createFn: func(ctx context.Context, _ *v1.Pod) (*v1.Pod, error) {
+			close(createStarted)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-releaseCreate:
+				return nil, fmt.Errorf("test released blocked Create")
+			}
+		},
+		deleteFn: func(ctx context.Context, _ *v1.Pod) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	mgr.Start()
+	createDone := make(chan error, 1)
+	go func() { createDone <- mgr.createAppPlaceholders(app) }()
+	defer func() {
+		close(releaseCreate)
+		mgr.Stop()
+	}()
+	select {
+	case <-createStarted:
+	case <-time.After(time.Second):
+		t.Fatal("creation did not start")
+	}
+	cleanupDone := make(chan struct{})
+	go func() {
+		mgr.cleanUp(app)
+		close(cleanupDone)
+	}()
+	stopDone := make(chan struct{})
+	go func() {
+		mgr.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not cancel creation with pending application cleanup")
+	}
+	select {
+	case err := <-createDone:
+		assert.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("creation did not return")
+	}
+	select {
+	case <-cleanupDone:
+	case <-time.After(time.Second):
+		t.Fatal("queued cleanup did not return")
+	}
+}
+
+func TestOrphanCleanupPreservesConcurrentAdditions(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	deleteStarted := make(chan struct{})
+	releaseDelete := make(chan struct{})
+	provider.MockDeleteWithContextFn(func(_ context.Context, _ *v1.Pod) error {
+		close(deleteStarted)
+		<-releaseDelete
+		return fmt.Errorf("delete failed")
+	})
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	original := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "original"}}
+	added := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "added"}}
+	mgr.orphanPods["original"] = original
+	done := make(chan struct{})
+	go func() {
+		mgr.cleanOrphanPlaceholders()
+		close(done)
+	}()
+	defer func() {
+		close(releaseDelete)
+		<-done
+		assert.Equal(t, mgr.getOrphanPodsLength(), 2)
+		assert.Equal(t, mgr.orphanPods["original"], original)
+		assert.Equal(t, mgr.orphanPods["added"], added)
+	}()
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("orphan deletion did not start")
+	}
+	updated := make(chan struct{})
+	go func() {
+		mgr.addOrphanPods(map[string]*v1.Pod{"added": added})
+		close(updated)
+	}()
+	select {
+	case <-updated:
+	case <-time.After(time.Second):
+		t.Fatal("orphan update blocked behind Kubernetes deletion")
+	}
+	assert.Equal(t, mgr.getOrphanPodsLength(), 1)
+}
+
+func TestPlaceholderCreationsRunConcurrently(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	provider.GetAPIs().KubeClient = &concurrentKubeClient{
+		KubeClient: provider.GetAPIs().KubeClient,
+		createFn: func(_ context.Context, _ *v1.Pod) (*v1.Pod, error) {
+			entered <- struct{}{}
+			<-release
+			return nil, fmt.Errorf("test creation failed")
+		},
+	}
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	app := createAppWIthTaskGroupForTest()
+	var done sync.WaitGroup
+	done.Add(2)
+	defer func() {
+		close(release)
+		done.Wait()
+	}()
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer done.Done()
+			assert.Error(t, mgr.createAppPlaceholders(app), "test creation failed")
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("placeholder creations did not run concurrently")
+		}
+	}
 }
 
 // TestCreateAppPlaceholdersWithConcurrentTaskUpdates exercises createAppPlaceholders while
@@ -457,4 +930,26 @@ func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
 	}
 	close(readerDone)
 	wg.Wait()
+}
+
+func TestCleanUpNotFoundErrors(t *testing.T) {
+	missing := apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "placeholder")
+	for _, tc := range []struct {
+		name    string
+		err     error
+		orphans int
+	}{
+		{name: "API not found", err: missing},
+		{name: "wrapped API not found", err: fmt.Errorf("delete failed: %w", missing)},
+		{name: "unrelated error containing not found", err: fmt.Errorf("credentials not found"), orphans: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := createAppWIthTaskGroupAndPodsForTest()
+			provider := client.NewMockedAPIProvider(false)
+			provider.MockDeleteFn(func(_ *v1.Pod) error { return tc.err })
+			mgr := NewPlaceholderManager(provider.GetAPIs())
+			mgr.cleanUp(app)
+			assert.Equal(t, mgr.getOrphanPodsLength(), tc.orphans)
+		})
+	}
 }

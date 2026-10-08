@@ -671,9 +671,7 @@ func (app *Application) handleRejectApplicationEvent(reason string) {
 }
 
 func (app *Application) handleCompleteApplicationEvent() {
-	go func() {
-		getPlaceholderManager().cleanUp(app)
-	}()
+	getPlaceholderManager().cleanUpAsync(app)
 }
 
 func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
@@ -693,9 +691,7 @@ func failTaskPodWithReasonAndMsg(task *Task, reason string, msg string) {
 }
 
 func (app *Application) handleFailApplicationEvent(errMsg string) {
-	go func() {
-		getPlaceholderManager().cleanUp(app)
-	}()
+	getPlaceholderManager().cleanUpAsync(app)
 	app.clearReleaseableTasks()
 	log.Log(log.ShimCacheApplication).Info("failApplication reason", zap.String("applicationID", app.applicationID), zap.String("errMsg", errMsg))
 	// unallocated task states include New, Pending and Scheduling
