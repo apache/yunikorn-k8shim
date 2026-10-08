@@ -30,8 +30,10 @@ import (
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -928,4 +930,26 @@ func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
 	}
 	close(readerDone)
 	wg.Wait()
+}
+
+func TestCleanUpNotFoundErrors(t *testing.T) {
+	missing := apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "placeholder")
+	for _, tc := range []struct {
+		name    string
+		err     error
+		orphans int
+	}{
+		{name: "API not found", err: missing},
+		{name: "wrapped API not found", err: fmt.Errorf("delete failed: %w", missing)},
+		{name: "unrelated error containing not found", err: fmt.Errorf("credentials not found"), orphans: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := createAppWIthTaskGroupAndPodsForTest()
+			provider := client.NewMockedAPIProvider(false)
+			provider.MockDeleteFn(func(_ *v1.Pod) error { return tc.err })
+			mgr := NewPlaceholderManager(provider.GetAPIs())
+			mgr.cleanUp(app)
+			assert.Equal(t, mgr.getOrphanPodsLength(), tc.orphans)
+		})
+	}
 }

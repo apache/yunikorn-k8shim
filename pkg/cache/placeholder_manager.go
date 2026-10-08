@@ -20,13 +20,13 @@ package cache
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
@@ -142,7 +142,7 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 			}
 			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
 				zap.Error(err))
-			if !strings.Contains(err.Error(), "not found") {
+			if !apierrors.IsNotFound(err) {
 				orphans[task.GetTaskID()] = task.GetTaskPod()
 			}
 		}
