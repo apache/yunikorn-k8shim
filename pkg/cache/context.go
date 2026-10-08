@@ -40,6 +40,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -787,6 +788,87 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 		}
 	}
 	return -1, false
+}
+
+func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framework.NodeInfo, error) {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
+		return nil, nil, ErrorPodNotFound
+	}
+	// if pod exists in cache, try to run predicates
+	targetNode := ctx.schedulerCache.GetNode(node)
+	if targetNode == nil {
+		return nil, nil, ErrorNodeNotFound
+	}
+	return pod, targetNode, nil
+}
+
+// reserve Binding Cycle - reserve the node for binding process
+func (ctx *Context) reserve(name, node string) bool {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	plugin, err := ctx.predManager.Reserve(pod, nil, targetNode)
+	if err != nil {
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.Error(err),
+			zap.String("plugin", plugin),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
+	}
+	return true
+}
+
+// preBind Binding Cycle - preBind the node for binding process
+func (ctx *Context) preBind(name, node string) bool {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	plugin, err := ctx.predManager.PreBind(pod, nil, targetNode)
+	if err != nil {
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.Error(err),
+			zap.String("plugin", plugin),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
+	}
+	return true
+}
+
+// unreserve Binding Cycle - unreserve the node to clear out the binding work
+func (ctx *Context) unreserve(name, node string) {
+	pod, targetNode, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("unreserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	ctx.predManager.Unreserve(pod, nil, targetNode)
 }
 
 // call volume binder to bind pod volumes if necessary,

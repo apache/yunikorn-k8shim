@@ -1085,6 +1085,8 @@ func TestPostTaskAllocated_BindRetrySucceeds(t *testing.T) {
 	events.SetRecorder(events.NewMockedRecorder())
 	defer events.SetRecorder(events.NewMockedRecorder())
 	defer setShortBindBackoff(5)()
+	dispatcher.Start()
+	defer dispatcher.Stop()
 
 	var bindCalls atomic.Int32
 	apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
