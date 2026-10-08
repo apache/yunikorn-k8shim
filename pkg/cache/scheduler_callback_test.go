@@ -30,7 +30,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sEvents "k8s.io/client-go/tools/events"
-	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
@@ -155,8 +154,11 @@ func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
 		return task.GetTaskState() == TaskStates().Failed
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "placeholder task has not transitioned to Failed state")
-	// FailWithEvent emits a Warning/"AssumePodError" event; beforeTaskFail emits a Normal/"TaskFailed" event.
-	assert.Equal(t, 2, len(recorder.Events), "expected two K8s events to be recorded")
+	// FailWithEvent emits a Warning/"AssumePodError" event; afterTaskFail emits a Normal/"TaskFailed" event.
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 2
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected two K8s events to be recorded, got %d", len(recorder.Events))
 	assumePodErrorFound := false
 	for i := 0; i < 2; i++ {
 		event := <-recorder.Events
@@ -374,7 +376,10 @@ func TestUpdateApplication_Rejected(t *testing.T) {
 		return app.sm.Current() == ApplicationStates().Failed
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "application has not transitioned to Failed state")
-	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 1
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected one K8s event to be recorded, got %d", len(recorder.Events))
 	event := <-recorder.Events
 	assert.Assert(t, strings.Contains(event, "test failure"), "event does not contain 'test failure': %s", event)
 }
@@ -489,7 +494,10 @@ func testUpdateApplicationFailure(t *testing.T, state string) {
 		return app.sm.Current() == ApplicationStates().Failing
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "application has not transitioned to %s state", state)
-	assert.Equal(t, 1, len(recorder.Events), "no K8s event received")
+	err = utils.WaitForCondition(func() bool {
+		return len(recorder.Events) == 1
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "expected one K8s event to be recorded, got %d", len(recorder.Events))
 	event := <-recorder.Events
 	assert.Assert(t, strings.Contains(event, "test failure"), "event does not contain 'test failure': %s", event)
 }
@@ -697,6 +705,41 @@ func TestUpdateContainerSchedulingState(t *testing.T) {
 	assert.Equal(t, TaskSchedFailed, task.GetTaskSchedulingState())
 }
 
+func TestUpdateContainerSchedulingStatePassesStopCtx(t *testing.T) {
+	for _, state := range []si.UpdateContainerSchedulingStateRequest_SchedulingState{
+		si.UpdateContainerSchedulingStateRequest_SKIPPED,
+		si.UpdateContainerSchedulingStateRequest_FAILED,
+	} {
+		t.Run(state.String(), func(t *testing.T) {
+			_, context := initCallbackTest(t, false, false)
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+
+			cancelCtx, cancel := ctx.WithCancel(ctx.Background())
+			cancel()
+			callback := NewAsyncRMCallback(context, cancelCtx)
+
+			var updateCtx ctx.Context
+			apiProvider, ok := context.apiProvider.(*client.MockedAPIProvider)
+			assert.Assert(t, ok)
+			apiProvider.MockUpdateStatusFn(func(c ctx.Context, pod *v1.Pod) (*v1.Pod, error) {
+				updateCtx = c
+				return pod, c.Err()
+			})
+			context.getTask(appID, taskUID1).sm.SetState(TaskStates().Scheduling)
+
+			callback.UpdateContainerSchedulingState(&si.UpdateContainerSchedulingStateRequest{
+				State:         state,
+				ApplicationID: appID,
+				AllocationKey: taskUID1,
+			})
+
+			assert.Assert(t, updateCtx != nil, "pod status update was not attempted")
+			assert.ErrorIs(t, updateCtx.Err(), ctx.Canceled)
+		})
+	}
+}
+
 func TestCallbackGetStateDump(t *testing.T) {
 	callback, _ := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
@@ -724,10 +767,6 @@ func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *frame
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) int {
 	return 0
-}
-
-func (m *mockPredicateManager) EventsToRegister(_ fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	return nil
 }
 
 func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCallback, *Context) {
@@ -772,6 +811,8 @@ func initCallbackTest(t *testing.T, podAssigned, placeholder bool) (*AsyncRMCall
 	}
 	if placeholder {
 		pod.Annotations[constants.AnnotationPlaceholderFlag] = constants.True
+		pod.Annotations[constants.AnnotationTaskGroupName] = "test-group-1"
+		pod.OwnerReferences = getOwnerReference(&v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "originator", UID: "originator-uid"}})
 	}
 	context.AddPod(pod)
 	task := context.getTask(appID, taskUID1)

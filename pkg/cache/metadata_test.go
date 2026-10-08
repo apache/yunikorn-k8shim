@@ -356,3 +356,52 @@ func TestGetOwnerReferences(t *testing.T) {
 	assert.Equal(t, returnedOwnerRefs[0].Kind, "Pod", "Unexpected owner reference Kind")
 	assert.Equal(t, returnedOwnerRefs[0].APIVersion, v1.SchemeGroupVersion.String(), "Unexpected owner reference Kind")
 }
+
+func TestPlaceholderClassificationWithGangScheduling(t *testing.T) {
+	previous := conf.GetSchedulerConf().DisableGangScheduling
+	t.Cleanup(func() { conf.GetSchedulerConf().DisableGangScheduling = previous })
+	pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{
+		Name: "placeholder", Namespace: "default", UID: "placeholder-uid",
+		Labels: map[string]string{"applicationId": "app-placeholder"},
+		Annotations: map[string]string{
+			constants.AnnotationPlaceholderFlag: "true",
+			constants.AnnotationTaskGroupName:   "group",
+		},
+		OwnerReferences: getOwnerReference(&v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "originator", UID: "originator-uid"}}),
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName, NodeName: "node-1"}}
+	original := pod.DeepCopy()
+	for _, disabled := range []bool{false, true} {
+		name := "enabled"
+		if disabled {
+			name = "disabled"
+		}
+		t.Run(name, func(t *testing.T) {
+			conf.GetSchedulerConf().DisableGangScheduling = disabled
+			t.Run("task metadata", func(t *testing.T) {
+				meta, ok := getTaskMetadata(pod)
+				assert.Assert(t, ok)
+				assert.Equal(t, meta.Placeholder, !disabled)
+				group := "group"
+				if disabled {
+					group = ""
+				}
+				assert.Equal(t, meta.TaskGroupName, group)
+			})
+			t.Run("application ownership", func(t *testing.T) {
+				meta, ok := getAppMetadata(pod)
+				assert.Assert(t, ok)
+				owners := pod.OwnerReferences
+				if disabled {
+					owners = getOwnerReference(pod)
+				}
+				assert.DeepEqual(t, meta.OwnerReferences, owners)
+			})
+			t.Run("allocation recovery", func(t *testing.T) {
+				allocation := getExistingAllocation(pod)
+				assert.Assert(t, allocation != nil)
+				assert.Equal(t, allocation.Placeholder, !disabled)
+			})
+			assert.DeepEqual(t, pod, original)
+		})
+	}
+}

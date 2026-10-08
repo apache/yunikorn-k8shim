@@ -111,8 +111,8 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 		MinMember: int32(parallelism),
 		Name:      mainTaskGroupName,
 		MinResource: map[string]resource.Quantity{
-			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-			"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+			cpu:    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+			memory: resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 		},
 	}
 
@@ -125,8 +125,8 @@ func InitTaskGroups(conf SleepPodConfig, mainTaskGroupName, secondTaskGroupName 
 		MinMember: int32(parallelism + 1), // nolint: gosec
 		Name:      secondTaskGroupName,
 		MinResource: map[string]resource.Quantity{
-			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-			"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+			cpu:    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+			memory: resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 		},
 		NodeSelector: map[string]string{
 			"kubernetes.io/hostname": "nonexistingnode",
@@ -145,8 +145,8 @@ func InitTaskGroup(conf SleepPodConfig, taskGroupName string, parallelism int32)
 		MinMember: parallelism,
 		Name:      taskGroupName,
 		MinResource: map[string]resource.Quantity{
-			"cpu":    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
-			"memory": resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
+			cpu:    resource.MustParse(strconv.FormatInt(conf.CPU, 10) + "m"),
+			memory: resource.MustParse(strconv.FormatInt(conf.Mem, 10) + "M"),
 		},
 	}
 

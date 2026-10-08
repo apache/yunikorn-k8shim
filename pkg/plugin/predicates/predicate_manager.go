@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -46,7 +45,6 @@ import (
 )
 
 type PredicateManager interface {
-	EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint
 	PreFilter(pod *v1.Pod, allocate bool) (feasibleNodes map[string]*si.Empty, cycleState *framework.CycleState, error error)
 	// Filter Predicates checks if a pod can fit on a node.
 	// Returns the name of the predicate plugin that failed (may be empty) and any error encountered.
@@ -69,85 +67,32 @@ type predicateManagerImpl struct {
 	sharedLister          fwk.SharedLister
 }
 
-func (p *predicateManagerImpl) EventsToRegister(queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	actionMap := make(map[fwk.EventResource]fwk.ActionType)
-	for _, plugin := range *p.allocationPreFilters {
-		mergePluginEvents(actionMap, pluginEvents(plugin))
-	}
-	for _, plugin := range *p.allocationFilters {
-		mergePluginEvents(actionMap, pluginEvents(plugin))
-	}
-	return buildClusterEvents(actionMap, queueingHintFn)
-}
-
-func pluginEvents(plugin fwk.Plugin) []fwk.ClusterEventWithHint {
-	ext, ok := plugin.(fwk.EnqueueExtensions)
-	if !ok {
-		// legacy plugins that don't register for EnqueueExtensions get a default list of events
-		return framework.UnrollWildCardResource()
-	}
-	events, err := ext.EventsToRegister(context.Background())
-	if err != nil {
-		log.Log(log.ShimPredicates).Fatal("Failed to configure predicate plugin", zap.String("name", ext.Name()), zap.Error(err))
-	}
-	return events
-}
-
-func mergePluginEvents(actionMap map[fwk.EventResource]fwk.ActionType, events []fwk.ClusterEventWithHint) {
-	if _, ok := actionMap[fwk.WildCard]; ok {
-		// already registered for all events; skip further processing
-		return
-	}
-	for _, event := range events {
-		if IsWildCard(event.Event) {
-			// clear existing entries and add a wildcard entry
-			for k := range actionMap {
-				delete(actionMap, k)
-			}
-			actionMap[fwk.WildCard] = fwk.All
-			return
-		}
-		action, ok := actionMap[event.Event.Resource]
-		if !ok {
-			action = event.Event.ActionType
-		} else {
-			action |= event.Event.ActionType
-		}
-		actionMap[event.Event.Resource] = action
-	}
-}
-
-func buildClusterEvents(actionMap map[fwk.EventResource]fwk.ActionType, queueingHintFn fwk.QueueingHintFn) []fwk.ClusterEventWithHint {
-	events := make([]fwk.ClusterEventWithHint, 0)
-	for resource, actionType := range actionMap {
-		events = append(events, fwk.ClusterEventWithHint{
-			Event: fwk.ClusterEvent{
-				Resource:   resource,
-				ActionType: actionType},
-			QueueingHintFn: queueingHintFn,
-		})
-	}
-	sort.SliceStable(events, func(i, j int) bool {
-		return events[i].Event.Resource < events[j].Event.Resource
-	})
-	return events
-}
-
 func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) int {
 	ctx := context.Background()
 
 	// clone node so that we can modify it here for predicate checks
 	preemptingNode := node.Snapshot()
 
+	stateCopy := framework.NewCycleState()
+	if cycleState != nil {
+		if cs, ok := cycleState.Clone().(*framework.CycleState); ok {
+			stateCopy = cs
+		}
+	}
+
 	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
 	for i := 0; i < startIndex && i < len(victims); i++ {
-		p.removePodFromNodeNoFail(preemptingNode, victims[i])
+		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
+			return -1
+		}
 	}
 
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
-		p.removePodFromNodeNoFail(preemptingNode, victims[i])
-		status := p.runFilterPlugins(ctx, *p.allocationFilters, cycleState, pod, preemptingNode)
+		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
+			return -1
+		}
+		status := p.runFilterPlugins(ctx, *p.allocationFilters, stateCopy, pod, preemptingNode)
 		if status.IsSuccess() {
 			return i
 		}
@@ -160,17 +105,39 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	return -1
 }
 
-func (p *predicateManagerImpl) removePodFromNodeNoFail(node fwk.NodeInfo, pod *v1.Pod) {
-	if pod == nil {
-		return
+func (p *predicateManagerImpl) removePod(ctx context.Context, node fwk.NodeInfo, state *framework.CycleState, podToSchedule *v1.Pod, victim *v1.Pod) error {
+	if victim == nil {
+		return nil
 	}
-	if err := node.RemovePod(p.klogger, pod); err != nil {
-		// annoyingly, RemovePod() throws an error if the pod is gone; just log at debug and continue
+	if err := node.RemovePod(p.klogger, victim); err != nil {
 		log.Log(log.ShimPredicates).Debug("Failed to remove pod from nodeInfo during preemption check",
-			zap.String("podUID", string(pod.UID)),
-			zap.String("nodeID", node.Node().Name),
+			zap.String("podUID", string(victim.UID)),
 			zap.Error(err))
+		return nil
 	}
+	podInfo, err := framework.NewPodInfo(victim)
+	if err != nil {
+		return err
+	}
+	var skipPlugins sets.Set[string]
+	if state != nil {
+		skipPlugins = state.GetSkipFilterPlugins()
+	}
+	for _, pl := range *p.allocationPreFilters {
+		if skipPlugins.Has(pl.Name()) {
+			continue
+		}
+		if ext := pl.PreFilterExtensions(); ext != nil {
+			if status := ext.RemovePod(ctx, state, podToSchedule, podInfo, node); !status.IsSuccess() {
+				log.Log(log.ShimPredicates).Debug("Failed to remove pod in prefilter extension",
+					zap.String("plugin", pl.Name()),
+					zap.String("podUID", string(victim.UID)),
+					zap.String("status", status.Message()))
+				return status.AsError()
+			}
+		}
+	}
+	return nil
 }
 
 func (p *predicateManagerImpl) PreFilter(pod *v1.Pod, allocate bool) (map[string]*si.Empty, *framework.CycleState, error) {
@@ -287,6 +254,10 @@ func EnableOptionalKubernetesFeatureGates() {
 	log.Log(log.ShimPredicates).Debug("Enabling InPlacePodVerticalScaling feature gate")
 	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InPlacePodVerticalScaling)); err != nil {
 		log.Log(log.ShimPredicates).Fatal("Unable to set InPlacePodVerticalScaling feature gate", zap.Error(err))
+	}
+	log.Log(log.ShimPredicates).Debug("Enabling InterPodAffinityHostnameFastPath feature gate")
+	if err := feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.InterPodAffinityHostnameFastPath)); err != nil {
+		log.Log(log.ShimPredicates).Fatal("Unable to set InterPodAffinityHostnameFastPath feature gate", zap.Error(err))
 	}
 }
 

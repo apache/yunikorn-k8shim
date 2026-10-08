@@ -16,19 +16,21 @@
  limitations under the License.
 */
 
-package cache
+package main
 
-type TaskSchedulingState int8
+import (
+	"crypto/tls"
+	"testing"
 
-const (
-	TaskSchedPending TaskSchedulingState = iota
-	TaskSchedSkipped
-	TaskSchedFailed
-	TaskSchedAllocated
+	"gotest.tools/v3/assert"
 )
 
-var taskSchedulingStateNames = []string{"Pending", "Skipped", Failed, "Allocated"}
-
-func (tss TaskSchedulingState) String() string {
-	return taskSchedulingStateNames[tss]
+func TestWebhookStartupShutdownRace(t *testing.T) {
+	webhook := CreateWebhook(nil, 0)
+	for i := 0; i < 100; i++ {
+		webhook.Startup(&tls.Certificate{})
+		assert.Assert(t, webhook.server != nil, "startup must set the server")
+		webhook.Shutdown()
+		assert.Assert(t, webhook.server == nil, "shutdown must clear the server")
+	}
 }

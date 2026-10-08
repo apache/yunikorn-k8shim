@@ -252,7 +252,7 @@ func (callback *AsyncRMCallback) SendEvent(eventRecords []*si.EventRecord) {
 }
 
 func (callback *AsyncRMCallback) UpdateContainerSchedulingState(request *si.UpdateContainerSchedulingStateRequest) {
-	callback.context.HandleContainerStateUpdate(request)
+	callback.context.HandleContainerStateUpdate(callback.stopCtx, request)
 }
 
 // StateDumpPlugin implementation

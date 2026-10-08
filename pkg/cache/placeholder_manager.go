@@ -75,7 +75,7 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 
 	// map task group to count of already created placeholders
 	tgCounts := make(map[string]int32)
-	for _, ph := range app.getPlaceHolderTasks() {
+	for _, ph := range app.GetPlaceHolderTasks() {
 		tgCounts[ph.GetTaskGroupName()]++
 	}
 
