@@ -255,31 +255,36 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 	assert.Assert(t, filterErr != nil, "Filter should fail due to anti-affinity conflict")
 
 	// PreemptionFilter should remove victim and succeed at index 0
-	index := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, 0)
+	index, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, 0)
 	assert.Equal(t, index, 0, "PreemptionFilter should succeed after removing the conflicting victim")
+	assert.Equal(t, len(pluginErrors), 0, "wrong number of victim error")
 
 	// Ensure caller's original cycleState was not corrupted / mutated
 	originalFilterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
 	assert.Assert(t, originalFilterErr != nil, "Original cycleState should remain unmodified")
 
 	// PreemptionFilter with startIndex > 0 (earlier resource victims removed)
-	indexStartIndex := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{resourceVictim, victim}, 1)
+	indexStartIndex, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{resourceVictim, victim}, 1)
 	assert.Equal(t, indexStartIndex, 1, "PreemptionFilter should succeed with startIndex > 0")
+	assert.Equal(t, len(pluginErrors), 0, "wrong number of victim error")
 
 	// PreemptionFilter with nil victim (handling concurrent pod deletion in cache)
-	indexNil := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nil, victim}, 0)
+	indexNil, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nil, victim}, 0)
 	assert.Equal(t, indexNil, 1, "PreemptionFilter should skip nil victims safely")
+	assert.Equal(t, len(pluginErrors), 0, "wrong number of victim error")
 
 	// PreemptionFilter with non-existent victim (safely tolerated without crashing or aborting, succeeds once conflicting victim is removed)
 	nonExistentVictim := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "non-existent-victim", UID: "non-existent-victim-uid", Namespace: defaultNS},
 	}
-	indexNonExistent := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim, victim}, 0)
+	indexNonExistent, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim, victim}, 0)
 	assert.Equal(t, indexNonExistent, 1, "PreemptionFilter should tolerate non-existent victim and succeed at index 1")
+	assert.Equal(t, len(pluginErrors), 0, "wrong number of victim error")
 
 	// PreemptionFilter with only non-existent victim fails because conflicting victim remains on node
-	indexUnresolved := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
+	indexUnresolved, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
 	assert.Equal(t, indexUnresolved, -1, "PreemptionFilter should return -1 as conflicting victim is not removed")
+	assert.Equal(t, len(pluginErrors), 1, "wrong number of victim error")
 
 	// PreemptionFilter with malformed victim (NewPodInfo error aborts preemption safely)
 	malformedVictim := &v1.Pod{
@@ -302,8 +307,9 @@ func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
 		},
 	}
 	nodeInfo.AddPod(malformedVictim)
-	indexMalformed := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{malformedVictim, victim}, 0)
+	indexMalformed, pluginErrors := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{malformedVictim, victim}, 0)
 	assert.Equal(t, indexMalformed, -1, "PreemptionFilter should return -1 when victim NewPodInfo fails")
+	assert.Equal(t, len(pluginErrors), 1, "wrong number of victim error")
 }
 
 func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
@@ -396,8 +402,13 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 				assert.Assert(t, cycleState.GetSkipFilterPlugins().Has(pluginName), "plugin should be skipped")
 			}
 
-			idx := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{allVictims["victim0"], allVictims["victim1"]}, tt.startIndex)
+			idx, pluginErrors := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{allVictims["victim0"], allVictims["victim1"]}, tt.startIndex)
 			assert.Equal(t, idx, tt.wantIndex)
+			if tt.wantIndex == -1 {
+				assert.Equal(t, len(pluginErrors), 1, "wrong number of victim error")
+			} else {
+				assert.Equal(t, len(pluginErrors), 0, "wrong number of victim error")
+			}
 		})
 	}
 }

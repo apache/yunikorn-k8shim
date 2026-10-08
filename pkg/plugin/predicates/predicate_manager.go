@@ -80,18 +80,20 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 		}
 	}
 
+	pluginErrors := make(map[string]int32)
 	// remove pods up through startIndex -- all of these are required to be removed to satisfy resource constraints
 	for i := 0; i < startIndex && i < len(victims); i++ {
 		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
-			return -1, nil
+			pluginErrors[err.Error()]++
+			return -1, pluginErrors
 		}
 	}
 
-	pluginErrors := make(map[string]int32)
 	// loop through remaining pods
 	for i := startIndex; i < len(victims); i++ {
 		if err := p.removePod(ctx, preemptingNode, stateCopy, pod, victims[i]); err != nil {
-			return -1, nil
+			pluginErrors[err.Error()]++
+			return -1, pluginErrors
 		}
 		status := p.runFilterPlugins(ctx, *p.allocationFilters, stateCopy, pod, preemptingNode)
 		if status.IsSuccess() {
