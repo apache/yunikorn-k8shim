@@ -62,16 +62,23 @@ type Application struct {
 	placeholderTimeoutInSec    int64
 	schedulingStyle            string
 	originatingTask            *Task // Original Pod which creates the requests
-	releaseableTasks           []*Task
 	context                    *Context
+	removeFromContext          bool // handle() does the removal: it needs the context lock
+
+	// releaseableTasksLock protects the deferred queue independently of app.lock.
+	// Never acquire app.lock or a task lock while holding this mutex.
+	releaseableTasksLock locking.Mutex
+	releaseableTasks     []*Task
 }
 
 const transitionErr = "no transition"
 
+// String is called from paths that already hold the application lock, so it must stay
+// lock-free. It reads only fields fixed at construction plus the state machine, which
+// guards its own current state.
 func (app *Application) String() string {
-	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s,"+
-		" totalNumOfTasks: %d, currentState: %s",
-		app.applicationID, app.queue, app.partition, len(app.taskMap), app.GetApplicationState())
+	return fmt.Sprintf("applicationID: %s, queue: %s, partition: %s, currentState: %s",
+		app.applicationID, app.queue, app.partition, app.GetApplicationState())
 }
 
 func NewApplication(appID, queueName, user string, groups []string, tags map[string]string, scheduler api.SchedulerAPI) *Application {
@@ -96,6 +103,18 @@ func NewApplication(appID, queueName, user string, groups []string, tags map[str
 }
 
 func (app *Application) handle(ev events.ApplicationEvent) error {
+	removeFrom, err := app.runTransition(ev)
+	// Context.RemoveApplication takes the context lock, which every other path takes before
+	// the application lock, so the removal can only run once runTransition has released it.
+	if removeFrom != nil {
+		removeFrom.RemoveApplication(app.applicationID)
+	}
+	return err
+}
+
+// runTransition runs the event through the state machine while holding the application lock and
+// reports the context the transition asked to remove the application from, if any.
+func (app *Application) runTransition(ev events.ApplicationEvent) (*Context, error) {
 	// Locking mechanism:
 	// 1) when handle event transitions, we first obtain the object's lock,
 	//    this helps us to place a pre-check before entering here, in case
@@ -104,15 +123,21 @@ func (app *Application) handle(ev events.ApplicationEvent) error {
 	//    to protect the transition phase.
 	// 2) Note, state machine calls those callbacks here, we must ensure
 	//    they are lock-free calls. Otherwise the callback will be blocked
-	//    because the lock is already held here.
+	//    because the lock is already held here. A lock that is ordered after
+	//    this one, the task lock, is safe for a callback to take.
 	app.lock.Lock()
 	defer app.lock.Unlock()
 	err := app.sm.Event(context.Background(), ev.GetEvent(), app, ev.GetArgs())
+	var removeFrom *Context
+	if app.removeFromContext {
+		app.removeFromContext = false
+		removeFrom = app.context
+	}
 	// handle the same state transition not nil error (limit of fsm).
 	if err != nil && err.Error() != transitionErr {
-		return err
+		return removeFrom, err
 	}
-	return nil
+	return removeFrom, nil
 }
 
 func (app *Application) canHandle(ev events.ApplicationEvent) bool {
@@ -323,18 +348,20 @@ func (app *Application) GetTags() map[string]string {
 	return app.tags
 }
 
-func (app *Application) getNonTerminatedTaskAlias() []string {
-	var nonTerminatedTaskAlias []string
-	for _, task := range app.taskMap {
-		if !task.isTerminated() {
-			nonTerminatedTaskAlias = append(nonTerminatedTaskAlias, task.alias)
-		}
-	}
-	return nonTerminatedTaskAlias
+func (app *Application) AreAllTasksTerminated() bool {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	return app.areAllTasksTerminated()
 }
 
-func (app *Application) AreAllTasksTerminated() bool {
-	return len(app.getNonTerminatedTaskAlias()) == 0
+// areAllTasksTerminated must be called while the application lock is held.
+func (app *Application) areAllTasksTerminated() bool {
+	for _, task := range app.taskMap {
+		if !task.isTerminated() {
+			return false
+		}
+	}
+	return true
 }
 
 // SetState is only for testing
@@ -431,6 +458,7 @@ func (app *Application) scheduleTasks(taskScheduleCondition func(t *Task) bool) 
 func (app *Application) handleSubmitApplicationEvent() error {
 	log.Log(log.ShimCacheApplication).Info("handle app submission",
 		zap.Stringer("app", app),
+		zap.Int("totalNumOfTasks", len(app.taskMap)),
 		zap.String("clusterID", conf.GetSchedulerConf().ClusterID))
 
 	if err := app.schedulerAPI.UpdateApplication(
@@ -571,15 +599,24 @@ func (app *Application) onReserving() {
 		// while doing reserving
 		if err := getPlaceholderManager().createAppPlaceholders(app); err != nil {
 			// creating placeholder failed
-			// put the app into recycling queue and turn the app to running state
 			getPlaceholderManager().cleanUp(app)
-			ev := NewRunApplicationEvent(app.applicationID)
-			dispatcher.Dispatch(ev)
-			// failed at least one placeholder creation progress as a normal application
-			if app.originatingTask != nil {
-				events.GetRecorder().Eventf(app.originatingTask.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
-					"PlaceholderCreateFailed", "Application %s fall back to normal scheduling", app.applicationID)
+			// the gang scheduling style decides how the app progresses.
+			// HARD fails the app, while SOFT falls back to normal scheduling
+			originator := app.GetOriginatingTask()
+			if app.schedulingStyle == constants.SchedulingPolicyStyleParamValues["Hard"] {
+				if originator != nil {
+					events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+						"PlaceholderCreateFailed", "Application %s placeholder creation failed, failing application, reason: %s", app.applicationID, err.Error())
+				}
+				dispatcher.Dispatch(NewFailApplicationEvent(app.applicationID,
+					fmt.Sprintf("%s: %s", constants.ApplicationPlaceholderCreateFailure, err.Error())))
+				return
 			}
+			if originator != nil {
+				events.GetRecorder().Eventf(originator.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "GangScheduling",
+					"PlaceholderCreateFailed", "Application %s placeholder creation failed, fall back to normal scheduling, reason: %s", app.applicationID, err.Error())
+			}
+			dispatcher.Dispatch(NewRunApplicationEvent(app.applicationID))
 		}
 	}()
 }
@@ -664,14 +701,17 @@ func (app *Application) handleFailApplicationEvent(errMsg string) {
 
 	timeout := strings.Contains(errMsg, constants.ApplicationInsufficientResourcesFailure)
 	rejected := strings.Contains(errMsg, constants.ApplicationRejectedFailure)
+	placeholderCreateFailed := strings.Contains(errMsg, constants.ApplicationPlaceholderCreateFailure)
 	// publish pod level event to unallocated pods
 	for _, task := range unalloc {
 		// Only need to fail the non-placeholder pod(s)
-		if timeout {
+		switch {
+		case timeout:
 			failTaskPodWithReasonAndMsg(task, constants.ApplicationInsufficientResourcesFailure, "Scheduling has timed out due to insufficient resources")
-		} else if rejected {
-			errMsgArr := strings.Split(errMsg, ":")
-			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, errMsgArr[1])
+		case rejected:
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationRejectedFailure, strings.TrimPrefix(errMsg, constants.ApplicationRejectedFailure+": "))
+		case placeholderCreateFailed:
+			failTaskPodWithReasonAndMsg(task, constants.ApplicationPlaceholderCreateFailure, strings.TrimPrefix(errMsg, constants.ApplicationPlaceholderCreateFailure+": "))
 		}
 		events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil, v1.EventTypeWarning, "ApplicationFailed", "ApplicationFailed",
 			"Application %s scheduling failed, reason: %s", app.applicationID, errMsg)
@@ -739,8 +779,8 @@ func (app *Application) removeCompletedTasks() {
 }
 
 func (app *Application) tryAddReleasableTask(task *Task) bool {
-	app.lock.Lock()
-	defer app.lock.Unlock()
+	app.releaseableTasksLock.Lock()
+	defer app.releaseableTasksLock.Unlock()
 
 	current := app.sm.Current()
 	if current == ApplicationStates().New ||
@@ -758,28 +798,30 @@ func (app *Application) tryAddReleasableTask(task *Task) bool {
 }
 
 func (app *Application) clearReleaseableTasks() {
+	app.releaseableTasksLock.Lock()
+	defer app.releaseableTasksLock.Unlock()
 	app.releaseableTasks = nil
 }
 
 // flushReleaseableTasks replays deferred task releases after the application has been accepted
 // by the scheduler core. Must be called while the application lock is held.
 func (app *Application) flushReleaseableTasks() {
-	if len(app.releaseableTasks) == 0 {
-		return
-	}
+	app.releaseableTasksLock.Lock()
 	tasks := app.releaseableTasks
 	app.releaseableTasks = nil
+	app.releaseableTasksLock.Unlock()
+	if len(tasks) == 0 {
+		return
+	}
 
-	if app.AreAllTasksTerminated() {
+	if app.areAllTasksTerminated() {
 		app.removeFromSchedulerCore()
-		if app.context != nil {
-			app.context.removeApplication(app.applicationID)
-		}
+		app.removeFromContext = true
 		return
 	}
 
 	for _, task := range tasks {
-		task.releaseAllocation(true)
+		task.forceReleaseAllocation()
 	}
 }
 

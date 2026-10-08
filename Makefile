@@ -170,7 +170,7 @@ endif
 export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=2.10.1
+GOLANGCI_LINT_VERSION=2.13.2
 GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
@@ -184,7 +184,7 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
-KIND_VERSION=v0.32.0
+KIND_VERSION=v0.33.0
 KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
 KIND_BIN=$(KIND_PATH)/kind
 export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
@@ -420,11 +420,12 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
+	-buildvcs=false \
 	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/shim/"
@@ -513,11 +514,12 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
 	-trimpath \
+	-buildvcs=false \
 	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
 	-tags netgo \
 	./pkg/cmd/admissioncontroller"

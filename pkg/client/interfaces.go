@@ -36,11 +36,8 @@ type KubeClient interface {
 	// Delete a pod from a host
 	Delete(ctx context.Context, pod *v1.Pod) error
 
-	// Update a pod
-	UpdatePod(pod *v1.Pod, podMutator func(pod *v1.Pod)) (*v1.Pod, error)
-
 	// Update the status of a pod
-	UpdateStatus(pod *v1.Pod) (*v1.Pod, error)
+	UpdateStatus(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 
 	// Get a pod
 	Get(podNamespace string, podName string) (*v1.Pod, error)

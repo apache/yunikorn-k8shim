@@ -31,6 +31,39 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
 )
 
+func TestGetFullStateDump(t *testing.T) {
+	const want = "{\n  \"partitions\": []\n}\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/debug/fullstatedump" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := w.Write([]byte(want)); err != nil {
+			t.Errorf("failed to write state dump: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("failed to parse test server URL: %v", err)
+	}
+	client := &RClient{
+		BaseURL:    serverURL,
+		httpClient: server.Client(),
+	}
+
+	got, err := client.GetFullStateDump()
+	if err != nil {
+		t.Fatalf("GetFullStateDump() error = %v", err)
+	}
+	if got != want {
+		t.Errorf("GetFullStateDump() = %q, want %q", got, want)
+	}
+}
+
 func TestHasNegativeNodeResources(t *testing.T) {
 	healthyNode := dao.NodeDAOInfo{
 		NodeID:    "node-1",

@@ -33,7 +33,6 @@ import (
 	runtime2 "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
@@ -65,24 +64,43 @@ var (
 const (
 	mockPreFilterPlugin = "mock-prefilter-plugin"
 	mockFilterPlugin    = "mock-filter-plugin"
-	injectReason        = "injected status"
-	injectFilterReason  = "injected filter status"
 )
 
 type injectedResult struct {
 	PreFilterResult *fwk.PreFilterResult `json:"preFilterResult,omitempty"`
 	PreFilterStatus int                  `json:"preFilterStatus,omitempty"`
+	PreFilterReason string               `json:"preFilterReason,omitempty"`
 	FilterStatus    int                  `json:"filterStatus,omitempty"`
+	FilterReason    string               `json:"filterReason,omitempty"`
+}
+
+type MockPreFilterExtension struct {
+	removePodStatus map[string]*fwk.Status
+}
+
+func (m *MockPreFilterExtension) AddPod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, _ fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
+	return nil
+}
+
+func (m *MockPreFilterExtension) RemovePod(_ context.Context, _ fwk.CycleState, _ *v1.Pod, podInfo fwk.PodInfo, _ fwk.NodeInfo) *fwk.Status {
+	if podInfo == nil || podInfo.GetPod() == nil {
+		return nil
+	}
+	if status, ok := m.removePodStatus[string(podInfo.GetPod().UID)]; ok {
+		return status
+	}
+	return fwk.NewStatus(fwk.Success)
 }
 
 // MockPreFilterPlugin implements PreFilter interface.
 type MockPreFilterPlugin struct {
 	name string
 	inj  injectedResult
+	ext  fwk.PreFilterExtensions
 }
 
 func (pl *MockPreFilterPlugin) PreFilterExtensions() fwk.PreFilterExtensions {
-	return nil
+	return pl.ext
 }
 
 func (pl *MockPreFilterPlugin) Name() string {
@@ -90,7 +108,7 @@ func (pl *MockPreFilterPlugin) Name() string {
 }
 
 func (pl *MockPreFilterPlugin) PreFilter(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodes []fwk.NodeInfo) (*fwk.PreFilterResult, *fwk.Status) {
-	return pl.inj.PreFilterResult, fwk.NewStatus(fwk.Code(pl.inj.PreFilterStatus), injectReason)
+	return pl.inj.PreFilterResult, fwk.NewStatus(fwk.Code(pl.inj.PreFilterStatus), pl.inj.PreFilterReason)
 }
 
 // MockFilterPlugin implements Filter interface.
@@ -100,7 +118,7 @@ type MockFilterPlugin struct {
 }
 
 func (pl *MockFilterPlugin) Filter(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
-	return fwk.NewStatus(fwk.Code(pl.inj.FilterStatus), injectFilterReason)
+	return fwk.NewStatus(fwk.Code(pl.inj.FilterStatus), pl.inj.FilterReason)
 }
 
 func (pl *MockFilterPlugin) Name() string {
@@ -174,28 +192,212 @@ func TestPreemptionFilterWithVictims(t *testing.T) {
 	}
 }
 
-func TestEventsToRegister(t *testing.T) {
-	ep := enabledPlugins(nodename.Name, interpodaffinity.Name, podtopologyspread.Name)
-	handle, _ := getFrameworkHandle()
+func TestPreemptionFilter_InterPodAntiAffinity(t *testing.T) {
+	const defaultNS = "default"
+	ep := enabledPlugins(interpodaffinity.Name)
+	handle, lister := getFrameworkHandle()
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
 	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
 
-	var queueingHintFn fwk.QueueingHintFn = func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (fwk.QueueingHint, error) {
-		// illegal sentinel to ensure we called the correct function
-		return -1, nil
+	nodeName := "preemption-node"
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: nodeName, Labels: map[string]string{v1.LabelHostname: nodeName}},
 	}
-	events := predicateManager.EventsToRegister(queueingHintFn)
-	assert.Equal(t, events[0].Event.Resource, fwk.Node, "wrong resource (0)")
-	assert.Equal(t, events[0].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdateNodeLabel|fwk.UpdateNodeTaint, "wrong action type (0)")
-	fn0, err := events[0].QueueingHintFn(klog.NewKlogr(), nil, "", "")
+	victim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "victim", UID: "victim-pod-uid", Namespace: defaultNS, Labels: map[string]string{"app": "conflict"}},
+		Spec:       v1.PodSpec{NodeName: nodeName},
+	}
+	resourceVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "resource-victim", UID: "resource-victim-uid", Namespace: defaultNS},
+		Spec:       v1.PodSpec{NodeName: nodeName},
+	}
+
+	nodeInfo := framework.NewNodeInfo(victim, resourceVictim)
+	nodeInfo.SetNode(node)
+	lister.NodeLister().Set([]fwk.NodeInfo{nodeInfo})
+
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "incoming",
+			UID:       "incoming-pod-uid",
+			Namespace: defaultNS,
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"conflict"},
+									},
+								},
+							},
+							TopologyKey: v1.LabelHostname,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, cycleState, err := predicateManager.PreFilter(pod, true)
 	assert.NilError(t, err)
-	assert.Equal(t, int(fn0), -1, "wrong fn (0)")
-	assert.Equal(t, events[1].Event.Resource, fwk.Pod, "wrong resource (1)")
-	assert.Equal(t, events[1].Event.ActionType, fwk.Add|fwk.Delete|fwk.UpdatePodLabel|fwk.UpdatePodToleration, "wrong action type (1)")
-	fn1, err := events[1].QueueingHintFn(klog.NewKlogr(), nil, "", "")
-	assert.NilError(t, err)
-	assert.Equal(t, int(fn1), -1, "wrong fn (1)")
+
+	// Direct Filter check should fail because victim exists on the node
+	filterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
+	assert.Assert(t, filterErr != nil, "Filter should fail due to anti-affinity conflict")
+
+	// PreemptionFilter should remove victim and succeed at index 0
+	index := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{victim}, 0)
+	assert.Equal(t, index, 0, "PreemptionFilter should succeed after removing the conflicting victim")
+
+	// Ensure caller's original cycleState was not corrupted / mutated
+	originalFilterErr := predicateManager.Filter(pod, nodeInfo, cycleState, true)
+	assert.Assert(t, originalFilterErr != nil, "Original cycleState should remain unmodified")
+
+	// PreemptionFilter with startIndex > 0 (earlier resource victims removed)
+	indexStartIndex := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{resourceVictim, victim}, 1)
+	assert.Equal(t, indexStartIndex, 1, "PreemptionFilter should succeed with startIndex > 0")
+
+	// PreemptionFilter with nil victim (handling concurrent pod deletion in cache)
+	indexNil := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nil, victim}, 0)
+	assert.Equal(t, indexNil, 1, "PreemptionFilter should skip nil victims safely")
+
+	// PreemptionFilter with non-existent victim (safely tolerated without crashing or aborting, succeeds once conflicting victim is removed)
+	nonExistentVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "non-existent-victim", UID: "non-existent-victim-uid", Namespace: defaultNS},
+	}
+	indexNonExistent := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim, victim}, 0)
+	assert.Equal(t, indexNonExistent, 1, "PreemptionFilter should tolerate non-existent victim and succeed at index 1")
+
+	// PreemptionFilter with only non-existent victim fails because conflicting victim remains on node
+	indexUnresolved := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{nonExistentVictim}, 0)
+	assert.Equal(t, indexUnresolved, -1, "PreemptionFilter should return -1 as conflicting victim is not removed")
+
+	// PreemptionFilter with malformed victim (NewPodInfo error aborts preemption safely)
+	malformedVictim := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "malformed-victim", UID: "malformed-victim-uid", Namespace: defaultNS},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &v1.PodAntiAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{Key: "app", Operator: "InvalidOperator"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	nodeInfo.AddPod(malformedVictim)
+	indexMalformed := predicateManager.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{malformedVictim, victim}, 0)
+	assert.Equal(t, indexMalformed, -1, "PreemptionFilter should return -1 when victim NewPodInfo fails")
+}
+
+func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
+	tests := []struct {
+		name            string
+		preFilterStatus fwk.Code
+		startIndex      int
+		nodeVictims     []string
+		wantIndex       int
+	}{
+		{
+			name:            "skipped prefilter plugin is bypassed and succeeds",
+			preFilterStatus: fwk.Skip,
+			startIndex:      0,
+			nodeVictims:     []string{"victim0", "victim1"},
+			wantIndex:       0,
+		},
+		{
+			name:            "failing extension at predicate loop aborts preemption",
+			preFilterStatus: fwk.Success,
+			startIndex:      0,
+			nodeVictims:     []string{"victim0", "victim1"},
+			wantIndex:       -1,
+		},
+		{
+			name:            "failing extension before startIndex aborts preemption",
+			preFilterStatus: fwk.Success,
+			startIndex:      1,
+			nodeVictims:     []string{"victim0", "victim1"},
+			wantIndex:       -1,
+		},
+		{
+			name:            "failing extension on non-existent victim is ignored when node.RemovePod fails",
+			preFilterStatus: fwk.Success,
+			startIndex:      1,
+			nodeVictims:     []string{"victim1"},
+			wantIndex:       1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pluginName := "mock-prefilter-ext-plugin"
+			mockPreFilter := &MockPreFilterPlugin{
+				name: pluginName,
+				inj:  injectedResult{PreFilterStatus: int(tt.preFilterStatus)},
+				ext: &MockPreFilterExtension{
+					removePodStatus: map[string]*fwk.Status{
+						"victim0-uid": fwk.NewStatus(fwk.Error, "mock error in RemovePod"),
+					},
+				},
+			}
+			mockFilter := &MockFilterPlugin{
+				name: "mock-filter",
+				inj:  injectedResult{FilterStatus: int(fwk.Success)},
+			}
+
+			r := make(runtime.Registry)
+			err := r.Register(pluginName, func(_ context.Context, _ runtime2.Object, _ fwk.Handle) (fwk.Plugin, error) {
+				return mockPreFilter, nil
+			})
+			assert.NilError(t, err)
+			err = r.Register("mock-filter", func(_ context.Context, _ runtime2.Object, _ fwk.Handle) (fwk.Plugin, error) {
+				return mockFilter, nil
+			})
+			assert.NilError(t, err)
+
+			eps := []string{pluginName, "mock-filter"}
+			config, err := prepareConfig(eps)
+			assert.NilError(t, err)
+			handle, _ := getFrameworkHandle()
+			p := newPredicateManagerInternal(handle, r, config, nil, map[string]bool{pluginName: true}, nil, map[string]bool{"mock-filter": true})
+
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod", UID: "pod-uid"}}
+			node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node"}}
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+
+			allVictims := map[string]*v1.Pod{
+				"victim0": {ObjectMeta: metav1.ObjectMeta{Name: "victim0", UID: "victim0-uid"}},
+				"victim1": {ObjectMeta: metav1.ObjectMeta{Name: "victim1", UID: "victim1-uid"}},
+			}
+			for _, name := range tt.nodeVictims {
+				nodeInfo.AddPod(allVictims[name])
+			}
+
+			_, cycleState, err := p.PreFilter(pod, true)
+			assert.NilError(t, err)
+			if tt.preFilterStatus == fwk.Skip {
+				assert.Assert(t, cycleState.GetSkipFilterPlugins().Has(pluginName), "plugin should be skipped")
+			}
+
+			idx := p.PreemptionFilter(pod, nodeInfo, cycleState, []*v1.Pod{allVictims["victim0"], allVictims["victim1"]}, tt.startIndex)
+			assert.Equal(t, idx, tt.wantIndex)
+		})
+	}
 }
 
 func TestPodFitsHost(t *testing.T) {
@@ -250,9 +452,9 @@ func TestPodFitsHost(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(test.node)
-			plugin, err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
+			err := predicateManager.Filter(test.pod, nodeInfo, framework.NewCycleState(), true)
 			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, err)
 			}
 		})
 	}
@@ -393,9 +595,9 @@ func TestPodFitsHostPorts(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -1092,9 +1294,9 @@ func TestPodFitsSelector(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -1235,9 +1437,9 @@ func TestRunGeneralPredicates(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, plugin)
+			pluginErr := predicateManager.Filter(test.pod, test.nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -2186,9 +2388,9 @@ func TestInterPodAffinity(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(test.pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			pl, err := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
-			if (err == nil) != test.fits {
-				t.Errorf("%s expected fit state '%t' did not match real state and err = %v, plugin = %v", test.name, test.fits, err, pl)
+			pluginErr := predicateManager.Filter(test.pod, nodeInfo, cycleState, true)
+			if (pluginErr == nil) != test.fits {
+				t.Errorf("%s expected fit state '%t' did not match real state and err = %v", test.name, test.fits, pluginErr)
 			}
 		})
 	}
@@ -2214,14 +2416,14 @@ func TestReserveAlloc(t *testing.T) {
 	config, err := DefaultConfig()
 	assert.NilError(t, err)
 	predicateManager := newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	assert.NilError(t, err, "error should have been nil, no predicates given")
+	pluginErr := predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	assert.NilError(t, pluginErr, "error should have been nil, no predicates given")
 
 	// add one predicate also run by reservations
 	ep[nodeunschedulable.Name] = true
 	predicateManager = newPredicateManagerInternal(handle, plugins.NewInTreeRegistry(), config, ep, ep, ep, ep)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	assert.NilError(t, err, "error should have been nil, node is schedulable")
+	pluginErr = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	assert.NilError(t, pluginErr, "error should have been nil, node is schedulable")
 
 	// make the node unschedulable
 	node, _, err = taints.AddOrUpdateTaint(nodeInfo.Node(), &v1.Taint{
@@ -2231,8 +2433,8 @@ func TestReserveAlloc(t *testing.T) {
 	node.Spec.Unschedulable = true
 	assert.NilError(t, err, "failed to add taint")
 	nodeInfo.SetNode(node)
-	_, err = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
-	if err == nil {
+	pluginErr = predicateManager.Filter(pod, nodeInfo, framework.NewCycleState(), false)
+	if pluginErr == nil {
 		t.Errorf("error should not have been nil, predicate should have failed")
 	}
 }
@@ -2276,12 +2478,12 @@ func TestReserveNodeSelector(t *testing.T) {
 			_, cycleState, err := predicateManager.PreFilter(pod, true)
 			assert.NilError(t, err)
 			assert.Assert(t, cycleState != nil)
-			plugin, err := predicateManager.Filter(pod, nodeInfo, cycleState, false)
-			log.Log(log.Test).Info("reservation predicates called", zap.Error(err), zap.String("plugin", plugin))
+			pluginErr := predicateManager.Filter(pod, nodeInfo, cycleState, false)
+			log.Log(log.Test).Info("reservation predicates called", zap.Error(err))
 			if tc.errorExpected {
-				assert.Assert(t, err != nil, "An error is expected")
+				assert.Assert(t, pluginErr != nil, "An error is expected")
 			} else {
-				assert.NilError(t, err, "No error expected")
+				assert.NilError(t, pluginErr, "No error expected")
 			}
 		})
 	}
@@ -2340,24 +2542,24 @@ func TestPreFilter(t *testing.T) {
 
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable), PreFilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			[]string{},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable), PreFilterReason: "Unschedulable"}},
 			},
 			[]string{},
-			nil, errors.New("unschedulable"),
+			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error)}},
+				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error), PreFilterReason: "PreFilter plugin \"mock-prefilter-plugin\" failed"}},
 			},
 			[]string{},
-			nil, errors.New("error"),
+			nil, errors.New("PreFilter plugin \"mock-prefilter-plugin\" failed"),
 		},
 	}
 	for _, tc := range testCases {
@@ -2401,6 +2603,9 @@ func TestPreFilter(t *testing.T) {
 				}
 				if tc.errorExpected != nil {
 					assert.Assert(t, filterErr != nil, "error should not be nil")
+					assert.Equal(t, filterErr.Error(), tc.errorExpected.Error(), "error should match")
+				} else {
+					assert.NilError(t, err, filterErr)
 				}
 			}
 		})
@@ -2441,21 +2646,21 @@ func TestFilter(t *testing.T) {
 		},
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable), FilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable), FilterReason: "Unschedulable"}},
 			},
-			nil, errors.New("unschedulable"),
+			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error)}},
+				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error), FilterReason: "Filter plugin \"mock-filter-plugin\" failed"}},
 			},
-			nil, errors.New("error"),
+			nil, errors.New("filter plugin \"mock-filter-plugin\" failed"),
 		},
 	}
 
@@ -2492,12 +2697,11 @@ func TestFilter(t *testing.T) {
 				}
 				nodeInfo := framework.NewNodeInfo()
 				nodeInfo.SetNode(node)
-				filter, err := p.Filter(tc.pod, nodeInfo, cycleState, allocate)
+				pluginErr := p.Filter(tc.pod, nodeInfo, cycleState, allocate)
 				if tc.errorExpected != nil {
-					assert.Assert(t, err != nil, "error should not be nil")
-					assert.Equal(t, filter, tc.filterPlugins[0].Name())
+					assert.Assert(t, pluginErr != nil, "error should not be nil")
 				} else {
-					assert.Equal(t, filter, "")
+					assert.NilError(t, pluginErr, "error should be nil")
 				}
 			}
 		})

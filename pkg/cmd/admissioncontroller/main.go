@@ -153,7 +153,7 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 	mux.HandleFunc(mutateURL, wh.ac.Serve)
 	mux.HandleFunc(validateConfURL, wh.ac.Serve)
 
-	wh.server = &http.Server{
+	server := &http.Server{
 		Addr: fmt.Sprintf(":%v", wh.port),
 		TLSConfig: &tls.Config{
 			MinVersion:   tls.VersionTLS12,           // No SSL, TLS 1.0 or TLS 1.1 support
@@ -164,9 +164,10 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	wh.server = server
 
 	go func() {
-		if err := wh.server.ListenAndServeTLS("", ""); err != nil {
+		if err := server.ListenAndServeTLS("", ""); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				log.Log(log.Admission).Info("existing server closed")
 			} else {
@@ -182,15 +183,16 @@ func (wh *WebHook) Startup(certs *tls.Certificate) {
 
 func (wh *WebHook) Shutdown() {
 	wh.Lock()
-	defer wh.Unlock()
+	server := wh.server
+	wh.server = nil
+	wh.Unlock()
 
-	if wh.server != nil {
+	if server != nil {
 		log.Log(log.Admission).Info("shutting down the admission controller...")
-		err := wh.server.Shutdown(context.Background())
+		err := server.Shutdown(context.Background())
 		if err != nil {
 			log.Log(log.Admission).Fatal("failed to stop the admission controller", zap.Error(err))
 		}
-		wh.server = nil
 	}
 }
 

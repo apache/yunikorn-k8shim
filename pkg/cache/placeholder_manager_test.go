@@ -251,8 +251,7 @@ func TestCleanUp(t *testing.T) {
 	app := NewApplication(pmAppID, queue,
 		"bob", testGroups, map[string]string{constants.AppTagNamespace: namespace}, mockedSchedulerAPI)
 	mockedContext.applications[pmAppID] = app
-	res := app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 0)
+	assert.Equal(t, len(app.taskMap), 0)
 
 	pod1 := &v1.Pod{
 		TypeMeta: apis.TypeMeta{
@@ -310,8 +309,7 @@ func TestCleanUp(t *testing.T) {
 	task4 := NewTask(taskID4, app, mockedContext, pod4)
 	task4.placeholder = true
 	app.taskMap[taskID4] = task4
-	res = app.getNonTerminatedTaskAlias()
-	assert.Equal(t, len(res), 4)
+	assert.Equal(t, len(app.taskMap), 4)
 
 	deletePod := make([]string, 0)
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
@@ -890,4 +888,44 @@ func TestPlaceholderCreationsRunConcurrently(t *testing.T) {
 			t.Fatal("placeholder creations did not run concurrently")
 		}
 	}
+}
+
+// TestCreateAppPlaceholdersWithConcurrentTaskUpdates exercises createAppPlaceholders while
+// the informer path keeps adding tasks to the same application. createAppPlaceholders only
+// holds the placeholder manager lock, so the task map walk must take the application lock
+// itself. Run with -race: without that lock the walk races with addTask.
+func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
+	app := createAppWIthTaskGroupForTest()
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+
+	readerDone := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// writer: simulates the informer adding pods to the application until the reader finishes
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-readerDone:
+				return
+			default:
+			}
+			pod := &v1.Pod{
+				ObjectMeta: apis.ObjectMeta{
+					Name:      fmt.Sprintf("pod-%d", i),
+					Namespace: namespace,
+				},
+			}
+			app.addTask(NewTask(fmt.Sprintf("task-%d", i), app, nil, pod))
+		}
+	}()
+
+	// reader: the reserving path creating placeholders for the same application
+	for i := 0; i < 50; i++ {
+		assert.NilError(t, mgr.createAppPlaceholders(app))
+	}
+	close(readerDone)
+	wg.Wait()
 }
