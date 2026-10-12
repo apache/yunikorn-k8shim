@@ -204,6 +204,11 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent, run *dispatcher
 			case <-timer.C:
 				elapseTime := time.Since(beginTime)
 				if elapseTime >= p.dispatchTimeout {
+					// Coalesced notifications may leave queue space without waking this sender.
+					enqueued, err := p.tryEnqueue(event, run)
+					if err != nil || enqueued {
+						return
+					}
 					log.Log(log.ShimDispatcher).Error("dispatch timeout",
 						zap.Float64("elapseSeconds", elapseTime.Seconds()))
 					return

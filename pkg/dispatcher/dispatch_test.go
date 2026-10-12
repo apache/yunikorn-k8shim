@@ -25,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"gotest.tools/v3/assert"
@@ -735,4 +736,44 @@ func TestDispatcherConcurrentStopTimeout(t *testing.T) {
 	}
 	releaseHandler()
 	waitDispatcherSignal(t, run.doneChan, "worker did not finish after handler returned")
+}
+
+func TestAsyncDispatchRechecksQueueBeforeTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		run := &dispatcherRun{spaceAvailable: make(chan struct{}, 1), stopChan: make(chan struct{})}
+		d := &Dispatcher{
+			currentRun:                 run,
+			eventChan:                  make(chan events.SchedulingEvent, 2),
+			asyncDispatchLimit:         10,
+			asyncDispatchCheckInterval: 3 * time.Second,
+			dispatchTimeout:            3 * time.Second,
+		}
+		for i := 0; i < cap(d.eventChan); i++ {
+			d.eventChan <- TestAppEvent{appID: "queued", eventType: RunApplication}
+		}
+		d.asyncDispatch(TestAppEvent{appID: "async-1", eventType: RunApplication}, run)
+		d.asyncDispatch(TestAppEvent{appID: "async-2", eventType: RunApplication}, run)
+		synctest.Wait()
+
+		// Model two dequeues whose notifications coalesced before either sender woke.
+		<-d.eventChan
+		<-d.eventChan
+		run.spaceAvailable <- struct{}{}
+		synctest.Wait()
+		assert.Equal(t, len(d.eventChan), 1)
+		assert.Equal(t, d.asyncDispatchCount.Load(), int32(1))
+
+		time.Sleep(d.dispatchTimeout)
+		synctest.Wait()
+		assert.Equal(t, d.asyncDispatchCount.Load(), int32(0))
+		assert.Assert(t, d.isRunning())
+		assert.Equal(t, len(d.eventChan), 2, "pending event must use the available slot before timing out")
+		appIDs := map[string]bool{}
+		for len(d.eventChan) > 0 {
+			event, ok := (<-d.eventChan).(TestAppEvent)
+			assert.Assert(t, ok)
+			appIDs[event.appID] = true
+		}
+		assert.Assert(t, appIDs["async-1"] && appIDs["async-2"])
+	})
 }
