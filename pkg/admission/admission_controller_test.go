@@ -913,6 +913,56 @@ func TestMutateAppID(t *testing.T) {
 	assert.Check(t, !resp.Allowed, "response allowed for appID mutation scheduled by yunikorn")
 }
 
+func TestMutatePodResize(t *testing.T) {
+	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
+
+	notController := false
+	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace:   testNS,
+		Annotations: map[string]string{common.UserInfoAnnotation: validUserInfoAnnotation},
+	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
+	podJSON, err := json.Marshal(pod)
+	assert.NilError(t, err, "failed to marshal pod")
+	placeholder := pod.DeepCopy()
+	placeholder.Annotations[constants.AnnotationPlaceholderFlag] = constants.True
+	placeholder.Annotations[constants.AnnotationTaskGroupName] = "tg-1"
+	placeholder.OwnerReferences = []metav1.OwnerReference{{Kind: "Pod", Name: "originator", Controller: &notController}}
+	placeholderJSON, err := json.Marshal(placeholder)
+	assert.NilError(t, err, "failed to marshal placeholder")
+
+	tests := []struct {
+		name        string
+		subResource string
+		object      []byte
+		allowed     bool
+		message     string
+	}{
+		{"placeholder resize", podResizeSubResource, placeholderJSON, false, "placeholder pod resize is not allowed"},
+		{"placeholder update", "", placeholderJSON, true, ""},
+		{"pod resize", podResizeSubResource, podJSON, true, ""},
+		{"unreadable pod resize", podResizeSubResource, []byte("{"), false, "unexpected end of JSON input"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &admissionv1.AdmissionRequest{
+				UID:         testUID,
+				Namespace:   testNS,
+				Kind:        metav1.GroupVersionKind{Kind: metadata.Pod},
+				Operation:   admissionv1.Update,
+				SubResource: tt.subResource,
+				Object:      runtime.RawExtension{Raw: tt.object},
+				OldObject:   runtime.RawExtension{Raw: tt.object},
+			}
+			resp := ac.mutate(req)
+			assert.Equal(t, resp.Allowed, tt.allowed, "unexpected admission result")
+			if tt.message != "" {
+				assert.Assert(t, resp.Result != nil, "rejection should carry a message")
+				assert.Equal(t, resp.Result.Message, tt.message, "unexpected rejection message")
+			}
+		})
+	}
+}
+
 func TestMutateUpdateObjectUnknown(t *testing.T) {
 	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
 

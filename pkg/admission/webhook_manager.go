@@ -513,10 +513,10 @@ func (wm *webhookManagerImpl) checkMutatingWebhook(webhook *v1.MutatingWebhookCo
 		return errors.New("webhook: wrong api versions")
 	}
 
-	if len(rule.Resources) != 7 || rule.Resources[0] != "pods" ||
+	if len(rule.Resources) != 8 || rule.Resources[0] != "pods" ||
 		rule.Resources[1] != "deployments" || rule.Resources[2] != "replicasets" ||
 		rule.Resources[3] != "statefulsets" || rule.Resources[4] != "daemonsets" ||
-		rule.Resources[5] != "jobs" || rule.Resources[6] != "cronjobs" {
+		rule.Resources[5] != "jobs" || rule.Resources[6] != "cronjobs" || rule.Resources[7] != "pods/resize" {
 		return errors.New("webhook: wrong resources")
 	}
 
@@ -631,7 +631,7 @@ func (wm *webhookManagerImpl) populateMutatingWebhook(webhook *v1.MutatingWebhoo
 			Rules: []v1.RuleWithOperations{{
 				Operations: []v1.OperationType{v1.Create, v1.Update},
 				Rule: v1.Rule{APIGroups: []string{"", "apps", "batch"}, APIVersions: []string{"v1"}, Resources: []string{
-					"pods", "deployments", "replicasets", "statefulsets", "daemonsets", "jobs", "cronjobs"}},
+					"pods", "deployments", "replicasets", "statefulsets", "daemonsets", "jobs", "cronjobs", "pods/resize"}},
 			}},
 			FailurePolicy:           &ignore,
 			AdmissionReviewVersions: []string{"v1"},

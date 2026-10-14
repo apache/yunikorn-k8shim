@@ -450,6 +450,9 @@ func TestCheckMutatingWebhook(t *testing.T) {
 		{name: "WrongResources", expected: "resources", mutator: func(h *arv1.MutatingWebhookConfiguration) {
 			h.Webhooks[0].Rules[0].Resources[0] = "invalid-resource"
 		}},
+		{name: "MissingPodResize", expected: "resources", mutator: func(h *arv1.MutatingWebhookConfiguration) {
+			h.Webhooks[0].Rules[0].Resources = []string{"pods", "deployments", "replicasets", "statefulsets", "daemonsets", "jobs", "cronjobs"}
+		}},
 		{name: "MissingFailurePolicy", expected: "failure policy", mutator: func(h *arv1.MutatingWebhookConfiguration) {
 			h.Webhooks[0].FailurePolicy = nil
 		}},
