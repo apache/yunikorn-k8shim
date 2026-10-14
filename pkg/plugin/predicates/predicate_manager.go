@@ -53,9 +53,9 @@ type PredicateManager interface {
 	// Returns the victim index that allows the pod to fit, or -1 if none.
 	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int)
 	// Reserve Binding cycle - Reserve the node
-	Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error)
+	Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
 	// PreBind Binding cycle - PreBind the node
-	PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error)
+	PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
 	// Unreserve Binding cycle - Unreserve the node
 	Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo)
 }
@@ -113,36 +113,38 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	return -1
 }
 
-func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
 	reservePl := *p.reservePlugins
 	for _, pl := range reservePl {
 		plugin := pl.Name()
 		status := pl.Reserve(context.Background(), cycleState, pod, node.Node().Name)
-		if status.IsError() {
+		if !status.IsSuccess() {
+			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running reserve plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
-				zap.String("message", status.Message()))
-			return plugin, errors.New(status.Message())
+				zap.Error(err))
+			return err
 		}
 	}
-	return "", nil
+	return nil
 }
 
-func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) (string, error) {
+func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
 	preBindPl := *p.preBindPlugins
 	for _, pl := range preBindPl {
 		plugin := pl.Name()
 		status := pl.PreBind(context.Background(), cycleState, pod, node.Node().Name)
-		if status.IsError() {
+		if !status.IsSuccess() {
+			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running preBind plugin",
 				zap.String("pluginName", plugin),
 				zap.String("pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)),
-				zap.String("message", status.Message()))
-			return plugin, errors.New(status.Message())
+				zap.Error(err))
+			return err
 		}
 	}
-	return "", nil
+	return nil
 }
 
 func (p *predicateManagerImpl) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
@@ -376,14 +378,13 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 	allocationFilters := map[string]bool{
 		"*": true,
 	}
-	reservePlugins := map[string]bool{
+	rp := map[string]bool{
 		names.DynamicResources: true,
 	}
-
-	preBindPlugins := map[string]bool{
+	pbp := map[string]bool{
 		names.DynamicResources: true,
 	}
-	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, reservePlugins, preBindPlugins)
+	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, rp, pbp)
 }
 
 func newPredicateManagerInternal(
