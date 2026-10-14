@@ -64,14 +64,29 @@ var (
 const (
 	mockPreFilterPlugin = "mock-prefilter-plugin"
 	mockFilterPlugin    = "mock-filter-plugin"
+	mockReservePlugin   = "mock-reserve-plugin"
+	mockPreBindPlugin   = "mock-pre-bind-plugin"
 )
 
-type injectedResult struct {
+type preFilterInjectedResult struct {
 	PreFilterResult *fwk.PreFilterResult `json:"preFilterResult,omitempty"`
 	PreFilterStatus int                  `json:"preFilterStatus,omitempty"`
 	PreFilterReason string               `json:"preFilterReason,omitempty"`
-	FilterStatus    int                  `json:"filterStatus,omitempty"`
-	FilterReason    string               `json:"filterReason,omitempty"`
+}
+
+type filterInjectedResult struct {
+	FilterStatus int    `json:"filterStatus,omitempty"`
+	FilterReason string `json:"filterReason,omitempty"`
+}
+
+type reserveInjectedResult struct {
+	ReserveStatus int    `json:"reserveStatus,omitempty"`
+	ReserveReason string `json:"reserveReason,omitempty"`
+}
+
+type preBindInjectedResult struct {
+	PreBindStatus int    `json:"preBindStatus,omitempty"`
+	PreBindReason string `json:"preBindReason,omitempty"`
 }
 
 type MockPreFilterExtension struct {
@@ -95,7 +110,7 @@ func (m *MockPreFilterExtension) RemovePod(_ context.Context, _ fwk.CycleState, 
 // MockPreFilterPlugin implements PreFilter interface.
 type MockPreFilterPlugin struct {
 	name string
-	inj  injectedResult
+	inj  preFilterInjectedResult
 	ext  fwk.PreFilterExtensions
 }
 
@@ -114,7 +129,7 @@ func (pl *MockPreFilterPlugin) PreFilter(ctx context.Context, state fwk.CycleSta
 // MockFilterPlugin implements Filter interface.
 type MockFilterPlugin struct {
 	name string
-	inj  injectedResult
+	inj  filterInjectedResult
 }
 
 func (pl *MockFilterPlugin) Filter(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeInfo fwk.NodeInfo) *fwk.Status {
@@ -123,6 +138,50 @@ func (pl *MockFilterPlugin) Filter(ctx context.Context, state fwk.CycleState, po
 
 func (pl *MockFilterPlugin) Name() string {
 	return pl.name
+}
+
+type MockReserveStateData struct {
+	counter int
+}
+
+func (d MockReserveStateData) Clone() fwk.StateData {
+	return d
+}
+
+// MockReservePlugin implements Reserve interface
+type MockReservePlugin struct {
+	name string
+	inj  reserveInjectedResult
+}
+
+func (pl MockReservePlugin) Name() string {
+	return pl.name
+}
+
+func (pl MockReservePlugin) Reserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) *fwk.Status {
+	state.Write("mock-reserve", &MockReserveStateData{counter: 1})
+	return fwk.NewStatus(fwk.Code(pl.inj.ReserveStatus), pl.inj.ReserveReason)
+}
+
+func (pl MockReservePlugin) Unreserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) {
+	state.Write("mock-reserve", &MockReserveStateData{counter: 0})
+}
+
+type MockPreBindPlugin struct {
+	name string
+	inj  preBindInjectedResult
+}
+
+func (pl MockPreBindPlugin) Name() string {
+	return pl.name
+}
+
+func (pl MockPreBindPlugin) PreBindPreFlight(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodeName string) (*fwk.PreBindPreFlightResult, *fwk.Status) {
+	return nil, nil
+}
+
+func (pl MockPreBindPlugin) PreBind(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodeName string) *fwk.Status {
+	return fwk.NewStatus(fwk.Code(pl.inj.PreBindStatus), pl.inj.PreBindReason)
 }
 
 func TestPreemptionFilterWithVictims(t *testing.T) {
@@ -355,7 +414,7 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 			pluginName := "mock-prefilter-ext-plugin"
 			mockPreFilter := &MockPreFilterPlugin{
 				name: pluginName,
-				inj:  injectedResult{PreFilterStatus: int(tt.preFilterStatus)},
+				inj:  preFilterInjectedResult{PreFilterStatus: int(tt.preFilterStatus)},
 				ext: &MockPreFilterExtension{
 					removePodStatus: map[string]*fwk.Status{
 						"victim0-uid": fwk.NewStatus(fwk.Error, "mock error in RemovePod"),
@@ -364,7 +423,7 @@ func TestPreemptionFilter_PreFilterExtensions(t *testing.T) {
 			}
 			mockFilter := &MockFilterPlugin{
 				name: "mock-filter",
-				inj:  injectedResult{FilterStatus: int(fwk.Success)},
+				inj:  filterInjectedResult{FilterStatus: int(fwk.Success)},
 			}
 
 			r := make(runtime.Registry)
@@ -2529,16 +2588,16 @@ func TestPreFilter(t *testing.T) {
 	}{
 		{"success", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
-				{name: mockPreFilterPlugin + "-skip", inj: injectedResult{PreFilterStatus: int(fwk.Skip)}},
+				{name: mockPreFilterPlugin, inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-skip", inj: preFilterInjectedResult{PreFilterStatus: int(fwk.Skip)}},
 			},
 			[]string{node1},
 			[]string{"mock-prefilter-plugin-skip"}, nil,
 		},
 		{"intersection of nodes", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin + "-1", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes1}, PreFilterStatus: int(fwk.Success)}},
-				{name: mockPreFilterPlugin + "-2", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes2}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-1", inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes1}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-2", inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes2}, PreFilterStatus: int(fwk.Success)}},
 			},
 			[]string{node1},
 			nil, nil,
@@ -2546,8 +2605,8 @@ func TestPreFilter(t *testing.T) {
 
 		{"disjoint set of nodes", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin + "-1", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
-				{name: mockPreFilterPlugin + "-2", inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes3}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-1", inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes}, PreFilterStatus: int(fwk.Success)}},
+				{name: mockPreFilterPlugin + "-2", inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{NodeNames: nodes3}, PreFilterStatus: int(fwk.Success)}},
 			},
 			[]string{},
 			nil, nil,
@@ -2555,21 +2614,21 @@ func TestPreFilter(t *testing.T) {
 
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable), PreFilterReason: "UnschedulableAndUnresolvable"}},
+				{name: mockPreFilterPlugin, inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.UnschedulableAndUnresolvable), PreFilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			[]string{},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable), PreFilterReason: "Unschedulable"}},
+				{name: mockPreFilterPlugin, inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Unschedulable), PreFilterReason: "Unschedulable"}},
 			},
 			[]string{},
 			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockPreFilterPlugin{
-				{name: mockPreFilterPlugin, inj: injectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error), PreFilterReason: "PreFilter plugin \"mock-prefilter-plugin\" failed"}},
+				{name: mockPreFilterPlugin, inj: preFilterInjectedResult{PreFilterResult: &fwk.PreFilterResult{}, PreFilterStatus: int(fwk.Error), PreFilterReason: "PreFilter plugin \"mock-prefilter-plugin\" failed"}},
 			},
 			[]string{},
 			nil, errors.New("PreFilter plugin \"mock-prefilter-plugin\" failed"),
@@ -2645,7 +2704,7 @@ func TestFilter(t *testing.T) {
 	}{
 		{"success", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Success)}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Success)}},
 			},
 			nil, nil,
 		},
@@ -2653,25 +2712,25 @@ func TestFilter(t *testing.T) {
 			"skip", pod,
 			[]*MockFilterPlugin{
 				// Inject error code so that if not skipped error would be thrown
-				{name: mockFilterPlugin + "-skip", inj: injectedResult{FilterStatus: int(fwk.Error)}},
+				{name: mockFilterPlugin + "-skip", inj: filterInjectedResult{FilterStatus: int(fwk.Error)}},
 			},
 			skip.Insert("mock-filter-plugin-skip"), nil,
 		},
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable), FilterReason: "UnschedulableAndUnresolvable"}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable), FilterReason: "UnschedulableAndUnresolvable"}},
 			},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable), FilterReason: "Unschedulable"}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Unschedulable), FilterReason: "Unschedulable"}},
 			},
 			nil, errors.New("Unschedulable"),
 		},
 		{"error", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error), FilterReason: "Filter plugin \"mock-filter-plugin\" failed"}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Error), FilterReason: "Filter plugin \"mock-filter-plugin\" failed"}},
 			},
 			nil, errors.New("filter plugin \"mock-filter-plugin\" failed"),
 		},
@@ -2741,7 +2800,7 @@ func TestPreemptionFilter(t *testing.T) {
 	}{
 		{"success", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Success)}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Success)}},
 			},
 			nil, nil,
 		},
@@ -2749,25 +2808,25 @@ func TestPreemptionFilter(t *testing.T) {
 			"skip", pod,
 			[]*MockFilterPlugin{
 				// Inject error code so that if not skipped error would be thrown
-				{name: mockFilterPlugin + "-skip", inj: injectedResult{FilterStatus: int(fwk.Error)}},
+				{name: mockFilterPlugin + "-skip", inj: filterInjectedResult{FilterStatus: int(fwk.Error)}},
 			},
 			skip.Insert("mock-filter-plugin-skip"), nil,
 		},
 		{"rejected - unschedulable and unresolvable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.UnschedulableAndUnresolvable)}},
 			},
 			nil, errors.New("UnschedulableAndUnresolvable"),
 		},
 		{"rejected - unschedulable", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Unschedulable)}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Unschedulable)}},
 			},
 			nil, errors.New("unschedulable"),
 		},
 		{"error", pod,
 			[]*MockFilterPlugin{
-				{name: mockFilterPlugin, inj: injectedResult{FilterStatus: int(fwk.Error)}},
+				{name: mockFilterPlugin, inj: filterInjectedResult{FilterStatus: int(fwk.Error)}},
 			},
 			nil, errors.New("error"),
 		},
@@ -2810,6 +2869,168 @@ func TestPreemptionFilter(t *testing.T) {
 			} else {
 				assert.Equal(t, idx, 0)
 				assert.Equal(t, len(pluginErrors), 0)
+			}
+		})
+	}
+}
+
+func TestReservePluginReserve(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "test",
+		},
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		}}
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		reservePlugins []*MockReservePlugin
+		errorExpected  error
+	}{
+		{"success", pod,
+			[]*MockReservePlugin{
+				{name: mockReservePlugin, inj: reserveInjectedResult{ReserveStatus: int(fwk.Success)}},
+			}, nil,
+		},
+		{"error", pod,
+			[]*MockReservePlugin{
+				{name: mockReservePlugin, inj: reserveInjectedResult{ReserveStatus: int(fwk.Error), ReserveReason: "Reserve plugin \"mock-reserve-plugin\" failed"}},
+			}, errors.New("reserve plugin \"mock-reserve-plugin\" failed"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := make(runtime.Registry)
+			enabled := make([]apiConfig.Plugin, len(tc.reservePlugins))
+			var eps []string
+			for i, p := range tc.reservePlugins {
+				enabled[i].Name = p.name
+				eps = append(eps, p.name)
+				if err := r.Register(p.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return p, nil
+				}); err != nil {
+					t.Fatalf("fail to register Reserve plugin (%s)", p.Name())
+				}
+			}
+			ep := enabledPlugins(eps...)
+			handle, _ := getFrameworkHandle()
+			config, err := prepareConfig(eps)
+			assert.NilError(t, err)
+			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, nil, ep, nil)
+			cycleState := framework.NewCycleState()
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+			pluginErr := p.Reserve(tc.pod, cycleState, nodeInfo)
+			read, err := cycleState.Read("mock-reserve")
+			if err != nil {
+				t.Fatalf("fail to read mock-reserve state data")
+			}
+			s, ok := read.(*MockReserveStateData)
+			assert.Assert(t, ok)
+			assert.Equal(t, s.counter, 1, "invalid counter, reserve of reserve plugin not even called")
+			if tc.errorExpected != nil {
+				assert.Assert(t, pluginErr != nil, "error should not be nil")
+			} else {
+				assert.NilError(t, pluginErr, "error should be nil")
+			}
+		})
+	}
+}
+
+func TestPreBindPlugin(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "test",
+		},
+		Spec: v1.PodSpec{
+			NodeName: "foo",
+		},
+	}
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		}}
+	testCases := []struct {
+		name           string
+		pod            *v1.Pod
+		preBindPlugins []*MockPreBindPlugin
+		errorExpected  error
+	}{
+		{"success", pod,
+			[]*MockPreBindPlugin{
+				{name: mockPreBindPlugin, inj: preBindInjectedResult{PreBindStatus: int(fwk.Success)}},
+			}, nil,
+		},
+		{"error", pod,
+			[]*MockPreBindPlugin{
+				{name: mockPreBindPlugin, inj: preBindInjectedResult{PreBindStatus: int(fwk.Error), PreBindReason: "PreBind plugin \"mock-prebind-plugin\" failed"}},
+			}, errors.New("PreBind plugin \"mock-prebind-plugin\" failed"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := make(runtime.Registry)
+			var eps []string
+			resPlugins := []*MockReservePlugin{
+				{name: mockReservePlugin, inj: reserveInjectedResult{ReserveStatus: int(fwk.Success)}}}
+			for _, rp := range resPlugins {
+				eps = append(eps, rp.name)
+				if err := r.Register(rp.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return rp, nil
+				}); err != nil {
+					t.Fatalf("fail to register Reserve plugin (%s)", rp.Name())
+				}
+			}
+			for _, p := range tc.preBindPlugins {
+				eps = append(eps, p.name)
+				if err := r.Register(p.name, func(_ context.Context, _ runtime2.Object, fh fwk.Handle) (fwk.Plugin, error) {
+					return p, nil
+				}); err != nil {
+					t.Fatalf("fail to register Reserve plugin (%s)", p.Name())
+				}
+			}
+			ep := enabledPlugins(eps...)
+			handle, _ := getFrameworkHandle()
+			config, err := prepareConfig(eps)
+			assert.NilError(t, err)
+			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, nil, ep, ep)
+			cycleState := framework.NewCycleState()
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+			reservePluginErr := p.Reserve(tc.pod, cycleState, nodeInfo)
+			assert.NilError(t, reservePluginErr)
+			read, err := cycleState.Read("mock-reserve")
+			if err != nil {
+				t.Fatalf("fail to read mock-reserve state data")
+			}
+			s, ok := read.(*MockReserveStateData)
+			assert.Assert(t, ok)
+			assert.Equal(t, s.counter, 1, "invalid counter, reserve of reserve plugin not even called")
+			pluginErr := p.PreBind(tc.pod, cycleState, nodeInfo)
+			if tc.errorExpected != nil {
+				assert.Assert(t, pluginErr != nil, "error should not be nil")
+				p.Unreserve(tc.pod, cycleState, nodeInfo)
+				read, err = cycleState.Read("mock-reserve")
+				if err != nil {
+					t.Fatalf("fail to read mock-reserve state data")
+				}
+				s, ok = read.(*MockReserveStateData)
+				if !ok {
+					t.Fatalf("fail to read mock-reserve state data")
+				}
+				assert.Equal(t, s.counter, 0, "invalid counter, unreserve of reserve plugin not even called")
+			} else {
+				assert.NilError(t, pluginErr, "error should be nil")
 			}
 		})
 	}
