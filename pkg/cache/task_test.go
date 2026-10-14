@@ -33,8 +33,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
+	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -1031,10 +1033,35 @@ func TestRollbackOnAssumePodFailure_NilSchedulerAPI(t *testing.T) {
 
 // newBindTestPod returns a minimal pod usable for exercising the bind path.
 func newBindTestPod(name, uid string) *v1.Pod {
+	var volumes []v1.Volume
+	volumes = append(volumes, v1.Volume{
+		Name:         "test",
+		VolumeSource: v1.VolumeSource{},
+	})
 	return &v1.Pod{
 		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)},
+		Spec: v1.PodSpec{
+			Volumes: volumes,
+		},
 	}
+}
+
+// newDRATestPod returns a minimal pod usable for exercising the dra bindings
+func newDRATestPod(name, uid string) *v1.Pod {
+	var claims []v1.PodResourceClaim
+	claim := v1.PodResourceClaim{
+		Name: "test",
+	}
+	claims = append(claims, claim)
+	draPod := &v1.Pod{
+		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)},
+		Spec: v1.PodSpec{
+			ResourceClaims: claims,
+		},
+	}
+	return draPod
 }
 
 // setShortBindBackoff shrinks the bind retry backoff so tests do not wait for the
@@ -1151,6 +1178,83 @@ func TestPostTaskAllocated_BindExhaustedReschedules(t *testing.T) {
 	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
 	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+}
+
+// TestPostTaskAllocatedWithDRABindings verifies that when pod DRA binding keeps
+// failing, the allocation is rolled back and the task returns to Scheduling.
+func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
+	events.SetRecorder(events.NewMockedRecorder())
+	defer events.SetRecorder(events.NewMockedRecorder())
+	defer setShortBindBackoff(5)()
+	dispatcher.Start()
+	defer dispatcher.Stop()
+
+	tests := []struct {
+		name             string
+		failReserve      bool
+		failPreBind      bool
+		shouldReschedule bool
+	}{
+		{"success", false, false, false},
+		{"fail reserve", true, false, true},
+		{"fail prebind", false, true, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			draTestPod := newDRATestPod("dra-bind-fail-pod", "dra-bind-fail-uid")
+			apis := client.NewMockedAPIProvider(false)
+			cache := external.NewSchedulerCache(apis.GetAPIs())
+			node2 := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fakeNodeName,
+					Namespace: "default",
+					UID:       "node-uid-1",
+				},
+				Status: v1.NodeStatus{},
+				Spec: v1.NodeSpec{
+					Unschedulable: false,
+				},
+			}
+			cache.UpdateNode(node2)
+			draTestPod.Spec.NodeName = node2.Name
+			cache.UpdatePod(draTestPod)
+			cache.StoreCycleState(draTestPod, framework.NewCycleState())
+
+			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, NewMockedPredicateManager(tt.failReserve, tt.failPreBind), cache)
+
+			var rollbackSent atomic.Bool
+			if tt.shouldReschedule {
+				apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+					if request.Releases != nil {
+						for _, rel := range request.Releases.AllocationsToRelease {
+							if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+								rollbackSent.Store(true)
+							}
+						}
+					}
+					return nil
+				})
+			}
+			app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
+				apiProvider.GetAPIs().SchedulerAPI)
+			task := NewTask(taskUID1, app, mockedContext, draTestPod)
+			task.sm.SetState(TaskStates().Scheduling)
+			err := task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, taskUID1, fakeNodeName))
+			assert.NilError(t, err, "failed to handle AllocateTask event")
+			if tt.shouldReschedule {
+				err = utils.WaitForCondition(func() bool {
+					return task.GetTaskState() == TaskStates().Scheduling
+				}, 10*time.Millisecond, 3*time.Second)
+				assert.NilError(t, err, "task should be moved back to Scheduling after bind exhaustion")
+				assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
+				assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
+				assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+			} else {
+				assert.Assert(t, !rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should not be sent")
+			}
+		})
+	}
 }
 
 // TestPostTaskAllocated_VolumeBindExhaustedReschedules verifies that when volume binding
