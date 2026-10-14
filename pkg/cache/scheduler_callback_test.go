@@ -21,6 +21,7 @@ package cache
 import (
 	ctx "context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -755,7 +756,14 @@ func TestCallbackGetStateDump(t *testing.T) {
 
 var _ predicates.PredicateManager = &mockPredicateManager{}
 
-type mockPredicateManager struct{}
+type mockPredicateManager struct {
+	failReserve bool
+	failPreBind bool
+}
+
+func NewMockedPredicateManager(failReserve bool, failPreBind bool) *mockPredicateManager {
+	return &mockPredicateManager{failReserve, failPreBind}
+}
 
 func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (map[string]*si.Empty, *framework.CycleState, error) {
 	return map[string]*si.Empty{}, framework.NewCycleState(), nil
@@ -763,6 +771,22 @@ func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (map[string]*si.Empt
 
 func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ bool) error {
 	return nil
+}
+func (m *mockPredicateManager) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+	if m.failReserve {
+		return errors.New("fail reserve")
+	}
+	return nil
+}
+
+func (m *mockPredicateManager) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+	if m.failPreBind {
+		return errors.New("fail preBind")
+	}
+	return nil
+}
+
+func (m *mockPredicateManager) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
 }
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) int {

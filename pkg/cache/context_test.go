@@ -36,6 +36,7 @@ import (
 	k8sEvents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
+	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
@@ -43,6 +44,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
+	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
@@ -105,6 +107,13 @@ func initContextForTest() *Context {
 func initContextAndAPIProviderForTest() (*Context, *client.MockedAPIProvider) {
 	apis := client.NewMockedAPIProvider(false)
 	context := NewContext(apis)
+	return context, apis
+}
+
+func initContextWithMockedPredicateManager(apis *client.MockedAPIProvider, pm predicates.PredicateManager, cache *external.SchedulerCache) (*Context, *client.MockedAPIProvider) {
+	context := NewContext(apis)
+	context.predManager = pm
+	context.schedulerCache = cache
 	return context, apis
 }
 

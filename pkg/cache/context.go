@@ -40,6 +40,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -710,7 +711,7 @@ func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicate
 	defer ctx.lock.RUnlock()
 	pod := ctx.schedulerCache.GetPod(name)
 	if pod == nil {
-		log.Log(log.ShimContext).Error("failed running PreFilter plugin",
+		log.Log(log.ShimContext).Error("prefilter failed",
 			zap.String("pod", name),
 			zap.Error(ErrorPodNotFound))
 		return &si.PreFilterPredicatesResponse{
@@ -742,51 +743,138 @@ func (ctx *Context) PreFilter(name string, allocate bool) *si.PreFilterPredicate
 func (ctx *Context) IsPodFitNode(name, node string, allocate bool) error {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	pod := ctx.schedulerCache.GetPod(name)
-	if pod == nil {
-		return ErrorPodNotFound
-	}
-	// if pod exists in cache, try to run predicates
-	targetNode := ctx.schedulerCache.GetNode(node)
-	if targetNode == nil {
-		return ErrorNodeNotFound
+	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("filter failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return err
 	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
-	cycleState := ctx.schedulerCache.GetCycleState(pod)
-	if cycleState == nil {
-		return ErrorCycleStateNotFound
-	}
-	err := ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
+	err = ctx.predManager.Filter(pod, targetNode, cycleState, allocate)
 	return err
 }
 
 func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []string, startIndex int) (int, bool) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
-		// if pod exists in cache, try to run predicates
-		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			// need to lock cache here as predicates need a stable view into the cache
-			ctx.schedulerCache.LockForReads()
-			defer ctx.schedulerCache.UnlockForReads()
-			if cycleState := ctx.schedulerCache.GetCycleState(pod); cycleState != nil {
-				// look up each victim in the scheduler cache
-				victims := make([]*v1.Pod, len(allocations))
-				for index, uid := range allocations {
-					victim := ctx.schedulerCache.GetPodNoLock(uid)
-					victims[index] = victim
-				}
+	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("preemption filter failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return -1, false
+	}
 
-				// check predicates for a match
-				if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
-					return index, true
-				}
-			}
-		}
+	// look up each victim in the scheduler cache
+	victims := make([]*v1.Pod, len(allocations))
+	for index, uid := range allocations {
+		victim := ctx.schedulerCache.GetPod(uid)
+		victims[index] = victim
+	}
+
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+
+	// check predicates for a match
+	if index := ctx.predManager.PreemptionFilter(pod, targetNode, cycleState, victims, startIndex); index != -1 {
+		return index, true
 	}
 	return -1, false
+}
+
+func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framework.NodeInfo, *framework.CycleState, error) {
+	pod := ctx.schedulerCache.GetPod(name)
+	if pod == nil {
+		return nil, nil, nil, ErrorPodNotFound
+	}
+	// if pod exists in cache, try to run predicates
+	targetNode := ctx.schedulerCache.GetNode(node)
+	if targetNode == nil {
+		return nil, nil, nil, ErrorNodeNotFound
+	}
+
+	// if pod exists in cache, try to run predicates
+	cycleState := ctx.schedulerCache.GetCycleState(pod)
+	if cycleState == nil {
+		return nil, nil, nil, ErrorCycleStateNotFound
+	}
+	return pod, targetNode, cycleState, nil
+}
+
+// reserve Binding Cycle - reserve the node for binding process
+func (ctx *Context) reserve(name, node string) bool {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return false
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	err = ctx.predManager.Reserve(pod, cycleState, targetNode)
+	if err != nil {
+		log.Log(log.ShimContext).Error("reserve failed",
+			zap.String("pod", name),
+			zap.String("node", node),
+			zap.Error(err))
+		return false
+	}
+	return true
+}
+
+// preBind Binding Cycle - preBind the node for binding process
+func (ctx *Context) preBind(name, node string) bool {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.String("pod", name),
+			zap.String("node", node),
+			zap.Error(err))
+		return false
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	err = ctx.predManager.PreBind(pod, cycleState, targetNode)
+	if err != nil {
+		log.Log(log.ShimContext).Error("prebind failed",
+			zap.String("pod", name),
+			zap.String("node", node),
+			zap.Error(err))
+		return false
+	}
+	return true
+}
+
+// unreserve Binding Cycle - unreserve the node to clear out the binding work
+func (ctx *Context) unreserve(name, node string) {
+	ctx.lock.RLock()
+	defer ctx.lock.RUnlock()
+	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	if err != nil {
+		log.Log(log.ShimContext).Error("unreserve failed",
+			zap.Error(err),
+			zap.String("pod", name),
+			zap.String("node", node))
+		return
+	}
+	// need to lock cache here as predicates need a stable view into the cache
+	ctx.schedulerCache.LockForReads()
+	defer ctx.schedulerCache.UnlockForReads()
+	ctx.predManager.Unreserve(pod, cycleState, targetNode)
 }
 
 // call volume binder to bind pod volumes if necessary,
