@@ -21,6 +21,7 @@ package cache
 import (
 	ctx "context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -549,7 +550,7 @@ func TestPredicatesPreFilter(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = &mockPredicateManager{}
+	context.predManager = NewMockPredicateManager(false, false, false)
 
 	// pod not found
 	predicatesResults := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: "unknown", Allocate: true})
@@ -572,13 +573,19 @@ func TestPredicatesPreFilter(t *testing.T) {
 		UID:  taskUID1,
 	},
 	}) != nil)
+
+	context.predManager = NewMockPredicateManager(true, false, false)
+	predicatesResults = callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
+	assert.Equal(t, predicatesResults.GetSuccess(), false)
+	assert.Equal(t, len(predicatesResults.GetFeasibleNodes()), 0)
+	assert.Equal(t, predicatesResults.GetErrorMessage(), "fail prefilter")
 }
 
 func TestPredicates(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = &mockPredicateManager{}
+	context.predManager = NewMockPredicateManager(false, false, false)
 
 	// pod not found
 	err := callback.Predicates(&si.PredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, Allocate: true})
@@ -614,13 +621,17 @@ func TestPredicates(t *testing.T) {
 		UID:  taskUID1,
 	},
 	}) != nil)
+
+	context.predManager = NewMockPredicateManager(false, true, false)
+	err = callback.Predicates(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
+	assert.ErrorContains(t, err, "fail filter")
 }
 
 func TestPreemptionPredicates(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = &mockPredicateManager{}
+	context.predManager = NewMockPredicateManager(false, false, false)
 
 	// pod not found
 	resp := callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, StartIndex: 0})
@@ -660,6 +671,13 @@ func TestPreemptionPredicates(t *testing.T) {
 		UID:  taskUID1,
 	},
 	}) != nil)
+
+	context.predManager = NewMockPredicateManager(false, false, true)
+	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0, PreemptAllocationKeys: []string{taskUID1}})
+	assert.Assert(t, !resp.Success, "response should have succeeded")
+	assert.Equal(t, int32(-1), resp.Index)
+	assert.Equal(t, 1, len(resp.ErrorMessage))
+	assert.Equal(t, int32(1), resp.ErrorMessage["fail_preemption_filter"])
 }
 
 func TestSendEvent(t *testing.T) {
@@ -758,17 +776,40 @@ func TestCallbackGetStateDump(t *testing.T) {
 
 var _ predicates.PredicateManager = &mockPredicateManager{}
 
-type mockPredicateManager struct{}
+type mockPredicateManager struct {
+	failPreFilter        bool
+	failFilter           bool
+	failPreemptionFilter bool
+}
+
+func NewMockPredicateManager(failPreFilter, failFilter, failPreemptionFilter bool) *mockPredicateManager {
+	return &mockPredicateManager{
+		failPreFilter:        failPreFilter,
+		failFilter:           failFilter,
+		failPreemptionFilter: failPreemptionFilter,
+	}
+}
 
 func (m *mockPredicateManager) PreFilter(_ *v1.Pod, _ bool) (map[string]*si.Empty, *framework.CycleState, error) {
+	if m.failPreFilter {
+		return make(map[string]*si.Empty), nil, errors.New("fail prefilter")
+	}
 	return map[string]*si.Empty{}, framework.NewCycleState(), nil
 }
 
 func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ bool) error {
+	if m.failFilter {
+		return errors.New("fail filter")
+	}
 	return nil
 }
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (int, map[string]int32) {
+	if m.failPreemptionFilter {
+		err := map[string]int32{}
+		err["fail_preemption_filter"]++
+		return -1, err
+	}
 	return 0, nil
 }
 
