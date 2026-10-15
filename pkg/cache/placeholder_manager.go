@@ -43,7 +43,6 @@ type PlaceholderManager struct {
 	orphanPods map[string]*v1.Pod
 	// closed when the cleanup loop exits so Stop can wait for shutdown to complete
 	doneChan     chan struct{}
-	stopped      atomic.Bool
 	started      atomic.Bool
 	cancel       context.CancelFunc
 	lifecycleCtx context.Context
@@ -140,9 +139,9 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
-				zap.Error(err))
 			if !apierrors.IsNotFound(err) {
+				log.Log(log.ShimCachePlaceholder).Warn("failed to clean up placeholder pod",
+					zap.Error(err))
 				orphans[task.GetTaskID()] = task.GetTaskPod()
 			}
 		}
@@ -152,7 +151,8 @@ func (mgr *PlaceholderManager) cleanUp(app *Application) {
 }
 
 func (mgr *PlaceholderManager) cleanUpAsync(app *Application) {
-	if !mgr.started.Load() || mgr.stopped.Load() {
+	if !mgr.started.Load() {
+		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager is not running, skipping application cleanup")
 		return
 	}
 	// The operation checks cancellation even if scheduled after Stop returns.
@@ -184,17 +184,15 @@ func (mgr *PlaceholderManager) addOrphanPods(pods map[string]*v1.Pod) {
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
-	mgr.Lock()
-	ctx, kubeClient := mgr.lifecycleCtx, mgr.clients.KubeClient
-	if ctx.Err() != nil {
-		mgr.Unlock()
+	ctx, kubeClient := mgr.beginOperation()
+	if kubeClient == nil {
 		return
 	}
-	mgr.operations.Add(1)
+	defer mgr.operations.Done()
+	mgr.Lock()
 	orphans := mgr.orphanPods
 	mgr.orphanPods = make(map[string]*v1.Pod)
 	mgr.Unlock()
-	defer mgr.operations.Done()
 	defer mgr.addOrphanPods(orphans)
 
 	for taskID, pod := range orphans {
@@ -204,7 +202,7 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 		log.Log(log.ShimCachePlaceholder).Debug("start to clean up orphan pod",
 			zap.String("taskID", taskID),
 			zap.String("podName", pod.Name))
-		if err := kubeClient.Delete(ctx, pod); err != nil {
+		if err := kubeClient.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 			log.Log(log.ShimCachePlaceholder).Warn("failed to clean up orphan pod", zap.Error(err))
 		} else {
 			delete(orphans, taskID)
@@ -213,6 +211,13 @@ func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {
 }
 
 func (mgr *PlaceholderManager) Start() {
+	mgr.Lock()
+	defer mgr.Unlock()
+	// The shared context and completion channel belong to a single lifecycle.
+	if mgr.lifecycleCtx.Err() != nil {
+		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has already stopped")
+		return
+	}
 	if !mgr.started.CompareAndSwap(false, true) {
 		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager is already started")
 		return
@@ -222,7 +227,7 @@ func (mgr *PlaceholderManager) Start() {
 		ticker := time.NewTicker(mgr.getCleanupTime())
 		defer func() {
 			log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager has been stopped")
-			// Closing broadcasts completion to every Stop caller; no send is needed.
+			// Closing signals completion to the Stop call that initiated shutdown.
 			close(mgr.doneChan)
 		}()
 		for {
@@ -237,17 +242,15 @@ func (mgr *PlaceholderManager) Start() {
 }
 
 func (mgr *PlaceholderManager) Stop() {
-	if !mgr.started.Load() {
+	mgr.Lock()
+	if !mgr.started.CompareAndSwap(true, false) {
+		mgr.Unlock()
 		log.Log(log.ShimCachePlaceholder).Info("PlaceholderManager already stopped")
 		return
 	}
-	if mgr.stopped.CompareAndSwap(false, true) {
-		log.Log(log.ShimCachePlaceholder).Info("stopping the PlaceholderManager")
-		mgr.Lock()
-		mgr.cancel()
-		mgr.Unlock()
-	}
-	<-mgr.lifecycleCtx.Done()
+	log.Log(log.ShimCachePlaceholder).Info("stopping the PlaceholderManager")
+	mgr.cancel()
+	mgr.Unlock()
 	// Cancellation prevents further registration before waiting for active work.
 	mgr.operations.Wait()
 	<-mgr.doneChan

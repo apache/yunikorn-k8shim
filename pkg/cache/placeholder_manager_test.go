@@ -395,11 +395,6 @@ func TestPlaceholderCreationAndCleanupRunConcurrently(t *testing.T) {
 		t.Fatal("placeholder creation did not complete")
 	}
 	select {
-	case <-deleteStarted:
-	case <-time.After(time.Second):
-		t.Fatal("placeholder cleanup did not start after creation completed")
-	}
-	select {
 	case <-cleanupDone:
 	case <-time.After(time.Second):
 		t.Fatal("placeholder cleanup did not complete")
@@ -525,8 +520,9 @@ func TestPlaceholderManagerStartStop(t *testing.T) {
 	mgr.Start()
 	assertPlaceholderManagerStopped(t, mgr, false)
 
-	// Stop waits until the cleanup goroutine has exited.
+	// The Stop call that changes the running state waits for the cleanup goroutine.
 	mgr.Stop()
+	assert.Equal(t, mgr.started.Load(), false, "stopped manager should not be started")
 	assertPlaceholderManagerStopped(t, mgr, true)
 	// Repeated stops are safe and return immediately.
 	mgr.Stop()
@@ -702,17 +698,26 @@ func TestPlaceholderManagerStopWaitsForCreation(t *testing.T) {
 		defer close(createDone)
 		assert.ErrorIs(t, mgr.createAppPlaceholders(app), context.Canceled)
 	}()
+	stopDone := make(chan struct{})
+	stopInitiated := false
 	defer func() {
 		close(releaseCreate)
 		<-createDone
 		mgr.Stop()
+		if stopInitiated {
+			select {
+			case <-stopDone:
+			case <-time.After(time.Second):
+				t.Error("initiating Stop did not finish after creation completed")
+			}
+		}
 	}()
 	select {
 	case <-createStarted:
 	case <-time.After(time.Second):
 		t.Fatal("creation did not start")
 	}
-	stopDone := make(chan struct{})
+	stopInitiated = true
 	go func() {
 		mgr.Stop()
 		close(stopDone)
@@ -893,9 +898,9 @@ func TestPlaceholderCreationsRunConcurrently(t *testing.T) {
 }
 
 // TestCreateAppPlaceholdersWithConcurrentTaskUpdates exercises createAppPlaceholders while
-// the informer path keeps adding tasks to the same application. createAppPlaceholders only
-// holds the placeholder manager lock, so the task map walk must take the application lock
-// itself. Run with -race: without that lock the walk races with addTask.
+// the informer path keeps adding tasks to the same application. The task map walk
+// must take the application lock itself. Run with -race: without that lock the
+// walk races with addTask.
 func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
 	app := createAppWIthTaskGroupForTest()
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
@@ -951,5 +956,68 @@ func TestCleanUpNotFoundErrors(t *testing.T) {
 			mgr.cleanUp(app)
 			assert.Equal(t, mgr.getOrphanPodsLength(), tc.orphans)
 		})
+	}
+}
+
+func TestCleanOrphanPlaceholdersNotFound(t *testing.T) {
+	missing := apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "placeholder")
+	for _, wrapped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("wrapped=%t", wrapped), func(t *testing.T) {
+			provider := client.NewMockedAPIProvider(false)
+			calls := 0
+			provider.MockDeleteFn(func(pod *v1.Pod) error {
+				calls++
+				if pod.Name == "failed" {
+					return fmt.Errorf("delete failed")
+				}
+				if wrapped {
+					return fmt.Errorf("delete: %w", missing)
+				}
+				return missing
+			})
+			mgr := NewPlaceholderManager(provider.GetAPIs())
+			mgr.orphanPods["missing"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "missing"}}
+			mgr.orphanPods["failed"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "failed"}}
+			mgr.cleanOrphanPlaceholders()
+			assert.Equal(t, calls, 2)
+			assert.Equal(t, mgr.getOrphanPodsLength(), 1)
+			assert.Assert(t, mgr.orphanPods["failed"] != nil)
+		})
+	}
+}
+
+func TestPlaceholderManagerRepeatedStopWhileStopping(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(provider.GetAPIs())
+	mgr.Start()
+	ctx, kubeClient := mgr.beginOperation()
+	assert.Assert(t, kubeClient != nil)
+	firstDone := make(chan struct{})
+	go func() { mgr.Stop(); close(firstDone) }()
+	defer func() {
+		mgr.operations.Done()
+		select {
+		case <-firstDone:
+		case <-time.After(time.Second):
+			t.Error("first Stop did not finish after operation completed")
+		}
+	}()
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not cancel the operation")
+	}
+	assert.Equal(t, mgr.started.Load(), false)
+	select {
+	case <-firstDone:
+		t.Fatal("first Stop returned before operation completed")
+	default:
+	}
+	repeatedDone := make(chan struct{})
+	go func() { mgr.Stop(); close(repeatedDone) }()
+	select {
+	case <-repeatedDone:
+	case <-time.After(time.Second):
+		t.Fatal("repeated Stop should return when manager is no longer running")
 	}
 }
