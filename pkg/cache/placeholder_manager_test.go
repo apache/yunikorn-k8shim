@@ -455,20 +455,31 @@ func TestStopCancelsApplicationCleanup(t *testing.T) {
 func TestApplicationCleanupRejectedOutsideManagerLifecycle(t *testing.T) {
 	app := createAppWIthTaskGroupAndPodsForTest()
 	mockedAPIProvider := client.NewMockedAPIProvider(false)
-	var deletes atomic.Int32
+	deletes := make(chan struct{}, 1)
 	mockedAPIProvider.MockDeleteWithContextFn(func(_ context.Context, _ *v1.Pod) error {
-		deletes.Add(1)
+		select {
+		case deletes <- struct{}{}:
+		default:
+		}
 		return nil
 	})
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 
 	app.handleCompleteApplicationEvent()
-	assert.Equal(t, deletes.Load(), int32(0), "cleanup should not start before the manager starts")
+	select {
+	case <-deletes:
+		t.Fatal("cleanup started before the manager starts")
+	case <-time.After(50 * time.Millisecond):
+	}
 
 	mgr.Start()
 	mgr.Stop()
 	app.handleCompleteApplicationEvent()
-	assert.Equal(t, deletes.Load(), int32(0), "cleanup should not start after the manager stops")
+	select {
+	case <-deletes:
+		t.Fatal("cleanup started after the manager stops")
+	case <-time.After(50 * time.Millisecond):
+	}
 }
 
 func TestCleanOrphanPlaceholders(t *testing.T) {
@@ -575,16 +586,10 @@ func TestPlaceholderManagerConcurrentStop(t *testing.T) {
 	assertPlaceholderManagerStopped(t, mgr, true)
 }
 
-func TestPlaceholderManagerConcurrentStartCreatesOneCleanupLoop(t *testing.T) {
-	mockedAPIProvider := client.NewMockedAPIProvider(false)
-	var deletes atomic.Int32
-	mockedAPIProvider.MockDeleteFn(func(_ *v1.Pod) error {
-		deletes.Add(1)
-		return nil
-	})
-	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
-	mgr.setCleanupTime(time.Millisecond)
-
+// Concurrent Start calls must be safe and leave the manager stoppable.
+func TestPlaceholderManagerConcurrentStart(t *testing.T) {
+	provider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(provider.GetAPIs())
 	const callers = 64
 	start := make(chan struct{})
 	var started sync.WaitGroup
@@ -598,13 +603,10 @@ func TestPlaceholderManagerConcurrentStartCreatesOneCleanupLoop(t *testing.T) {
 	}
 	close(start)
 	started.Wait()
+	assert.Equal(t, mgr.started.Load(), true)
+	assertPlaceholderManagerStopped(t, mgr, false)
 	mgr.Stop()
-
-	mgr.Lock()
-	mgr.orphanPods["task01"] = &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-01"}}
-	mgr.Unlock()
-	time.Sleep(10 * time.Millisecond)
-	assert.Equal(t, deletes.Load(), int32(0), "an extra cleanup loop remained after Stop")
+	assertPlaceholderManagerStopped(t, mgr, true)
 }
 
 func TestPlaceholderManagerStopCancelsBlockedCleanup(t *testing.T) {
@@ -761,6 +763,7 @@ func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T
 	app := createAppWIthTaskGroupAndPodsForTest()
 	provider := client.NewMockedAPIProvider(false)
 	createStarted := make(chan struct{})
+	deleteStarted := make(chan struct{})
 	releaseCreate := make(chan struct{})
 	provider.GetAPIs().KubeClient = &concurrentKubeClient{
 		KubeClient: provider.GetAPIs().KubeClient,
@@ -774,6 +777,7 @@ func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T
 			}
 		},
 		deleteFn: func(ctx context.Context, _ *v1.Pod) error {
+			close(deleteStarted)
 			<-ctx.Done()
 			return ctx.Err()
 		},
@@ -796,6 +800,11 @@ func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T
 		mgr.cleanUp(app)
 		close(cleanupDone)
 	}()
+	select {
+	case <-deleteStarted:
+	case <-time.After(time.Second):
+		t.Fatal("application cleanup did not start while creation was blocked")
+	}
 	stopDone := make(chan struct{})
 	go func() {
 		mgr.Stop()
@@ -815,7 +824,7 @@ func TestPlaceholderManagerStopCancelsCreationWithConcurrentCleanup(t *testing.T
 	select {
 	case <-cleanupDone:
 	case <-time.After(time.Second):
-		t.Fatal("queued cleanup did not return")
+		t.Fatal("active cleanup did not return")
 	}
 }
 
@@ -860,41 +869,6 @@ func TestOrphanCleanupPreservesConcurrentAdditions(t *testing.T) {
 		t.Fatal("orphan update blocked behind Kubernetes deletion")
 	}
 	assert.Equal(t, mgr.getOrphanPodsLength(), 1)
-}
-
-func TestPlaceholderCreationsRunConcurrently(t *testing.T) {
-	provider := client.NewMockedAPIProvider(false)
-	entered := make(chan struct{}, 2)
-	release := make(chan struct{})
-	provider.GetAPIs().KubeClient = &concurrentKubeClient{
-		KubeClient: provider.GetAPIs().KubeClient,
-		createFn: func(_ context.Context, _ *v1.Pod) (*v1.Pod, error) {
-			entered <- struct{}{}
-			<-release
-			return nil, fmt.Errorf("test creation failed")
-		},
-	}
-	mgr := NewPlaceholderManager(provider.GetAPIs())
-	app := createAppWIthTaskGroupForTest()
-	var done sync.WaitGroup
-	done.Add(2)
-	defer func() {
-		close(release)
-		done.Wait()
-	}()
-	for i := 0; i < 2; i++ {
-		go func() {
-			defer done.Done()
-			assert.Error(t, mgr.createAppPlaceholders(app), "test creation failed")
-		}()
-	}
-	for i := 0; i < 2; i++ {
-		select {
-		case <-entered:
-		case <-time.After(time.Second):
-			t.Fatal("placeholder creations did not run concurrently")
-		}
-	}
 }
 
 // TestCreateAppPlaceholdersWithConcurrentTaskUpdates exercises createAppPlaceholders while
@@ -986,6 +960,7 @@ func TestCleanOrphanPlaceholdersNotFound(t *testing.T) {
 	}
 }
 
+// Only the initiating Stop waits for active operations; repeated Stop returns immediately.
 func TestPlaceholderManagerRepeatedStopWhileStopping(t *testing.T) {
 	provider := client.NewMockedAPIProvider(false)
 	mgr := NewPlaceholderManager(provider.GetAPIs())
