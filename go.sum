@@ -8,8 +8,8 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
-github.com/acceldata-io/yunikorn-core v1.8.0-0.0.20261016123819-e5c5331167f8 h1:2Hy1eBnXndhbhxJ1qXv4SipGB/xfndbH0hlB3Eu1KKk=
-github.com/acceldata-io/yunikorn-core v1.8.0-0.0.20261016123819-e5c5331167f8/go.mod h1:Old4LJe6DssHyoP8gGOE8+rAoRS1qcQsFjHzUvAqnoY=
+github.com/acceldata-io/yunikorn-core v1.8.0-0.0.20261016150122-fe86a2dac311 h1:RE9ACcQZPA6ug5T/COlySBecDqj26chpKJVdD7FifG8=
+github.com/acceldata-io/yunikorn-core v1.8.0-0.0.20261016150122-fe86a2dac311/go.mod h1:Old4LJe6DssHyoP8gGOE8+rAoRS1qcQsFjHzUvAqnoY=
 github.com/acceldata-io/yunikorn-scheduler-interface v1.8.0-0 h1:7bEw4cZTbykTAo/CArLiKa02J5GhZeXWBx/BMgVnZQI=
 github.com/acceldata-io/yunikorn-scheduler-interface v1.8.0-0/go.mod h1:v/OccKNZU9BcIrVxzcHHT7eisOT18qpIxPf4U13TEcs=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa h1:LHTHcTQiSGT7VVbI0o4wBRNQIgn917usHWOd6VAffYI=
