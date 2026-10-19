@@ -87,3 +87,57 @@ func TestUpdateStatusCancelledWhileAPIServerHangs(t *testing.T) {
 		})
 	}
 }
+
+type placeholderRequestTransport func(*http.Request) (*http.Response, error)
+
+func (f placeholderRequestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestSchedulerKubeClientPlaceholderRequestsCancellation(t *testing.T) {
+	for _, operation := range []string{"create", "delete"} {
+		t.Run(operation, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			requestStarted := make(chan struct{})
+			release := make(chan struct{})
+			defer close(release)
+			clientSet, err := kubernetes.NewForConfig(&rest.Config{
+				Host: "https://kubernetes.invalid",
+				Transport: placeholderRequestTransport(func(req *http.Request) (*http.Response, error) {
+					close(requestStarted)
+					select {
+					case <-req.Context().Done():
+						return nil, req.Context().Err()
+					case <-release:
+						return nil, context.DeadlineExceeded
+					}
+				}),
+			})
+			assert.NilError(t, err)
+			kubeClient := SchedulerKubeClient{clientSet: clientSet}
+			pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Namespace: "test", Name: "placeholder"}}
+			done := make(chan error, 1)
+			go func() {
+				if operation == "create" {
+					_, err := kubeClient.Create(ctx, pod)
+					done <- err
+				} else {
+					done <- kubeClient.Delete(ctx, pod)
+				}
+			}()
+			select {
+			case <-requestStarted:
+			case <-time.After(time.Second):
+				t.Fatal("Kubernetes request did not start")
+			}
+			cancel()
+			select {
+			case err := <-done:
+				assert.ErrorIs(t, err, context.Canceled)
+			case <-time.After(time.Second):
+				t.Fatal("Kubernetes request did not receive cancellation")
+			}
+		})
+	}
+}
