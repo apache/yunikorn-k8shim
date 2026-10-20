@@ -79,6 +79,20 @@ You can run following command to retrieve the meta info for a docker image build
 docker inspect --format='{{.Config.Labels}}' yunikorn/yunikorn:scheduler-amd64-latest
 ```
 
+#### Debug image
+
+To build an image for remote debugging (compiled with `-gcflags='all=-N -l'`
+to disable optimisations and inlining), set `DEBUG_BUILDS=1`:
+
+```
+DEBUG_BUILDS=1 make image
+```
+
+Unless `VERSION` is set explicitly, debug images are tagged with version
+`debug` instead of `latest` (e.g. `yunikorn/yunikorn:scheduler-amd64-debug`)
+so they do not overwrite production tags. The flag composes with the other
+build variables, e.g. `REGISTRY=reg.local.host DEBUG_BUILDS=1 make image`.
+
 ## Design documents
 All design documents are located in our [website](https://yunikorn.apache.org/docs/next/design/architecture). 
 The core component design documents also contains the design documents for cross component designs.
