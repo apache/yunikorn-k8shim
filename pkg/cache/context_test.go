@@ -851,6 +851,74 @@ func TestDeleteForeignPod(t *testing.T) {
 	assert.Assert(t, pod == nil, "deleted pod found in cache")
 }
 
+func TestAddTaskRejectsLatePlaceholder(t *testing.T) {
+	context, _ := initContextAndAPIProviderForTest()
+
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID1,
+			QueueName:     queueNameA,
+			User:          testUser,
+		},
+	})
+	app := context.applications[appID1]
+	// the application has already left gang reservation
+	app.SetState(ApplicationStates().Running)
+
+	phPod := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "late-placeholder",
+			Namespace: "default",
+			UID:       "placeholder-uid",
+		},
+	}
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: appID1,
+			TaskID:        "placeholder-uid",
+			Pod:           phPod,
+			Placeholder:   true,
+		},
+	})
+	// the placeholder task must not be tracked once the app left reservation
+	assert.Assert(t, task == nil)
+	assert.Assert(t, app.GetTask("placeholder-uid") == nil)
+	assert.Equal(t, len(app.GetNewTasks()), 0)
+}
+
+func TestAddTaskAllowsPlaceholderWhileReserving(t *testing.T) {
+	context, _ := initContextAndAPIProviderForTest()
+
+	context.AddApplication(&AddApplicationRequest{
+		Metadata: ApplicationMetadata{
+			ApplicationID: appID1,
+			QueueName:     queueNameA,
+			User:          testUser,
+		},
+	})
+	app := context.applications[appID1]
+	app.SetState(ApplicationStates().Reserving)
+
+	phPod := &v1.Pod{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      "reserving-placeholder",
+			Namespace: "default",
+			UID:       "placeholder-uid",
+		},
+	}
+	task := context.AddTask(&AddTaskRequest{
+		Metadata: TaskMetadata{
+			ApplicationID: appID1,
+			TaskID:        "placeholder-uid",
+			Pod:           phPod,
+			Placeholder:   true,
+		},
+	})
+	// placeholders are expected to be tracked while the app is reserving
+	assert.Assert(t, task != nil)
+	assert.Assert(t, app.GetTask("placeholder-uid") != nil)
+}
+
 func TestAddTask(t *testing.T) {
 	context := initContextForTest()
 
