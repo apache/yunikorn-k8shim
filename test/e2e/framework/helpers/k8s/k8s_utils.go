@@ -1130,12 +1130,21 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 		return fmt.Errorf("no pods in %s with selector %s", namespace, selector)
 	}
 
-	for _, pod := range podList.Items {
-		if err := k.WaitForPodRunning(namespace, pod.Name, time.Duration(timeout)*time.Second); err != nil {
-			return err
+	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(timeout)*time.Second, false, func(ctx context.Context) (bool, error) {
+		podList, err := k.ListPods(namespace, selector)
+		if err != nil {
+			return false, err
 		}
-	}
-	return nil
+		if len(podList.Items) == 0 {
+			return false, nil
+		}
+		for _, pod := range podList.Items {
+			if pod.Status.Phase != v1.PodRunning {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 func (k *KubeCtl) WaitForNPodsBySelectorRunning(namespace string, selector string, expectedCount int, timeout time.Duration) error {
