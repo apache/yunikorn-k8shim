@@ -1120,20 +1120,22 @@ func (k *KubeCtl) ListPodsByLabelSelector(namespace string, selector string) (*v
 }
 
 // Wait up to timeout seconds for all pods in 'namespace' with given 'selector' to enter running state.
-// Returns an error if no pods are found or not all discovered pods enter running state.
+// Returns an error with namespace, selector, and timeout details if polling fails.
 func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string, timeout int) error {
-	podList, err := k.ListPods(namespace, selector)
+	_, err := k.ListPods(namespace, selector)
 	if err != nil {
 		return err
 	}
-	if len(podList.Items) == 0 {
-		return fmt.Errorf("no pods in %s with selector %s", namespace, selector)
+	timeoutDuration := time.Duration(timeout) * time.Second
+	pollInterval := timeoutDuration / 5
+	if pollInterval <= 0 {
+		pollInterval = time.Millisecond
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), time.Millisecond*100, time.Duration(timeout)*time.Second, false, func(ctx context.Context) (bool, error) {
-		podList, err := k.ListPods(namespace, selector)
-		if err != nil {
-			return false, err
+	err = wait.PollUntilContextTimeout(context.TODO(), pollInterval, timeoutDuration, false, func(ctx context.Context) (bool, error) {
+		podList, listErr := k.ListPods(namespace, selector)
+		if listErr != nil {
+			return false, listErr
 		}
 		if len(podList.Items) == 0 {
 			return false, nil
@@ -1145,6 +1147,11 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 		}
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("waiting for all pods to be Running in namespace %q with selector %q (timeout %s): %w",
+			namespace, selector, timeoutDuration, err)
+	}
+	return nil
 }
 
 func (k *KubeCtl) WaitForNPodsBySelectorRunning(namespace string, selector string, expectedCount int, timeout time.Duration) error {
