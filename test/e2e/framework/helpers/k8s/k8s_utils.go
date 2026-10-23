@@ -1127,12 +1127,22 @@ func (k *KubeCtl) WaitForPodBySelectorRunning(namespace string, selector string,
 		return err
 	}
 	timeoutDuration := time.Duration(timeout) * time.Second
-	pollInterval := timeoutDuration / 5
-	if pollInterval <= 0 {
-		pollInterval = time.Millisecond
+	// 1 initial check + 5 retries; waits of d, 2d, 4d, 8d, 16d sum to 31d
+	const retries = 5
+	initialDelay := timeoutDuration / 31
+	if initialDelay <= 0 {
+		initialDelay = time.Millisecond
+	}
+	backoff := wait.Backoff{
+		Duration: initialDelay,
+		Factor:   2.0,
+		Steps:    retries + 1,
 	}
 
-	err = wait.PollUntilContextTimeout(context.TODO(), pollInterval, timeoutDuration, false, func(ctx context.Context) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), timeoutDuration)
+	defer cancel()
+
+	err = wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		podList, listErr := k.ListPods(namespace, selector)
 		if listErr != nil {
 			return false, listErr
