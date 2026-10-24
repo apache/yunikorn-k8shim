@@ -20,6 +20,9 @@ package events
 
 const EnterState = "enter_state"
 
+// BeforeEvent is the fsm callback prefix for a guard that runs before a named event is applied.
+const BeforeEvent = "before_"
+
 // ----------------------------------------------
 // General event interface
 // ----------------------------------------------
