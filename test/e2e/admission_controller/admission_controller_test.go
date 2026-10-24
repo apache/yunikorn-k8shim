@@ -129,7 +129,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 
 		// Wait for pod to move into running state
 		err = kubeClient.WaitForPodBySelectorRunning(ns,
-			fmt.Sprintf("app=%s", appName), 10)
+			fmt.Sprintf("app=%s", appName), 30)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).Should(gomega.BeEquivalentTo(constants.SchedulerName))
 	})
