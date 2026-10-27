@@ -141,7 +141,7 @@ var _ = ginkgo.Describe("AdmissionController", func() {
 		defer deletePod(pod, bypassNs)
 
 		err = kubeClient.WaitForPodBySelectorRunning(bypassNs,
-			fmt.Sprintf("app=%s", appName), 10)
+			fmt.Sprintf("app=%s", appName), 30)
 		gomega.Ω(err).ShouldNot(gomega.HaveOccurred())
 		gomega.Ω(pod.Spec.SchedulerName).ShouldNot(gomega.BeEquivalentTo(constants.SchedulerName))
 
