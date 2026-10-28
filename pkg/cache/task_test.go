@@ -1221,7 +1221,7 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 			cache.UpdatePod(draTestPod)
 			cache.StoreCycleState(draTestPod, framework.NewCycleState())
 
-			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, NewMockedPredicateManager(tt.failReserve, tt.failPreBind), cache)
+			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, NewMockPredicateManager(false, false, false, tt.failReserve, tt.failPreBind), cache)
 
 			var rollbackSent atomic.Bool
 			if tt.shouldReschedule {
