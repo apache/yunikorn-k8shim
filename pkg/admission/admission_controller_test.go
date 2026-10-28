@@ -916,37 +916,45 @@ func TestMutateAppID(t *testing.T) {
 func TestMutatePodResize(t *testing.T) {
 	ac := prepareController(t, "", "", "^kube-system$,^bypass$", "", "^nolabel$", true, true)
 
+	toJSON := func(pod *v1.Pod) []byte {
+		podJSON, err := json.Marshal(pod)
+		assert.NilError(t, err, "failed to marshal pod")
+		return podJSON
+	}
 	notController := false
-	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace:   testNS,
 		Annotations: map[string]string{common.UserInfoAnnotation: validUserInfoAnnotation},
 	}, Spec: v1.PodSpec{SchedulerName: constants.SchedulerName}}
-	podJSON, err := json.Marshal(pod)
-	assert.NilError(t, err, "failed to marshal pod")
-	placeholder := pod.DeepCopy()
+	member := pod.DeepCopy()
+	member.Annotations[constants.AnnotationTaskGroupName] = "tg-1"
+	placeholder := member.DeepCopy()
 	placeholder.Annotations[constants.AnnotationPlaceholderFlag] = constants.True
-	placeholder.Annotations[constants.AnnotationTaskGroupName] = "tg-1"
 	placeholder.OwnerReferences = []metav1.OwnerReference{{Kind: "Pod", Name: "originator", Controller: &notController}}
-	placeholderJSON, err := json.Marshal(placeholder)
-	assert.NilError(t, err, "failed to marshal placeholder")
+	otherScheduler := placeholder.DeepCopy()
+	otherScheduler.Spec.SchedulerName = "default-scheduler"
 
 	tests := []struct {
 		name        string
+		namespace   string
 		subResource string
 		object      []byte
 		allowed     bool
 		message     string
 	}{
-		{"placeholder resize", podResizeSubResource, placeholderJSON, false, "placeholder pod resize is not allowed"},
-		{"placeholder update", "", placeholderJSON, true, ""},
-		{"pod resize", podResizeSubResource, podJSON, true, ""},
-		{"unreadable pod resize", podResizeSubResource, []byte("{"), false, "unexpected end of JSON input"},
+		{"placeholder resize", testNS, podResizeSubResource, toJSON(placeholder), false, "placeholder pod resize is not allowed"},
+		{"placeholder resize in bypassed namespace", "bypass", podResizeSubResource, toJSON(placeholder), false, "placeholder pod resize is not allowed"},
+		{"placeholder update", testNS, "", toJSON(placeholder), true, ""},
+		{"pod resize", testNS, podResizeSubResource, toJSON(pod), true, ""},
+		{"task group member resize", testNS, podResizeSubResource, toJSON(member), true, ""},
+		{"other scheduler resize", testNS, podResizeSubResource, toJSON(otherScheduler), true, ""},
+		{"unreadable pod resize", testNS, podResizeSubResource, []byte("{"), false, "unexpected end of JSON input"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &admissionv1.AdmissionRequest{
 				UID:         testUID,
-				Namespace:   testNS,
+				Namespace:   tt.namespace,
 				Kind:        metav1.GroupVersionKind{Kind: metadata.Pod},
 				Operation:   admissionv1.Update,
 				SubResource: tt.subResource,

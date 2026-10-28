@@ -290,7 +290,7 @@ func (c *AdmissionController) processPodResize(req *admissionv1.AdmissionRequest
 		return admissionResponseBuilder(uid, false, err.Error(), nil)
 	}
 
-	if utils.GetPlaceholderFlagFromPodSpec(&pod) {
+	if isScheduledByYuniKorn(&pod) && utils.GetPlaceholderFlagFromPodSpec(&pod) {
 		log.Log(log.Admission).Info("pod resize - placeholder resize not allowed", zap.String("UID", uid))
 		return admissionResponseBuilder(uid, false, "placeholder pod resize is not allowed", nil)
 	}
