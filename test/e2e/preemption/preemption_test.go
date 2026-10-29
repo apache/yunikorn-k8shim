@@ -447,7 +447,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 			// Wait for pod to move to running state
 			podErr = kClient.WaitForPodBySelectorRunning(dev,
 				fmt.Sprintf("app=%s", sleepRespPod.Labels["app"]),
-				60*60*2)
+				60)
 			gomega.Ω(podErr).NotTo(gomega.HaveOccurred())
 		}
 
