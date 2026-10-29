@@ -23,10 +23,13 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/version"
 
+	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/common"
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/k8s"
@@ -240,5 +243,48 @@ var _ = ginkgo.Describe("InPlacePodVerticalScaling", func() {
 
 		// Verify pod resource usage is unchanged after set an excessive value
 		verifyYunikornResourceUsage(appID, "vcore", 100)
+	})
+
+	ginkgo.It("Placeholder pod resize should be rejected", func() {
+		const taskGroup = "groupa"
+		appID := "appid-" + common.RandSeq(5)
+		minResource := map[string]resource.Quantity{
+			v1.ResourceCPU.String():    resource.MustParse("100m"),
+			v1.ResourceMemory.String(): resource.MustParse("100M"),
+		}
+
+		// The originator is not a task group member, so it never replaces the placeholder.
+		originator, err := k8s.InitTestPod(k8s.TestPodConfig{
+			Name:   "gang-driver-pod-" + common.RandSeq(5),
+			Labels: map[string]string{"applicationId": appID},
+			Annotations: &k8s.PodAnnotation{
+				TaskGroups:             []cache.TaskGroup{{Name: taskGroup, MinMember: 1, MinResource: minResource}},
+				SchedulingPolicyParams: "placeholderTimeoutInSeconds=600",
+			},
+		})
+		Ω(err).NotTo(HaveOccurred())
+		_, err = kClient.CreatePod(originator, ns)
+		Ω(err).NotTo(HaveOccurred())
+
+		phPrefix := "tg-" + appID + "-" + taskGroup + "-"
+		phRunning := v1.PodRunning
+		err = kClient.WaitForPlaceholders(ns, phPrefix, 1, 60*time.Second, &phRunning)
+		Ω(err).NotTo(HaveOccurred())
+		phPods, err := kClient.ListPlaceholders(ns, phPrefix)
+		Ω(err).NotTo(HaveOccurred())
+		Ω(phPods).To(gomega.HaveLen(1))
+
+		// Placeholders are Guaranteed: resize requests and limits together so that only the admission
+		// controller can reject the request.
+		var patch []map[string]interface{}
+		for _, field := range []string{"requests", "limits"} {
+			patch = append(patch,
+				map[string]interface{}{"op": "replace", "path": "/spec/containers/0/resources/" + field + "/cpu", "value": "200m"},
+				map[string]interface{}{"op": "replace", "path": "/spec/containers/0/resources/" + field + "/memory", "value": "200M"},
+			)
+		}
+		_, err = kClient.PatchPod(&phPods[0], ns, patch, "resize")
+		Ω(err).To(HaveOccurred())
+		Ω(err.Error()).To(gomega.ContainSubstring("placeholder pod resize is not allowed"))
 	})
 })
