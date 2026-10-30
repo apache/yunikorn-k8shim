@@ -457,7 +457,7 @@ func (ctx *Context) updateForeignPod(oldPod, pod *v1.Pod) {
 				zap.String("podStatusBefore", podStatusBefore),
 				zap.String("podStatusCurrent", string(pod.Status.Phase)))
 			if oldPod == nil || !common.Equals(common.GetPodResource(oldPod), common.GetPodResource(pod)) {
-				allocReq := common.CreateAllocationForForeignPod(pod)
+				allocReq := common.CreateAllocationForForeignPod(pod, ctx.IsPodPreemptSelfAllowed(pod))
 				if err := ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateAllocation(allocReq); err != nil {
 					log.Log(log.ShimContext).Error("failed to add foreign allocation to the core",
 						zap.Error(err))
@@ -1124,6 +1124,19 @@ func (ctx *Context) addApplication(request *AddApplicationRequest) *Application 
 		zap.String("appID", app.applicationID))
 
 	return app
+}
+
+// IsPodPreemptSelfAllowed returns whether the pod may be preempted: the pod annotation takes precedence,
+// otherwise the setting of its PriorityClass is used.
+func (ctx *Context) IsPodPreemptSelfAllowed(pod *v1.Pod) bool {
+	switch utils.GetPodAnnotationValue(pod, constants.AnnotationAllowPreemption) {
+	case constants.True:
+		return true
+	case constants.False:
+		return false
+	default:
+		return ctx.IsPreemptSelfAllowed(pod.Spec.PriorityClassName)
+	}
 }
 
 func (ctx *Context) IsPreemptSelfAllowed(priorityClassName string) bool {

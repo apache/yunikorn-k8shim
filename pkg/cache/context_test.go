@@ -819,7 +819,63 @@ func assertForeignPodAllocation(t *testing.T, podName, host string, allocRequest
 		assert.Equal(t, tags["kubernetes.io/meta/podName"], podName)
 		assert.Equal(t, podName, allocRequest.Allocations[0].AllocationKey)
 		assert.Equal(t, host, allocRequest.Allocations[0].NodeID)
+		policy := allocRequest.Allocations[0].PreemptionPolicy
+		assert.Assert(t, policy != nil, "foreign allocation must carry a preemption policy")
+		assert.Assert(t, policy.AllowPreemptSelf, "plain foreign pod should be preemptable by default")
+		assert.Assert(t, !policy.AllowPreemptOther, "foreign pod must not preempt others")
 	}
+}
+
+func TestIsPodPreemptSelfAllowed(t *testing.T) {
+	context, _ := initContextAndAPIProviderForTest()
+	context.addPriorityClass(&schedulingv1.PriorityClass{
+		ObjectMeta: apis.ObjectMeta{
+			Name:        "no-preempt",
+			Annotations: map[string]string{constants.AnnotationAllowPreemption: constants.False},
+		},
+		Value: 100,
+	})
+	tests := []struct {
+		name          string
+		annotation    string
+		priorityClass string
+		expected      bool
+	}{
+		{"no annotation, no priority class", "", "", true},
+		{"no annotation, unknown priority class", "", "unknown", true},
+		{"no annotation, priority class opted out", "", "no-preempt", false},
+		{"annotation true overrides priority class", constants.True, "no-preempt", true},
+		{"annotation false", constants.False, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &v1.Pod{Spec: v1.PodSpec{PriorityClassName: tt.priorityClass}}
+			if tt.annotation != "" {
+				pod.Annotations = map[string]string{constants.AnnotationAllowPreemption: tt.annotation}
+			}
+			assert.Equal(t, tt.expected, context.IsPodPreemptSelfAllowed(pod))
+		})
+	}
+}
+
+func TestUpdateForeignPodPreemptionPolicyFromAnnotation(t *testing.T) {
+	context, apiProvider := initContextAndAPIProviderForTest()
+	var allocRequest *si.AllocationRequest
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		allocRequest = request
+		return nil
+	})
+	context.schedulerCache.UpdateNode(nodeForTest(Host1, "10G", "10"))
+	pod := foreignPod(podName1, "1G", "500m")
+	pod.Status.Phase = v1.PodRunning
+	pod.Spec.NodeName = Host1
+	pod.Annotations = map[string]string{constants.AnnotationAllowPreemption: constants.False}
+	context.AddPod(pod)
+	assert.Assert(t, allocRequest != nil, "expected allocation request")
+	assert.Equal(t, 1, len(allocRequest.Allocations))
+	policy := allocRequest.Allocations[0].PreemptionPolicy
+	assert.Assert(t, policy != nil, "foreign allocation must carry a preemption policy")
+	assert.Assert(t, !policy.AllowPreemptSelf, "opted-out foreign pod must not be preemptable")
 }
 
 func TestDeleteForeignPod(t *testing.T) {

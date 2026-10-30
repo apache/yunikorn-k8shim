@@ -442,7 +442,7 @@ func TestCreateAllocationForForeignPod(t *testing.T) {
 		},
 	}
 
-	allocReq := CreateAllocationForForeignPod(pod)
+	allocReq := CreateAllocationForForeignPod(pod, true)
 	assert.Equal(t, 1, len(allocReq.Allocations))
 	assert.Equal(t, "mycluster", allocReq.RmID)
 	assert.Assert(t, allocReq.Releases == nil)
@@ -469,11 +469,61 @@ func TestCreateAllocationForForeignPod(t *testing.T) {
 			Kind: "Node",
 		},
 	}
-	allocReq = CreateAllocationForForeignPod(pod)
+	allocReq = CreateAllocationForForeignPod(pod, true)
 	assert.Equal(t, 5, len(alloc.AllocationTags))
 	alloc = allocReq.Allocations[0]
 	assert.Equal(t, common.AllocTypeStatic, alloc.AllocationTags[common.Foreign])
 	assert.Equal(t, int32(12), alloc.Priority)
+}
+
+func TestCreateAllocationForForeignPodPreemption(t *testing.T) {
+	requiredNodeKey := common.DomainYuniKorn + common.KeyRequiredNode
+	dsAffinity := &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{{
+					MatchFields: []v1.NodeSelectorRequirement{{
+						Key:      "metadata.name",
+						Operator: v1.NodeSelectorOpIn,
+						Values:   []string{"affinity-node"},
+					}},
+				}},
+			},
+		},
+	}
+	tests := []struct {
+		name             string
+		ownerKind        string
+		affinity         *v1.Affinity
+		allowPreemptSelf bool
+		expectSelf       bool
+		expectType       string
+		expectReqNode    string
+	}{
+		{"plain pod, allowed", "", nil, true, true, common.AllocTypeDefault, ""},
+		{"plain pod, opted out", "", nil, false, false, common.AllocTypeDefault, ""},
+		{"replicaset pod, allowed", "ReplicaSet", nil, true, true, common.AllocTypeDefault, ""},
+		{"static pod", "Node", nil, true, false, common.AllocTypeStatic, ""},
+		{"daemonset pod without affinity", "DaemonSet", nil, true, false, common.AllocTypeDefault, nodeID},
+		{"daemonset pod with affinity", "DaemonSet", dsAffinity, true, false, common.AllocTypeDefault, "affinity-node"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &v1.Pod{
+				ObjectMeta: apis.ObjectMeta{Name: "foreign", UID: "UID-foreign", Namespace: "default"},
+				Spec:       v1.PodSpec{NodeName: nodeID, Affinity: tt.affinity},
+			}
+			if tt.ownerKind != "" {
+				pod.OwnerReferences = []apis.OwnerReference{{Kind: tt.ownerKind, Name: "owner"}}
+			}
+			alloc := CreateAllocationForForeignPod(pod, tt.allowPreemptSelf).Allocations[0]
+			assert.Assert(t, alloc.PreemptionPolicy != nil, "preemption policy not set")
+			assert.Equal(t, tt.expectSelf, alloc.PreemptionPolicy.AllowPreemptSelf)
+			assert.Assert(t, !alloc.PreemptionPolicy.AllowPreemptOther, "foreign pod must not preempt others")
+			assert.Equal(t, tt.expectType, alloc.AllocationTags[common.Foreign])
+			assert.Equal(t, tt.expectReqNode, alloc.AllocationTags[requiredNodeKey])
+		})
+	}
 }
 
 func TestCreateReleaseRequestForForeignPod(t *testing.T) {
