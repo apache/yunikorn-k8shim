@@ -1162,6 +1162,21 @@ func (ctx *Context) RemoveApplication(appID string) {
 	delete(ctx.applications, appID)
 }
 
+func (ctx *Context) RemoveCompletedApplication(appID string) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	app, exist := ctx.applications[appID]
+	if !exist {
+		return
+	}
+	if !app.AreAllTasksTerminated() {
+		log.Log(log.ShimContext).Info("ignoring application completion from the core, tasks are still active",
+			zap.String("appID", appID))
+		return
+	}
+	delete(ctx.applications, appID)
+}
+
 // this implements ApplicationManagementProtocol
 func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
 	ctx.lock.Lock()
