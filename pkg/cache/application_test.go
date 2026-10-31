@@ -1777,6 +1777,57 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	}
 }
 
+// TestPostAppAcceptedConcurrentTaskAdd runs the scheduling loop against the task adds that arrive
+// from the informers. Schedule calls postAppAccepted outside any state machine transition, so
+// nothing holds the application lock for it, while addTask writes the task map under the lock.
+// Reading the map there is a data race, and iterating it while it is written is a fatal
+// "concurrent map iteration and map write".
+//
+// Run with -race. On the unfixed code this reports a data race between the read in
+// skipReservationStage and the write in addTask.
+func TestPostAppAcceptedConcurrentTaskAdd(t *testing.T) {
+	app := newAcceptedTestApp(t, "app-accepted-race")
+	// a couple of tasks up front so the map walk has something to iterate
+	for i := 0; i < 4; i++ {
+		app.addTask(newAcceptedTestTask(app, i))
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// the informer path: keeps adding tasks to the application under the lock
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 4; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			app.addTask(newAcceptedTestTask(app, i))
+		}
+	}()
+
+	// the scheduling loop: calls Schedule on every interval
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			app.Schedule()
+		}
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+}
+
 // TestAcceptRemovesApplicationUnderContextLock covers the removal of an application that has no
 // live task left by the time the core accepts it. The delete used to run under the application
 // lock only, while the scheduling loop lists the applications on every tick.
