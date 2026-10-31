@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -265,6 +266,71 @@ func TestDispatchTimeout(t *testing.T) {
 	// stop the dispatcher
 	close(stop)
 	Stop()
+}
+
+// Test stopping the dispatcher while an event is waiting in async-dispatch mode,
+// verify that the async-dispatch routine exits through the stop channel.
+func TestStopDuringAsyncDispatch(t *testing.T) {
+	createDispatcher(t)
+	defer createDispatcher(t)
+	// reset event channel with small capacity for testing
+	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
+	dispatcher.asyncDispatchCheckInterval = 2 * time.Second
+
+	// start the handler, but waiting on a flag
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+		if appEvent, ok := obj.(TestAppEvent); ok {
+			<-appEvent.flag
+		}
+	})
+
+	// start the dispatcher
+	Start()
+
+	// release the handler on every exit, a failed assertion must not leave the event loop stuck
+	release := make(chan bool)
+	closeRelease := sync.OnceFunc(func() { close(release) })
+	defer closeRelease()
+
+	// 1st event should be picked up and stuck at handling
+	Dispatch(TestAppEvent{
+		appID:     "test-0",
+		eventType: RunApplication,
+		flag:      release,
+	})
+	err := utils.WaitForCondition(func() bool {
+		return len(dispatcher.eventChan) == 0
+	}, testAsyncDispatchPollPeriod, time.Second)
+	assert.NilError(t, err)
+
+	// 2nd event fills the channel, 3rd one should be posted as an async request
+	for i := 1; i < 3; i++ {
+		Dispatch(TestAppEvent{
+			appID:     fmt.Sprintf("test-%d", i),
+			eventType: RunApplication,
+			flag:      release,
+		})
+	}
+	assert.Equal(t, dispatcher.asyncDispatchCount.Load(), int32(1))
+
+	// stop the dispatcher, Stop() waits for the event loop that is still stuck at handling
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		Stop()
+	}()
+
+	// the channel stays full and the wait is shorter than asyncDispatchCheckInterval,
+	// so the async request can only leave through the stop channel
+	err = utils.WaitForCondition(func() bool {
+		return dispatcher.asyncDispatchCount.Load() == 0
+	}, testAsyncDispatchPollPeriod, dispatcher.asyncDispatchCheckInterval/2)
+	assert.NilError(t, err)
+
+	// let the event loop finish so that Stop() returns
+	closeRelease()
+	<-stopped
+	assert.Equal(t, dispatcher.isRunning(), false)
 }
 
 // Test exceeding the async-dispatch limit, should panic immediately.
