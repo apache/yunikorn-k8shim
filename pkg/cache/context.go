@@ -779,6 +779,7 @@ func (ctx *Context) IsPodFitNodeViaPreemption(name, node string, allocations []s
 	victims := make([]*v1.Pod, len(allocations))
 	for index, uid := range allocations {
 		victim := ctx.schedulerCache.GetPod(uid)
+		// Even "nil" victim would be added here and handled properly down the path
 		victims[index] = victim
 	}
 
