@@ -27,9 +27,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	schedv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/informers"
+	resourceV1 "k8s.io/client-go/informers/resource/v1"
 	k8fake "k8s.io/client-go/kubernetes/fake"
 	appsv1 "k8s.io/client-go/listers/apps/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
+	resourcelister "k8s.io/client-go/listers/resource/v1"
 	storagev1 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
@@ -68,19 +70,23 @@ const (
 func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 	return &MockedAPIProvider{
 		clients: &Clients{
-			KubeClient:            NewKubeClientMock(showError),
-			SchedulerAPI:          test.NewSchedulerAPIMock(),
-			PodInformer:           test.NewMockedPodInformer(),
-			NodeInformer:          test.NewMockedNodeInformer(),
-			ConfigMapInformer:     test.NewMockedConfigMapInformer(),
-			PVInformer:            NewMockedPersistentVolumeInformer(),
-			PVCInformer:           NewMockedPersistentVolumeClaimInformer(),
-			StorageClassInformer:  NewMockedStorageClassInformer(),
-			VolumeBinder:          test.NewVolumeBinderMock(),
-			NamespaceInformer:     test.NewMockNamespaceInformer(false),
-			PriorityClassInformer: test.NewMockPriorityClassInformer(),
-			CSINodeInformer:       NewMockedCSINodeInformer(),
-			InformerFactory:       informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),
+			KubeClient:             NewKubeClientMock(showError),
+			SchedulerAPI:           test.NewSchedulerAPIMock(),
+			PodInformer:            test.NewMockedPodInformer(),
+			NodeInformer:           test.NewMockedNodeInformer(),
+			ConfigMapInformer:      test.NewMockedConfigMapInformer(),
+			PVInformer:             NewMockedPersistentVolumeInformer(),
+			PVCInformer:            NewMockedPersistentVolumeClaimInformer(),
+			StorageClassInformer:   NewMockedStorageClassInformer(),
+			VolumeBinder:           test.NewVolumeBinderMock(),
+			NamespaceInformer:      test.NewMockNamespaceInformer(false),
+			PriorityClassInformer:  test.NewMockPriorityClassInformer(),
+			CSINodeInformer:        NewMockedCSINodeInformer(),
+			InformerFactory:        informers.NewSharedInformerFactory(k8fake.NewSimpleClientset(), time.Second*60),
+			ResourceSlicesInformer: NewMockedResourceSlicesInformer(),
+			ResourceClaimsInformer: NewMockedResourceClaimsInformer(),
+			DeviceTaintsInformer:   NewMockedDeviceTaintsInformer(),
+			DeviceClassesInformer:  NewMockedDeviceClassesInformer(),
 		},
 		events:       make(chan informerEvent),
 		eventHandler: make(chan *ResourceEventHandlers),
@@ -605,4 +611,122 @@ func NewMockedStatefulSetInformer() *MockedStatefulSetInformer {
 
 func (m *MockedAPIProvider) SetVolumeBinder(binder volumebinding.SchedulerVolumeBinder) {
 	m.clients.VolumeBinder = binder
+}
+
+type MockedResourceClaimsInformer struct {
+	informer      cache.SharedIndexInformer
+	typedInformer resourceV1.ResourceClaimIndexInformer
+}
+
+func (m *MockedResourceClaimsInformer) TypedInformer() resourceV1.ResourceClaimIndexInformer {
+	return m.typedInformer
+}
+
+func (m *MockedResourceClaimsInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+func (m *MockedResourceClaimsInformer) Lister() resourcelister.ResourceClaimLister {
+	return nil
+}
+
+func NewMockedResourceClaimsInformer() *MockedResourceClaimsInformer {
+	return &MockedResourceClaimsInformer{
+		informer:      &test.SharedInformerMock{},
+		typedInformer: nil,
+	}
+}
+
+type MockedResourceClaimTemplatesInformer struct {
+	informer      cache.SharedIndexInformer
+	typedInformer resourceV1.ResourceClaimTemplateIndexInformer
+}
+
+func (m *MockedResourceClaimTemplatesInformer) TypedInformer() resourceV1.ResourceClaimTemplateIndexInformer {
+	return m.typedInformer
+}
+
+func (m *MockedResourceClaimTemplatesInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+func (m *MockedResourceClaimTemplatesInformer) Lister() resourcelister.ResourceClaimTemplateLister {
+	return nil
+}
+
+func NewMockedResourceClaimTemplatesInformer() *MockedResourceClaimTemplatesInformer {
+	return &MockedResourceClaimTemplatesInformer{
+		informer:      &test.SharedInformerMock{},
+		typedInformer: nil,
+	}
+}
+
+type MockedResourceSlicesInformer struct {
+	informer      cache.SharedIndexInformer
+	typedInformer resourceV1.ResourceSliceIndexInformer
+}
+
+func (m *MockedResourceSlicesInformer) TypedInformer() resourceV1.ResourceSliceIndexInformer {
+	return m.typedInformer
+}
+
+func (m *MockedResourceSlicesInformer) Lister() resourcelister.ResourceSliceLister {
+	return nil
+}
+
+func (m *MockedResourceSlicesInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+
+func NewMockedResourceSlicesInformer() *MockedResourceSlicesInformer {
+	return &MockedResourceSlicesInformer{
+		informer:      &test.SharedInformerMock{},
+		typedInformer: test.MockNewTypedSharedIndexInformer(),
+	}
+}
+
+type MockedDeviceTaintsInformer struct {
+	informer      cache.SharedIndexInformer
+	typedInformer resourceV1.DeviceTaintRuleIndexInformer
+}
+
+func (m *MockedDeviceTaintsInformer) TypedInformer() resourceV1.DeviceTaintRuleIndexInformer {
+	return m.typedInformer
+}
+
+func (m *MockedDeviceTaintsInformer) Lister() resourcelister.DeviceTaintRuleLister {
+	return nil
+}
+
+func (m *MockedDeviceTaintsInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+
+func NewMockedDeviceTaintsInformer() *MockedDeviceTaintsInformer {
+	return &MockedDeviceTaintsInformer{
+		informer:      &test.SharedInformerMock{},
+		typedInformer: test.MockNewTypedDeviceTainInformerMock(),
+	}
+}
+
+type MockedDeviceClassesInformer struct {
+	informer      cache.SharedIndexInformer
+	typedInformer resourceV1.DeviceClassIndexInformer
+}
+
+func (m *MockedDeviceClassesInformer) TypedInformer() resourceV1.DeviceClassIndexInformer {
+	return m.typedInformer
+}
+
+func (m *MockedDeviceClassesInformer) Lister() resourcelister.DeviceClassLister {
+	return nil
+}
+
+func (m *MockedDeviceClassesInformer) Informer() cache.SharedIndexInformer {
+	return m.informer
+}
+
+func NewMockedDeviceClassesInformer() *MockedDeviceClassesInformer {
+	return &MockedDeviceClassesInformer{
+		informer:      &test.SharedInformerMock{},
+		typedInformer: nil,
+	}
 }

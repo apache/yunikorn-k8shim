@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	v1 "k8s.io/client-go/informers/resource/v1"
 
 	"k8s.io/client-go/informers"
 	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
@@ -46,22 +47,27 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	ConfigMapInformer             coreInformerV1.ConfigMapInformer
-	CSIDriverInformer             storageInformerV1.CSIDriverInformer
-	CSINodeInformer               storageInformerV1.CSINodeInformer
-	CSIStorageCapacityInformer    storageInformerV1.CSIStorageCapacityInformer
-	NamespaceInformer             coreInformerV1.NamespaceInformer
-	NodeInformer                  coreInformerV1.NodeInformer
-	PodInformer                   coreInformerV1.PodInformer
-	StorageClassInformer          storageInformerV1.StorageClassInformer
-	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
-	PVInformer                    coreInformerV1.PersistentVolumeInformer
-	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
-	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
-	ServiceInformer               coreInformerV1.ServiceInformer
-	StatefulSetInformer           appsInformerV1.StatefulSetInformer
-	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
-	VolumeAttachmentInformer      storageInformerV1.VolumeAttachmentInformer
+	ConfigMapInformer              coreInformerV1.ConfigMapInformer
+	CSIDriverInformer              storageInformerV1.CSIDriverInformer
+	CSINodeInformer                storageInformerV1.CSINodeInformer
+	CSIStorageCapacityInformer     storageInformerV1.CSIStorageCapacityInformer
+	NamespaceInformer              coreInformerV1.NamespaceInformer
+	NodeInformer                   coreInformerV1.NodeInformer
+	PodInformer                    coreInformerV1.PodInformer
+	StorageClassInformer           storageInformerV1.StorageClassInformer
+	PVCInformer                    coreInformerV1.PersistentVolumeClaimInformer
+	PVInformer                     coreInformerV1.PersistentVolumeInformer
+	ReplicaSetInformer             appsInformerV1.ReplicaSetInformer
+	PriorityClassInformer          schedulingInformerV1.PriorityClassInformer
+	ServiceInformer                coreInformerV1.ServiceInformer
+	StatefulSetInformer            appsInformerV1.StatefulSetInformer
+	ReplicationControllerInformer  coreInformerV1.ReplicationControllerInformer
+	VolumeAttachmentInformer       storageInformerV1.VolumeAttachmentInformer
+	ResourceSlicesInformer         v1.TypedResourceSliceInformer
+	ResourceClaimsInformer         v1.TypedResourceClaimInformer
+	ResourceClaimTemplatesInformer v1.TypedResourceClaimTemplateInformer
+	DeviceTaintsInformer           v1.TypedDeviceTaintRuleInformer
+	DeviceClassesInformer          v1.TypedDeviceClassInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
@@ -86,7 +92,12 @@ func (c *Clients) WaitForSync() {
 			c.ServiceInformer.Informer().HasSynced() &&
 			c.StatefulSetInformer.Informer().HasSynced() &&
 			c.StorageClassInformer.Informer().HasSynced() &&
-			c.VolumeAttachmentInformer.Informer().HasSynced() {
+			c.VolumeAttachmentInformer.Informer().HasSynced() &&
+			c.ResourceSlicesInformer.Informer().HasSynced() &&
+			c.ResourceClaimsInformer.Informer().HasSynced() &&
+			c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
+			c.DeviceTaintsInformer.Informer().HasSynced() &&
+			c.DeviceClassesInformer.Informer().HasSynced() {
 			return
 		}
 		time.Sleep(time.Second)
@@ -115,4 +126,9 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StatefulSetInformer.Informer().Run(stopCh)
 	go c.StorageClassInformer.Informer().Run(stopCh)
 	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
+	go c.ResourceSlicesInformer.Informer().Run(stopCh)
+	go c.ResourceClaimsInformer.Informer().Run(stopCh)
+	go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
+	go c.DeviceTaintsInformer.Informer().Run(stopCh)
+	go c.DeviceClassesInformer.Informer().Run(stopCh)
 }

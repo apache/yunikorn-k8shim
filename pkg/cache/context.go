@@ -117,12 +117,12 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 
 	var sharedDRAManager *dynamicresources.DefaultDRAManager
 	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
-		resourceClaimInformer := informerFactory.Resource().V1().ResourceClaims().Informer()
+		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
 			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
-			SliceInformer:          informerFactory.Resource().V1().ResourceSlices(),
-			TaintInformer:          informerFactory.Resource().V1().DeviceTaintRules()})
+			SliceInformer:          apis.GetAPIs().ResourceSlicesInformer,
+			TaintInformer:          apis.GetAPIs().DeviceTaintsInformer})
 		if err != nil {
 			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil

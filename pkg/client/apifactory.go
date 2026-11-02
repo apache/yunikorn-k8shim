@@ -37,7 +37,7 @@ import (
 
 type Type int
 
-var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet", "VolumeAttachment"}
+var informerTypes = [...]string{"Pod", "Node", "ConfigMap", "PV", "PVC", "Storage", "CSINode", "CSIDriver", "CSIStorageCapacity", "Namespace", "PriorityClass", "Service", "ReplicationController", "ReplicaSet", "StatefulSet", "VolumeAttachment", "ResourceClaims", "ResourceClaimTemplates", "ResourceSlices", "DeviceTaints", "DeviceClasses"}
 
 const (
 	PodInformerHandlers Type = iota
@@ -56,6 +56,11 @@ const (
 	ReplicaSetInformerHandlers
 	StatefulSetInformerHandlers
 	VolumeAttachmentInformerHandlers
+	ResourceClaimsInformerHandlers
+	ResourceClaimTemplatesInformerHandlers
+	ResourceSlicesInformerHandlers
+	DeviceTaintsInformerHandlers
+	DeviceClassesInformerHandlers
 )
 
 func (t Type) String() string {
@@ -111,7 +116,11 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 	replicaSetInformer := informerFactory.Apps().V1().ReplicaSets()
 	statefulSetInformer := informerFactory.Apps().V1().StatefulSets()
 	volumeAttachmentInformer := informerFactory.Storage().V1().VolumeAttachments()
-
+	resourceSlicesInformer := informerFactory.Resource().V1().ResourceSlices()
+	resourceClaimsInformer := informerFactory.Resource().V1().ResourceClaims()
+	resourceClaimTemplatesInformer := informerFactory.Resource().V1().ResourceClaimTemplates()
+	deviceTaintsInformer := informerFactory.Resource().V1().DeviceTaintRules()
+	deviceClassesInformer := informerFactory.Resource().V1().DeviceClasses()
 	var capacityCheck = volumebinding.CapacityCheck{
 		CSIDriverInformer:          informerFactory.Storage().V1().CSIDrivers(),
 		CSIStorageCapacityInformer: informerFactory.Storage().V1().CSIStorageCapacities(),
@@ -137,26 +146,31 @@ func NewAPIFactory(scheduler api.SchedulerAPI, informerFactory informers.SharedI
 
 	return &APIFactory{
 		clients: &Clients{
-			KubeClient:                    kubeClient,
-			SchedulerAPI:                  scheduler,
-			InformerFactory:               informerFactory,
-			PodInformer:                   podInformer,
-			NodeInformer:                  nodeInformer,
-			ConfigMapInformer:             configMapInformer,
-			PVInformer:                    pvInformer,
-			PVCInformer:                   pvcInformer,
-			StorageClassInformer:          storageInformer,
-			CSINodeInformer:               csiNodeInformer,
-			CSIDriverInformer:             csiDriverInformer,
-			CSIStorageCapacityInformer:    csiStorageCapacityInformer,
-			NamespaceInformer:             namespaceInformer,
-			PriorityClassInformer:         priorityClassInformer,
-			ServiceInformer:               serviceInformer,
-			ReplicationControllerInformer: replicationControllerInformer,
-			ReplicaSetInformer:            replicaSetInformer,
-			StatefulSetInformer:           statefulSetInformer,
-			VolumeAttachmentInformer:      volumeAttachmentInformer,
-			VolumeBinder:                  volumeBinder,
+			KubeClient:                     kubeClient,
+			SchedulerAPI:                   scheduler,
+			InformerFactory:                informerFactory,
+			PodInformer:                    podInformer,
+			NodeInformer:                   nodeInformer,
+			ConfigMapInformer:              configMapInformer,
+			PVInformer:                     pvInformer,
+			PVCInformer:                    pvcInformer,
+			StorageClassInformer:           storageInformer,
+			CSINodeInformer:                csiNodeInformer,
+			CSIDriverInformer:              csiDriverInformer,
+			CSIStorageCapacityInformer:     csiStorageCapacityInformer,
+			NamespaceInformer:              namespaceInformer,
+			PriorityClassInformer:          priorityClassInformer,
+			ServiceInformer:                serviceInformer,
+			ReplicationControllerInformer:  replicationControllerInformer,
+			ReplicaSetInformer:             replicaSetInformer,
+			StatefulSetInformer:            statefulSetInformer,
+			VolumeAttachmentInformer:       volumeAttachmentInformer,
+			VolumeBinder:                   volumeBinder,
+			ResourceSlicesInformer:         resourceSlicesInformer,
+			ResourceClaimsInformer:         resourceClaimsInformer,
+			ResourceClaimTemplatesInformer: resourceClaimTemplatesInformer,
+			DeviceTaintsInformer:           deviceTaintsInformer,
+			DeviceClassesInformer:          deviceClassesInformer,
 		},
 		testMode: testMode,
 		stopChan: make(chan struct{}),
