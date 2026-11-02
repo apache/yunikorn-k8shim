@@ -52,6 +52,7 @@ const (
 	admissionReviewKind             = "AdmissionReview"
 	schedulerValidateConfURLPattern = "http://%s/ws/v1/validate-conf"
 	mutateURL                       = "/mutate"
+	podResizeSubResource            = "resize"
 	validateConfURL                 = "/validate-conf"
 )
 
@@ -141,6 +142,9 @@ func (c *AdmissionController) mutate(req *admissionv1.AdmissionRequest) *admissi
 
 	if req.Operation == admissionv1.Update {
 		if req.Kind.Kind == metadata.Pod {
+			if req.SubResource == podResizeSubResource {
+				return c.processPodResize(req)
+			}
 			return c.processPodUpdate(req, namespace)
 		}
 		return c.processWorkloadUpdate(req, namespace)
@@ -272,6 +276,24 @@ func (c *AdmissionController) processWorkload(req *admissionv1.AdmissionRequest,
 		return admissionResponseBuilder(uid, true, "", patchBytes)
 	}
 
+	return admissionResponseBuilder(uid, true, "", nil)
+}
+
+// processPodResize rejects an in-place resize of a placeholder: the scheduler books placeholders against the gang's
+// placeholder ask and replaces them with real pods of the task group size, so a placeholder must keep its size.
+func (c *AdmissionController) processPodResize(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	uid := string(req.UID)
+
+	var pod v1.Pod
+	if err := json.Unmarshal(req.OldObject.Raw, &pod); err != nil {
+		log.Log(log.Admission).Error("unmarshal failed", zap.Error(err))
+		return admissionResponseBuilder(uid, false, err.Error(), nil)
+	}
+
+	if isScheduledByYuniKorn(&pod) && utils.GetPlaceholderFlagFromPodSpec(&pod) {
+		log.Log(log.Admission).Info("pod resize - placeholder resize not allowed", zap.String("UID", uid))
+		return admissionResponseBuilder(uid, false, "placeholder pod resize is not allowed", nil)
+	}
 	return admissionResponseBuilder(uid, true, "", nil)
 }
 
