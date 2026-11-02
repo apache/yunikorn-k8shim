@@ -37,7 +37,7 @@ spec:
       schedulerName: yunikorn
       containers:
         - name: sleep-container
-          image: registry.k8s.io/pause:3.7
+          image: registry.k8s.io/pause:3.10.2
           resources:
             requests:
               cpu: "50m"

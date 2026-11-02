@@ -38,7 +38,7 @@ spec:
           topologyKey: "kubernetes.io/hostname"
   containers:
     - name: with-pod-affinity
-      image: registry.k8s.io/pause:3.7
+      image: registry.k8s.io/pause:3.10.2
       resources:
         requests:
           cpu: "100m"
@@ -67,7 +67,7 @@ spec:
           topologyKey: "kubernetes.io/hostname"
   containers:
     - name: with-pod-affinity
-      image: registry.k8s.io/pause:3.7
+      image: registry.k8s.io/pause:3.10.2
       resources:
         requests:
           cpu: "100m"
