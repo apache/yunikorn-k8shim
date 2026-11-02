@@ -389,6 +389,7 @@ func TestUpdateApplication_Completed(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+	context.getTask(appID, taskUID1).sm.SetState(TaskStates().Completed)
 
 	err := callback.UpdateApplication(&si.ApplicationResponse{
 		Updated: []*si.UpdatedApplication{
@@ -400,6 +401,23 @@ func TestUpdateApplication_Completed(t *testing.T) {
 	})
 	assert.NilError(t, err, "error updating application")
 	assert.Assert(t, context.getApplication(appID) == nil, "application was not removed")
+}
+
+func TestUpdateApplication_Completed_ActiveTasks(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	err := callback.UpdateApplication(&si.ApplicationResponse{
+		Updated: []*si.UpdatedApplication{
+			{
+				ApplicationID: appID,
+				State:         ApplicationStates().Completed,
+			},
+		},
+	})
+	assert.NilError(t, err, "error updating application")
+	assert.Assert(t, context.getApplication(appID) != nil, "application with active tasks should not be removed")
 }
 
 func TestUpdateApplication_Resuming_AppReserving(t *testing.T) {
