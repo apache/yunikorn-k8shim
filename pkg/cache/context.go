@@ -1169,6 +1169,22 @@ func (ctx *Context) AddTask(request *AddTaskRequest) *Task {
 	return ctx.addTask(request)
 }
 
+// placeholderTaskAllowed reports whether a placeholder task may still be tracked for an
+// application in the given state. Placeholders are only valid while the application is
+// progressing towards or sitting in gang reservation; once it has left reservation any
+// newly observed placeholder is stale and must be ignored.
+func placeholderTaskAllowed(appState string) bool {
+	switch appState {
+	case ApplicationStates().New,
+		ApplicationStates().Submitted,
+		ApplicationStates().Accepted,
+		ApplicationStates().Reserving:
+		return true
+	default:
+		return false
+	}
+}
+
 func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	log.Log(log.ShimContext).Debug("AddTask",
 		zap.String("appID", request.Metadata.ApplicationID),
@@ -1176,6 +1192,18 @@ func (ctx *Context) addTask(request *AddTaskRequest) *Task {
 	if app := ctx.getApplication(request.Metadata.ApplicationID); app != nil {
 		existingTask := app.GetTask(request.Metadata.TaskID)
 		if existingTask == nil {
+			if request.Metadata.Placeholder && !placeholderTaskAllowed(app.GetApplicationState()) {
+				// the application has already left gang reservation, so this placeholder is
+				// stale and must not be tracked. the pod delete is driven by the placeholder
+				// manager and the cache entry is removed by the informer delete event, so
+				// nothing else is needed here.
+				log.Log(log.ShimContext).Info("ignoring placeholder pod, application left gang reservation",
+					zap.String("appID", app.applicationID),
+					zap.String("appState", app.GetApplicationState()),
+					zap.String("taskID", request.Metadata.TaskID))
+				return nil
+			}
+
 			var originator bool
 
 			// Is this task the originator of the application?

@@ -92,6 +92,11 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 		tgCounts[ph.GetTaskGroupName()]++
 	}
 
+	// track the pods created in this attempt so they can be rolled back if a later
+	// create fails; these placeholders may not be in the task map yet, so cleanUp
+	// would not catch them
+	var createdPods []*v1.Pod
+
 	// iterate all task groups, create placeholders for all the min members
 	for _, tg := range app.getTaskGroups() {
 		count := tgCounts[tg.Name]
@@ -103,18 +108,57 @@ func (mgr *PlaceholderManager) createAppPlaceholders(app *Application) error {
 			placeholderName := GeneratePlaceholderName(tg.Name, app.GetApplicationID())
 			placeholder := newPlaceholder(placeholderName, app, tg)
 			// create the placeholder on K8s
-			_, err := kubeClient.Create(ctx, placeholder.pod)
+			created, err := kubeClient.Create(ctx, placeholder.pod)
 			if err != nil {
 				log.Log(log.ShimCachePlaceholder).Error("failed to create placeholder pod",
 					zap.Error(err))
+				// roll back the placeholders already created in this attempt so a
+				// partially created gang does not leak pods when creation fails midway
+				mgr.deletePlaceholderPods(ctx, kubeClient, createdPods...)
 				return err
 			}
 			log.Log(log.ShimCachePlaceholder).Info("placeholder created",
 				zap.Stringer("placeholder", placeholder))
+			// keep the pod returned by the API server; it carries the UID used for
+			// orphan tracking if the rollback delete later fails
+			createdPods = append(createdPods, created)
 		}
 	}
 
 	return nil
+}
+
+// deletePlaceholderPods best-effort deletes placeholder pods created during a failed
+// createAppPlaceholders attempt. It mirrors cleanUp: pods that cannot be deleted (other
+// than already-gone pods) are tracked as orphans so the cleanup loop retries them. The
+// caller passes the context and client obtained from beginOperation so the delete honors
+// the manager lifecycle.
+func (mgr *PlaceholderManager) deletePlaceholderPods(ctx context.Context, kubeClient client.KubeClient, pods ...*v1.Pod) {
+	if len(pods) == 0 {
+		return
+	}
+	orphans := make(map[string]*v1.Pod)
+	defer mgr.addOrphanPods(orphans)
+	for _, pod := range pods {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := kubeClient.Delete(ctx, pod); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if !apierrors.IsNotFound(err) {
+				log.Log(log.ShimCachePlaceholder).Warn("failed to roll back placeholder pod",
+					zap.String("podName", pod.Name),
+					zap.Error(err))
+				orphans[string(pod.UID)] = pod
+			}
+			continue
+		}
+		log.Log(log.ShimCachePlaceholder).Info("placeholder pod rolled back",
+			zap.String("namespace", pod.Namespace),
+			zap.String("podName", pod.Name))
+	}
 }
 
 // clean up all the placeholders for an application

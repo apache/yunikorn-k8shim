@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -157,6 +158,76 @@ func TestCreateAppPlaceholdersWithOwnReference(t *testing.T) {
 		assert.Equal(t, pod.OwnerReferences[0].Name, ownRef.Name, "The owner reference name does not match")
 		assert.Equal(t, pod.OwnerReferences[0].UID, ownRef.UID, "The owner reference UID does not match")
 	}
+}
+
+func TestCreateAppPlaceholdersRollbackOnFailure(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	app := createAppWIthTaskGroupForTest()
+	app.setTaskGroups([]TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 3,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+		},
+	})
+
+	var createCount int
+	deletedPods := make([]string, 0)
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createCount++
+		if createCount == 3 {
+			return nil, fmt.Errorf("quota exceeded")
+		}
+		return pod, nil
+	})
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		deletedPods = append(deletedPods, pod.Name)
+		return nil
+	})
+
+	err := mgr.createAppPlaceholders(app)
+	assert.Error(t, err, "quota exceeded")
+	assert.Equal(t, 2, len(deletedPods), "pods created before the failure should be rolled back")
+}
+
+func TestCreateAppPlaceholdersRollbackTracksOrphans(t *testing.T) {
+	mockedAPIProvider := client.NewMockedAPIProvider(false)
+	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
+	app := createAppWIthTaskGroupForTest()
+	app.setTaskGroups([]TaskGroup{
+		{
+			Name:      "test-group-1",
+			MinMember: 3,
+			MinResource: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("500m"),
+				"memory": resource.MustParse("1024M"),
+			},
+		},
+	})
+
+	var createCount int
+	mockedAPIProvider.MockCreateFn(func(pod *v1.Pod) (*v1.Pod, error) {
+		createCount++
+		if createCount == 3 {
+			return nil, fmt.Errorf("quota exceeded")
+		}
+		// mimic the API server assigning a unique UID on create
+		out := pod.DeepCopy()
+		out.UID = types.UID(fmt.Sprintf("uid-%d", createCount))
+		return out, nil
+	})
+	// deletes keep failing so the rolled-back pods are tracked as orphans
+	mockedAPIProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		return fmt.Errorf("delete failed")
+	})
+
+	err := mgr.createAppPlaceholders(app)
+	assert.Error(t, err, "quota exceeded")
+	assert.Equal(t, 2, mgr.getOrphanPodsLength(), "each rolled-back pod should be tracked separately by UID")
 }
 
 func createAppWIthTaskGroupForTest() *Application {
