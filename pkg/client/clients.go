@@ -22,7 +22,9 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"k8s.io/apiserver/pkg/util/feature"
 	v1 "k8s.io/client-go/informers/resource/v1"
+	"k8s.io/kubernetes/pkg/features"
 
 	"k8s.io/client-go/informers"
 	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
@@ -77,6 +79,10 @@ func (c *Clients) WaitForSync() {
 	syncStartTime := time.Now()
 	counter := 0
 	for {
+		deviceTaintsSynced := true
+		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints) {
+			deviceTaintsSynced = c.DeviceTaintsInformer.Informer().HasSynced()
+		}
 		if c.ConfigMapInformer.Informer().HasSynced() &&
 			c.CSIDriverInformer.Informer().HasSynced() &&
 			c.CSINodeInformer.Informer().HasSynced() &&
@@ -96,7 +102,7 @@ func (c *Clients) WaitForSync() {
 			c.ResourceSlicesInformer.Informer().HasSynced() &&
 			c.ResourceClaimsInformer.Informer().HasSynced() &&
 			c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
-			c.DeviceTaintsInformer.Informer().HasSynced() &&
+			deviceTaintsSynced &&
 			c.DeviceClassesInformer.Informer().HasSynced() {
 			return
 		}
@@ -129,6 +135,8 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.ResourceSlicesInformer.Informer().Run(stopCh)
 	go c.ResourceClaimsInformer.Informer().Run(stopCh)
 	go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
-	go c.DeviceTaintsInformer.Informer().Run(stopCh)
+	if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints) {
+		go c.DeviceTaintsInformer.Informer().Run(stopCh)
+	}
 	go c.DeviceClassesInformer.Informer().Run(stopCh)
 }
