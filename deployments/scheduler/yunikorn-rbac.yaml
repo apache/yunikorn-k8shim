@@ -35,12 +35,12 @@ rules:
   - apiGroups: ["scheduling.k8s.io"]
     resources: ["priorityclasses"]
     verbs: ["get", "watch", "list"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims", "resourceslices", "resourceclaimtemplates", "devicetaintrules", "deviceclasses"]
+    verbs: ["get", "watch", "list"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "watch", "list", "create", "patch", "update", "delete"]
-  - apiGroups: ["resource.k8s.io"]
-    resources: ["resourceclaimtemplates", "devicetaintrules"]
-    verbs: ["get", "watch", "list"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
