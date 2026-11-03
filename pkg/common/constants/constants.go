@@ -72,7 +72,7 @@ const DaemonSetType = "DaemonSet"
 const NodeKind = "Node"
 
 // Gang scheduling
-const PlaceholderContainerImage = "registry.k8s.io/pause:3.7"
+const PlaceholderContainerImage = "registry.k8s.io/pause:3.10.2"
 const PlaceholderContainerName = "pause"
 const PlaceholderPodRestartPolicy = "Never"
 
