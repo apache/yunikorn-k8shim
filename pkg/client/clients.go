@@ -79,9 +79,18 @@ func (c *Clients) WaitForSync() {
 	syncStartTime := time.Now()
 	counter := 0
 	for {
-		deviceTaintsSynced := true
-		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
-			deviceTaintsSynced = c.DeviceTaintsInformer.Informer().HasSynced()
+		draInformersSynced := true
+		if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
+			deviceTaintsInformerSynced := true
+			if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
+				deviceTaintsInformerSynced = c.DeviceTaintsInformer.Informer().HasSynced()
+			}
+			draInformersSynced = c.ResourceSlicesInformer.Informer().HasSynced() &&
+				c.ResourceClaimsInformer.Informer().HasSynced() &&
+				c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
+				deviceTaintsInformerSynced &&
+				c.DeviceClassesInformer.Informer().HasSynced()
+
 		}
 		if c.ConfigMapInformer.Informer().HasSynced() &&
 			c.CSIDriverInformer.Informer().HasSynced() &&
@@ -99,11 +108,7 @@ func (c *Clients) WaitForSync() {
 			c.StatefulSetInformer.Informer().HasSynced() &&
 			c.StorageClassInformer.Informer().HasSynced() &&
 			c.VolumeAttachmentInformer.Informer().HasSynced() &&
-			c.ResourceSlicesInformer.Informer().HasSynced() &&
-			c.ResourceClaimsInformer.Informer().HasSynced() &&
-			c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
-			deviceTaintsSynced &&
-			c.DeviceClassesInformer.Informer().HasSynced() {
+			draInformersSynced {
 			return
 		}
 		time.Sleep(time.Second)
@@ -132,11 +137,13 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StatefulSetInformer.Informer().Run(stopCh)
 	go c.StorageClassInformer.Informer().Run(stopCh)
 	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
-	go c.ResourceSlicesInformer.Informer().Run(stopCh)
-	go c.ResourceClaimsInformer.Informer().Run(stopCh)
-	go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
-	if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
-		go c.DeviceTaintsInformer.Informer().Run(stopCh)
+	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
+		go c.ResourceSlicesInformer.Informer().Run(stopCh)
+		go c.ResourceClaimsInformer.Informer().Run(stopCh)
+		go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
+		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
+			go c.DeviceTaintsInformer.Informer().Run(stopCh)
+		}
+		go c.DeviceClassesInformer.Informer().Run(stopCh)
 	}
-	go c.DeviceClassesInformer.Informer().Run(stopCh)
 }
