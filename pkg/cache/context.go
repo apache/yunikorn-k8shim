@@ -120,7 +120,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
-			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
+			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules),
 			SliceInformer:          apis.GetAPIs().ResourceSlicesInformer,
 			TaintInformer:          apis.GetAPIs().DeviceTaintsInformer})
 		if err != nil {

@@ -80,7 +80,7 @@ func (c *Clients) WaitForSync() {
 	counter := 0
 	for {
 		deviceTaintsSynced := true
-		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints) {
+		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
 			deviceTaintsSynced = c.DeviceTaintsInformer.Informer().HasSynced()
 		}
 		if c.ConfigMapInformer.Informer().HasSynced() &&
@@ -135,7 +135,7 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.ResourceSlicesInformer.Informer().Run(stopCh)
 	go c.ResourceClaimsInformer.Informer().Run(stopCh)
 	go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
-	if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints) {
+	if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
 		go c.DeviceTaintsInformer.Informer().Run(stopCh)
 	}
 	go c.DeviceClassesInformer.Informer().Run(stopCh)
