@@ -200,15 +200,6 @@ func (p *Dispatcher) asyncDispatch(event events.SchedulingEvent) {
 	}(time.Now(), p.stopChan)
 }
 
-func (p *Dispatcher) drain() {
-	for len(p.eventChan) > 0 {
-		log.Log(log.ShimDispatcher).Info("wait dispatcher to drain",
-			zap.Int("remaining events", len(p.eventChan)))
-		time.Sleep(1 * time.Second)
-	}
-	log.Log(log.ShimDispatcher).Info("dispatcher is draining out")
-}
-
 func Start() {
 	log.Log(log.ShimDispatcher).Info("starting the dispatcher")
 	if getDispatcher().isRunning() {
