@@ -90,7 +90,6 @@ func (c *Clients) WaitForSync() {
 				c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
 				deviceTaintsInformerSynced &&
 				c.DeviceClassesInformer.Informer().HasSynced()
-
 		}
 		if c.ConfigMapInformer.Informer().HasSynced() &&
 			c.CSIDriverInformer.Informer().HasSynced() &&
