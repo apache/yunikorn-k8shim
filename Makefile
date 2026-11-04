@@ -659,4 +659,4 @@ kind-e2e: $(KIND_BIN)
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
-	ginkgo -r $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	ginkgo -r -v -keep-going $(E2E_TEST) -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
