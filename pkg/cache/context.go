@@ -256,8 +256,6 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			// update capacity
 			if err := ctx.updateNodeResources(node, newCapacity); err != nil {
 				log.Log(log.ShimContext).Warn("Failed to update node capacity", zap.Error(err))
-			} else {
-				log.Log(log.ShimContext).Warn("Failed to update cached node capacity", zap.String("nodeName", node.Name))
 			}
 		}
 		if err := ctx.updateNodeSchedulability(prevNode, node); err != nil {

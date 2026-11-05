@@ -170,7 +170,9 @@ func TestUpdateNodes(t *testing.T) {
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 
+	var lastRequest *si.NodeRequest
 	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		lastRequest = request
 		for _, node := range request.Nodes {
 			dispatcher.Dispatch(CachedSchedulerNodeEvent{
 				NodeID: node.NodeID,
@@ -209,7 +211,16 @@ func TestUpdateNodes(t *testing.T) {
 	}
 
 	ctx.addNode(&oldNode)
+	lastRequest = nil
 	ctx.updateNode(&oldNode, &newNode)
+
+	assert.Assert(t, lastRequest != nil, "capacity change was not sent to the core")
+	assert.Equal(t, len(lastRequest.Nodes), 1)
+	updated := lastRequest.Nodes[0]
+	assert.Equal(t, updated.NodeID, Host1)
+	assert.Equal(t, updated.Action, si.NodeInfo_UPDATE)
+	assert.Equal(t, updated.SchedulableResource.Resources[siCommon.Memory].Value, int64(2048*1000*1000))
+	assert.Equal(t, updated.SchedulableResource.Resources[siCommon.CPU].Value, int64(4000))
 }
 
 func TestAddCordonedNodeDoesNotEnable(t *testing.T) {
