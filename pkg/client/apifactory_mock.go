@@ -306,10 +306,6 @@ func (m *MockedAPIProvider) Stop() {
 	m.running = false
 }
 
-func (m *MockedAPIProvider) WaitForSync() {
-	// no impl
-}
-
 func (m *MockedAPIProvider) AddPod(obj *v1.Pod) {
 	m.events <- informerEvent{
 		obj:         obj,

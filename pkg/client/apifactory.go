@@ -72,7 +72,6 @@ type APIProvider interface {
 	AddEventHandler(handlers *ResourceEventHandlers) error
 	Start()
 	Stop()
-	WaitForSync()
 	IsTestingMode() bool
 }
 
@@ -250,14 +249,6 @@ func (s *APIFactory) addEventHandlers(
 		return errors.Join(errors.New("failed to add event handlers: "), err)
 	}
 	return nil
-}
-
-func (s *APIFactory) WaitForSync() {
-	if s.testMode {
-		// skip this in test mode
-		return
-	}
-	s.clients.WaitForSync()
 }
 
 func (s *APIFactory) Start() {

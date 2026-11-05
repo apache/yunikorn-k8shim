@@ -19,9 +19,11 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
+	version2 "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/feature"
 	v1 "k8s.io/client-go/informers/resource/v1"
 	"k8s.io/kubernetes/pkg/features"
@@ -80,9 +82,9 @@ func (c *Clients) WaitForSync() {
 	counter := 0
 	for {
 		draInformersSynced := true
-		if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
+		if c.CanRunDRAInformers() {
 			deviceTaintsInformerSynced := true
-			if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
+			if c.CanRunDRADeviceTaintRulesInformers() {
 				deviceTaintsInformerSynced = c.DeviceTaintsInformer.Informer().HasSynced()
 			}
 			draInformersSynced = c.ResourceSlicesInformer.Informer().HasSynced() &&
@@ -136,13 +138,69 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StatefulSetInformer.Informer().Run(stopCh)
 	go c.StorageClassInformer.Informer().Run(stopCh)
 	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
-	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
+	if c.CanRunDRAInformers() {
 		go c.ResourceSlicesInformer.Informer().Run(stopCh)
 		go c.ResourceClaimsInformer.Informer().Run(stopCh)
 		go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
-		if feature.DefaultFeatureGate.Enabled(features.DRADeviceTaintRules) {
+		if c.CanRunDRADeviceTaintRulesInformers() {
 			go c.DeviceTaintsInformer.Informer().Run(stopCh)
 		}
 		go c.DeviceClassesInformer.Informer().Run(stopCh)
 	}
+}
+
+func (c *Clients) CanRunDRAInformers() bool {
+	parsedServerVersion := c.getServerVersion()
+	if parsedServerVersion == nil {
+		return false
+	}
+	for featureName, versionedSpecs := range feature.DefaultMutableFeatureGate.GetAllVersioned() {
+		if featureName == features.DynamicResourceAllocation {
+			for _, versionedSpec := range versionedSpecs {
+				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
+					return true
+				}
+				if versionedSpec.Version == parsedServerVersion && versionedSpec.Default {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c *Clients) CanRunDRADeviceTaintRulesInformers() bool {
+	parsedServerVersion := c.getServerVersion()
+	if parsedServerVersion == nil {
+		return false
+	}
+	for featureName, versionedSpecs := range feature.DefaultMutableFeatureGate.GetAllVersioned() {
+		if featureName == features.DRADeviceTaintRules {
+			for _, versionedSpec := range versionedSpecs {
+				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
+					return true
+				}
+				if versionedSpec.Version == parsedServerVersion && versionedSpec.Default {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c *Clients) getServerVersion() *version2.Version {
+	serverVersion, err := c.KubeClient.GetClientSet().Discovery().ServerVersion()
+	if err != nil {
+		log.Log(log.ShimClient).Warn("Failed to get server version",
+			zap.Error(err))
+		return nil
+	}
+	parseVersion, err := version2.ParseGeneric(serverVersion.GitVersion)
+	if err != nil {
+		log.Log(log.ShimClient).Warn("Failed to parse version",
+			zap.Error(err))
+		return nil
+	}
+	return version2.MustParse(fmt.Sprintf("%d.%d", parseVersion.Major(), parseVersion.Minor()))
 }

@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 21 // total number of active informers
+	noOfInformers = 16 // total number of active informers
 )
 
 func TestWaitForSync(t *testing.T) {
@@ -73,6 +73,7 @@ func TestRun(t *testing.T) {
 
 func getClients() *Clients {
 	return &Clients{
+		KubeClient:                     NewKubeClientMock(true),
 		ConfigMapInformer:              test.NewMockedConfigMapInformer(),
 		CSIDriverInformer:              NewMockedCSIDriverInformer(),
 		CSINodeInformer:                NewMockedCSINodeInformer(),
