@@ -374,7 +374,7 @@ func TestCreateAllocationForTask(t *testing.T) {
 	allocs1 := updateRequest1.Allocations
 	assert.Equal(t, len(allocs1), 1)
 	alloc1 := allocs1[0]
-	assert.Check(t, alloc != nil)
+	assert.Check(t, alloc1 != nil)
 	assert.Assert(t, alloc1.PreemptionPolicy != nil)
 	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptSelf, true)
 	assert.Equal(t, alloc1.PreemptionPolicy.AllowPreemptOther, false)
