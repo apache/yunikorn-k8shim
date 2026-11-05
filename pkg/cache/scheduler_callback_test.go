@@ -70,6 +70,14 @@ func TestUpdateAllocation_NewTask_TaskNotFound(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+	var taskCompleted atomic.Bool
+	dispatcher.RegisterEventHandler("testTaskCompleteHandler", dispatcher.EventTypeTask, func(obj interface{}) {
+		if event, ok := obj.(events.TaskEvent); ok &&
+			event.GetApplicationID() == appID && event.GetTaskID() == taskUID1 &&
+			event.GetEvent() == CompleteTask.String() {
+			taskCompleted.Store(true)
+		}
+	})
 	pod := context.getTask(appID, taskUID1).pod
 	context.RemoveTask(appID, taskUID1)
 	context.DeletePod(pod)
@@ -84,6 +92,10 @@ func TestUpdateAllocation_NewTask_TaskNotFound(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating allocation")
+	// DeletePod queues CompleteTask even though the task has already been removed.
+	// Consume it before stopping the dispatcher so it cannot reach the next test.
+	err = utils.WaitForCondition(taskCompleted.Load, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "CompleteTask was not handled before stopping the dispatcher")
 }
 
 func TestUpdateAllocation_NewTask_AssumePodFails(t *testing.T) {

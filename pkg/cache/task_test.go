@@ -46,6 +46,10 @@ import (
 )
 
 func TestTaskStateTransitions(t *testing.T) {
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
 	mockedSchedulerApi := newMockSchedulerAPI()
 	mockedContext := initContextForTest()
 	resources := make(map[v1.ResourceName]resource.Quantity)
@@ -98,6 +102,7 @@ func TestTaskStateTransitions(t *testing.T) {
 	err = task.handle(event3)
 	assert.NilError(t, err, "failed to handle BindTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
+	waitForPodBindSuccessful(t, recorder)
 
 	// complete
 	event4 := NewSimpleTaskEvent(app.applicationID, task.taskID, CompleteTask)
@@ -155,6 +160,10 @@ func TestTaskIllegalEventHandling(t *testing.T) {
 
 //nolint:funlen
 func TestReleaseTaskAllocation(t *testing.T) {
+	recorder := k8sEvents.NewFakeRecorder(1024)
+	events.SetRecorder(recorder)
+	defer events.SetRecorder(events.NewMockedRecorder())
+
 	mockedSchedulerApi := newMockSchedulerAPI()
 	mockedContext := initContextForTest()
 	apiProvider := mockedContext.apiProvider
@@ -205,21 +214,13 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	err = task.handle(event2)
 	assert.NilError(t, err, "failed to handle AllocateTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Allocated)
-	// bind a task is a async process, wait for it to happen
-	err = utils.WaitForCondition(
-		func() bool {
-			return task.GetNodeName() == "node-1"
-		},
-		100*time.Millisecond,
-		3*time.Second,
-	)
-	assert.NilError(t, err, "failed to wait for allocation allocationKey being set for task")
 
 	// bound
 	event3 := NewBindTaskEvent(app.applicationID, task.taskID)
 	err = task.handle(event3)
 	assert.NilError(t, err, "failed to handle BindTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Bound)
+	waitForPodBindSuccessful(t, recorder)
 
 	// the mocked update function does nothing than verify the coming messages
 	// this is to verify we are sending correct info to the scheduler core
@@ -270,6 +271,24 @@ func TestReleaseTaskAllocation(t *testing.T) {
 	})
 	err = task.handle(NewFailTaskEvent(app.applicationID, "task01", "test failure"))
 	assert.NilError(t, err, "failed to handle FailTask event")
+}
+
+// Bound can be reached before the binding goroutine records its final event.
+// Wait for that event before the test replaces the global recorder.
+func waitForPodBindSuccessful(t *testing.T, recorder *k8sEvents.FakeRecorder) {
+	t.Helper()
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-recorder.Events:
+			if strings.HasPrefix(event, "Normal PodBindSuccessful ") {
+				return
+			}
+		case <-timer.C:
+			t.Fatal("timed out waiting for PodBindSuccessful")
+		}
+	}
 }
 
 func TestReleaseTaskAsk(t *testing.T) {
