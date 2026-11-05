@@ -260,6 +260,42 @@ func TestAddCordonedNodeDoesNotEnable(t *testing.T) {
 	assert.Equal(t, actions[0], si.NodeInfo_CREATE_DRAIN)
 }
 
+func TestRegisterNodesIgnoresEventOfOtherNode(t *testing.T) {
+	ctx, apiProvider := initContextAndAPIProviderForTest()
+	dispatcher.Start()
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+
+	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+		// the handler is registered before this call and events are handled in order, so
+		// the event of the other node is always handled while the registration is waiting
+		dispatcher.Dispatch(CachedSchedulerNodeEvent{
+			NodeID: Host2,
+			Event:  NodeRejected,
+		})
+		for _, node := range request.Nodes {
+			dispatcher.Dispatch(CachedSchedulerNodeEvent{
+				NodeID: node.NodeID,
+				Event:  NodeAccepted,
+			})
+		}
+		return nil
+	})
+
+	node := v1.Node{
+		ObjectMeta: apis.ObjectMeta{
+			Name:      Host1,
+			Namespace: Default,
+			UID:       uid1,
+		},
+	}
+
+	acceptedNodes, err := ctx.RegisterNodes([]*v1.Node{&node})
+	assert.NilError(t, err)
+	assert.Equal(t, len(acceptedNodes), 1)
+	assert.Equal(t, acceptedNodes[0].Name, Host1)
+}
+
 func TestUpdateNodeSchedulability(t *testing.T) {
 	ctx, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
