@@ -134,8 +134,13 @@ func TestDispatcherStartStop(t *testing.T) {
 		eventType: RunApplication,
 	})
 
-	// wait until all events are handled
-	dispatcher.drain()
+	// wait until all events are handled; an empty event channel is not enough, the
+	// handler for the event the event loop has already taken may still be running
+	err := utils.WaitForCondition(func() bool {
+		return recorder.size() == 2
+	}, testAsyncDispatchPollPeriod, maxTestAsyncDispatchDrain)
+	assert.NilError(t, err, "handled %d of 2 events, eventChan=%d",
+		recorder.size(), len(dispatcher.eventChan))
 
 	// stop the dispatcher,
 	Stop()
@@ -148,7 +153,7 @@ func TestDispatcherStartStop(t *testing.T) {
 	assert.Equal(t, dispatcher.isRunning(), false)
 
 	// dispatch new events should fail
-	if err := dispatcher.dispatch(TestAppEvent{
+	if err = dispatcher.dispatch(TestAppEvent{
 		appID:     "test-app-002",
 		eventType: RunApplication,
 	}); err == nil {
@@ -193,8 +198,14 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 	// check event channel is full and some events are dispatched asynchronously
 	assert.Assert(t, dispatcher.asyncDispatchCount.Load() > 0)
 
-	// wait until all events are handled
-	dispatcher.drain()
+	// wait until all events are handled; an empty event channel is not enough, events
+	// can still be waiting in async dispatch goroutines, and Stop() does not wait for
+	// those: stopping too early makes them drop their event
+	err := utils.WaitForCondition(func() bool {
+		return recorder.size() == numEvents && dispatcher.asyncDispatchCount.Load() == 0
+	}, testAsyncDispatchPollPeriod, maxTestAsyncDispatchDrain)
+	assert.NilError(t, err, "handled %d of %d events, eventChan=%d asyncDispatchCount=%d",
+		recorder.size(), numEvents, len(dispatcher.eventChan), dispatcher.asyncDispatchCount.Load())
 
 	// stop the dispatcher
 	Stop()

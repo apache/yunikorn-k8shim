@@ -1298,6 +1298,10 @@ func TestSkipReservationStage(t *testing.T) {
 
 func TestReleaseAppAllocationInFailingState(t *testing.T) {
 	context := initContextForTest()
+	// the FailApplication event at the end of this test cleans up the app placeholders,
+	// which needs the package level placeholder manager; it is not started as this test
+	// does not assert on the cleanup itself
+	NewPlaceholderManager(context.apiProvider.GetAPIs())
 	ms := &mockSchedulerAPI{}
 	resources := make(map[v1.ResourceName]resource.Quantity)
 	containers := make([]v1.Container, 0)
