@@ -238,15 +238,7 @@ func (task *Task) IsOriginator() bool {
 }
 
 func (task *Task) isPreemptSelfAllowed() bool {
-	value := utils.GetPodAnnotationValue(task.pod, constants.AnnotationAllowPreemption)
-	switch value {
-	case constants.True:
-		return true
-	case constants.False:
-		return false
-	default:
-		return task.context.IsPreemptSelfAllowed(task.pod.Spec.PriorityClassName)
-	}
+	return task.context.IsPodPreemptSelfAllowed(task.pod)
 }
 
 func (task *Task) isPreemptOtherAllowed() bool {

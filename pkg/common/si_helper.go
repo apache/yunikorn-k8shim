@@ -114,24 +114,40 @@ func CreateAllocationForTask(appID, taskID, nodeID string, resource *si.Resource
 	}
 }
 
-func CreateAllocationForForeignPod(pod *v1.Pod) *si.AllocationRequest {
+// CreateAllocationForForeignPod builds the allocation request for a pod not scheduled by YuniKorn.
+// allowPreemptSelf is the opt-in resolved from the pod or its PriorityClass. Static (mirror) and
+// DaemonSet pods are never preemptable, regardless of that opt-in. Foreign pods never preempt others.
+func CreateAllocationForForeignPod(pod *v1.Pod, allowPreemptSelf bool) *si.AllocationRequest {
 	podType := common.AllocTypeDefault
+	daemonSet := false
 	for _, ref := range pod.OwnerReferences {
-		if ref.Kind == constants.NodeKind {
+		switch ref.Kind {
+		case constants.NodeKind:
 			podType = common.AllocTypeStatic
-			break
+		case constants.DaemonSetType:
+			daemonSet = true
 		}
 	}
 
 	tags := CreateTagsForTask(pod)
 	tags[common.Foreign] = podType
 	tags[common.CreationTime] = strconv.FormatInt(pod.CreationTimestamp.Unix(), 10)
+	// the core identifies DaemonSet allocations by the required node tag; CreateTagsForTask only derives it
+	// from the node affinity, so fall back to the bound node for DaemonSet pods without that affinity.
+	requiredNodeKey := common.DomainYuniKorn + common.KeyRequiredNode
+	if daemonSet && tags[requiredNodeKey] == "" && pod.Spec.NodeName != "" {
+		tags[requiredNodeKey] = pod.Spec.NodeName
+	}
 	allocation := si.Allocation{
 		AllocationTags:   tags,
 		AllocationKey:    string(pod.UID),
 		ResourcePerAlloc: GetPodResource(pod),
 		Priority:         CreatePriorityForTask(pod),
 		NodeID:           pod.Spec.NodeName,
+		PreemptionPolicy: &si.PreemptionPolicy{
+			AllowPreemptSelf:  allowPreemptSelf && podType == common.AllocTypeDefault && !daemonSet,
+			AllowPreemptOther: false,
+		},
 	}
 
 	return &si.AllocationRequest{
