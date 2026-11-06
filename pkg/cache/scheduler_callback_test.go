@@ -568,7 +568,7 @@ func TestPredicatesPreFilter(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = NewMockPredicateManager(false, false, false)
+	context.predManager = NewMockPredicateManager(false, false, false, false, false)
 
 	// pod not found
 	predicatesResults := callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: "unknown", Allocate: true})
@@ -592,7 +592,7 @@ func TestPredicatesPreFilter(t *testing.T) {
 	},
 	}) != nil)
 
-	context.predManager = NewMockPredicateManager(true, false, false)
+	context.predManager = NewMockPredicateManager(true, false, false, false, false)
 	predicatesResults = callback.PreFilterPredicates(&si.PreFilterPredicatesArgs{AllocationKey: taskUID1, Allocate: true})
 	assert.Equal(t, predicatesResults.GetSuccess(), false)
 	assert.Equal(t, len(predicatesResults.GetFeasibleNodes()), 0)
@@ -603,7 +603,7 @@ func TestPredicates(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = NewMockPredicateManager(false, false, false)
+	context.predManager = NewMockPredicateManager(false, false, false, false, false)
 
 	// pod not found
 	err := callback.Predicates(&si.PredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, Allocate: true})
@@ -640,7 +640,7 @@ func TestPredicates(t *testing.T) {
 	},
 	}) != nil)
 
-	context.predManager = NewMockPredicateManager(false, true, false)
+	context.predManager = NewMockPredicateManager(false, true, false, false, false)
 	err = callback.Predicates(&si.PredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, Allocate: true})
 	assert.ErrorContains(t, err, "fail filter")
 }
@@ -649,7 +649,7 @@ func TestPreemptionPredicates(t *testing.T) {
 	callback, context := initCallbackTest(t, false, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
-	context.predManager = NewMockPredicateManager(false, false, false)
+	context.predManager = NewMockPredicateManager(false, false, false, false, false)
 
 	// pod not found
 	resp := callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: "unknown", NodeID: fakeNodeName, StartIndex: 0})
@@ -690,7 +690,7 @@ func TestPreemptionPredicates(t *testing.T) {
 	},
 	}) != nil)
 
-	context.predManager = NewMockPredicateManager(false, false, true)
+	context.predManager = NewMockPredicateManager(false, false, true, false, false)
 	resp = callback.PreemptionPredicates(&si.PreemptionPredicatesArgs{AllocationKey: taskUID1, NodeID: fakeNodeName, StartIndex: 0, PreemptAllocationKeys: []string{taskUID1}})
 	assert.Assert(t, !resp.Success, "response should have succeeded")
 	assert.Equal(t, int32(-1), resp.Index)
@@ -798,13 +798,17 @@ type mockPredicateManager struct {
 	failPreFilter        bool
 	failFilter           bool
 	failPreemptionFilter bool
+	failReserve          bool
+	failPreBind          bool
 }
 
-func NewMockPredicateManager(failPreFilter, failFilter, failPreemptionFilter bool) *mockPredicateManager {
+func NewMockPredicateManager(failPreFilter, failFilter, failPreemptionFilter, failReserve bool, failPreBind bool) *mockPredicateManager {
 	return &mockPredicateManager{
 		failPreFilter:        failPreFilter,
 		failFilter:           failFilter,
 		failPreemptionFilter: failPreemptionFilter,
+		failReserve:          failReserve,
+		failPreBind:          failPreBind,
 	}
 }
 
@@ -820,6 +824,22 @@ func (m *mockPredicateManager) Filter(_ *v1.Pod, _ *framework.NodeInfo, _ *frame
 		return errors.New("fail filter")
 	}
 	return nil
+}
+func (m *mockPredicateManager) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+	if m.failReserve {
+		return errors.New("fail reserve")
+	}
+	return nil
+}
+
+func (m *mockPredicateManager) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+	if m.failPreBind {
+		return errors.New("fail preBind")
+	}
+	return nil
+}
+
+func (m *mockPredicateManager) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
 }
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (int, map[string]int32) {
