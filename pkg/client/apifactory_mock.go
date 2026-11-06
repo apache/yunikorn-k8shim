@@ -87,6 +87,7 @@ func NewMockedAPIProvider(showError bool) *MockedAPIProvider {
 			ResourceClaimsInformer: NewMockedResourceClaimsInformer(),
 			DeviceTaintsInformer:   NewMockedDeviceTaintsInformer(),
 			DeviceClassesInformer:  NewMockedDeviceClassesInformer(),
+			testMode:               true,
 		},
 		events:       make(chan informerEvent),
 		eventHandler: make(chan *ResourceEventHandlers),

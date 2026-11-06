@@ -19,20 +19,19 @@
 package client
 
 import (
-	"fmt"
 	"time"
 
 	"go.uber.org/zap"
-	version2 "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/feature"
-	v1 "k8s.io/client-go/informers/resource/v1"
-	"k8s.io/kubernetes/pkg/features"
-
 	"k8s.io/client-go/informers"
 	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
+	v1 "k8s.io/client-go/informers/resource/v1"
 	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -75,6 +74,7 @@ type Clients struct {
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
+	testMode     bool
 }
 
 func (c *Clients) WaitForSync() {
@@ -82,9 +82,9 @@ func (c *Clients) WaitForSync() {
 	counter := 0
 	for {
 		draInformersSynced := true
-		if c.CanRunDRAInformers() {
+		if c.IsFeatureEnabled(features.DynamicResourceAllocation) {
 			deviceTaintsInformerSynced := true
-			if c.CanRunDRADeviceTaintRulesInformers() {
+			if c.IsFeatureEnabled(features.DRADeviceTaintRules) {
 				deviceTaintsInformerSynced = c.DeviceTaintsInformer.Informer().HasSynced()
 			}
 			draInformersSynced = c.ResourceSlicesInformer.Informer().HasSynced() &&
@@ -138,24 +138,27 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StatefulSetInformer.Informer().Run(stopCh)
 	go c.StorageClassInformer.Informer().Run(stopCh)
 	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
-	if c.CanRunDRAInformers() {
+	if c.IsFeatureEnabled(features.DynamicResourceAllocation) {
 		go c.ResourceSlicesInformer.Informer().Run(stopCh)
 		go c.ResourceClaimsInformer.Informer().Run(stopCh)
 		go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
-		if c.CanRunDRADeviceTaintRulesInformers() {
+		if c.IsFeatureEnabled(features.DRADeviceTaintRules) {
 			go c.DeviceTaintsInformer.Informer().Run(stopCh)
 		}
 		go c.DeviceClassesInformer.Informer().Run(stopCh)
 	}
 }
 
-func (c *Clients) CanRunDRAInformers() bool {
-	parsedServerVersion := c.getServerVersion()
-	if parsedServerVersion == nil {
+func (c *Clients) IsFeatureEnabled(fName featuregate.Feature) bool {
+	if c.testMode {
+		return true
+	}
+	parsedServerVersion, err := c.getServerVersion()
+	if parsedServerVersion == nil || err != nil {
 		return false
 	}
 	for featureName, versionedSpecs := range feature.DefaultMutableFeatureGate.GetAllVersioned() {
-		if featureName == features.DynamicResourceAllocation {
+		if featureName == fName {
 			for _, versionedSpec := range versionedSpecs {
 				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
 					return true
@@ -169,38 +172,17 @@ func (c *Clients) CanRunDRAInformers() bool {
 	return false
 }
 
-func (c *Clients) CanRunDRADeviceTaintRulesInformers() bool {
-	parsedServerVersion := c.getServerVersion()
-	if parsedServerVersion == nil {
-		return false
-	}
-	for featureName, versionedSpecs := range feature.DefaultMutableFeatureGate.GetAllVersioned() {
-		if featureName == features.DRADeviceTaintRules {
-			for _, versionedSpec := range versionedSpecs {
-				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
-					return true
-				}
-				if versionedSpec.Version == parsedServerVersion && versionedSpec.Default {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func (c *Clients) getServerVersion() *version2.Version {
+func (c *Clients) getServerVersion() (*version.Version, error) {
+	log.Log(log.ShimClient).Debug("Detected client-go version",
+		zap.String("emulatedVersion", feature.DefaultMutableFeatureGate.EmulationVersion().String()),
+		zap.String("minCompatibilityVersion", feature.DefaultMutableFeatureGate.MinCompatibilityVersion().String()))
 	serverVersion, err := c.KubeClient.GetClientSet().Discovery().ServerVersion()
 	if err != nil {
 		log.Log(log.ShimClient).Warn("Failed to get server version",
 			zap.Error(err))
-		return nil
+		return nil, err
 	}
-	parseVersion, err := version2.ParseGeneric(serverVersion.GitVersion)
-	if err != nil {
-		log.Log(log.ShimClient).Warn("Failed to parse version",
-			zap.Error(err))
-		return nil
-	}
-	return version2.MustParse(fmt.Sprintf("%d.%d", parseVersion.Major(), parseVersion.Minor()))
+	log.Log(log.ShimClient).Info("Using server version",
+		zap.String("gitVersion", serverVersion.String()))
+	return version.ParseGeneric(serverVersion.String())
 }

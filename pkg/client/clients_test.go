@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	noOfInformers = 16 // total number of active informers
+	noOfInformers = 21 // total number of active informers
 )
 
 func TestWaitForSync(t *testing.T) {
@@ -95,5 +95,6 @@ func getClients() *Clients {
 		ResourceSlicesInformer:         NewMockedResourceSlicesInformer(),
 		DeviceTaintsInformer:           NewMockedDeviceTaintsInformer(),
 		DeviceClassesInformer:          NewMockedDeviceClassesInformer(),
+		testMode:                       true,
 	}
 }
