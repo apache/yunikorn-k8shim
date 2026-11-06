@@ -35,7 +35,6 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
@@ -116,13 +115,13 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	csiManager := support.NewCSIManager(apis.GetAPIs().CSINodeInformer.Lister())
 
 	var sharedDRAManager *dynamicresources.DefaultDRAManager
-	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
-		resourceClaimInformer := informerFactory.Resource().V1().ResourceClaims().Informer()
+	if apis.GetAPIs().IsFeatureEnabled(features.DynamicResourceAllocation) {
+		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
-			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
-			SliceInformer:          informerFactory.Resource().V1().ResourceSlices(),
-			TaintInformer:          informerFactory.Resource().V1().DeviceTaintRules()})
+			EnableDeviceTaintRules: apis.GetAPIs().IsFeatureEnabled(features.DRADeviceTaintRules),
+			SliceInformer:          apis.GetAPIs().ResourceSlicesInformer,
+			TaintInformer:          apis.GetAPIs().DeviceTaintsInformer})
 		if err != nil {
 			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil

@@ -22,12 +22,16 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-
+	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	appsInformerV1 "k8s.io/client-go/informers/apps/v1"
 	coreInformerV1 "k8s.io/client-go/informers/core/v1"
+	v1 "k8s.io/client-go/informers/resource/v1"
 	schedulingInformerV1 "k8s.io/client-go/informers/scheduling/v1"
 	storageInformerV1 "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/log"
@@ -46,31 +50,49 @@ type Clients struct {
 	InformerFactory informers.SharedInformerFactory
 
 	// resource informers
-	ConfigMapInformer             coreInformerV1.ConfigMapInformer
-	CSIDriverInformer             storageInformerV1.CSIDriverInformer
-	CSINodeInformer               storageInformerV1.CSINodeInformer
-	CSIStorageCapacityInformer    storageInformerV1.CSIStorageCapacityInformer
-	NamespaceInformer             coreInformerV1.NamespaceInformer
-	NodeInformer                  coreInformerV1.NodeInformer
-	PodInformer                   coreInformerV1.PodInformer
-	StorageClassInformer          storageInformerV1.StorageClassInformer
-	PVCInformer                   coreInformerV1.PersistentVolumeClaimInformer
-	PVInformer                    coreInformerV1.PersistentVolumeInformer
-	ReplicaSetInformer            appsInformerV1.ReplicaSetInformer
-	PriorityClassInformer         schedulingInformerV1.PriorityClassInformer
-	ServiceInformer               coreInformerV1.ServiceInformer
-	StatefulSetInformer           appsInformerV1.StatefulSetInformer
-	ReplicationControllerInformer coreInformerV1.ReplicationControllerInformer
-	VolumeAttachmentInformer      storageInformerV1.VolumeAttachmentInformer
+	ConfigMapInformer              coreInformerV1.ConfigMapInformer
+	CSIDriverInformer              storageInformerV1.CSIDriverInformer
+	CSINodeInformer                storageInformerV1.CSINodeInformer
+	CSIStorageCapacityInformer     storageInformerV1.CSIStorageCapacityInformer
+	NamespaceInformer              coreInformerV1.NamespaceInformer
+	NodeInformer                   coreInformerV1.NodeInformer
+	PodInformer                    coreInformerV1.PodInformer
+	StorageClassInformer           storageInformerV1.StorageClassInformer
+	PVCInformer                    coreInformerV1.PersistentVolumeClaimInformer
+	PVInformer                     coreInformerV1.PersistentVolumeInformer
+	ReplicaSetInformer             appsInformerV1.ReplicaSetInformer
+	PriorityClassInformer          schedulingInformerV1.PriorityClassInformer
+	ServiceInformer                coreInformerV1.ServiceInformer
+	StatefulSetInformer            appsInformerV1.StatefulSetInformer
+	ReplicationControllerInformer  coreInformerV1.ReplicationControllerInformer
+	VolumeAttachmentInformer       storageInformerV1.VolumeAttachmentInformer
+	ResourceSlicesInformer         v1.TypedResourceSliceInformer
+	ResourceClaimsInformer         v1.TypedResourceClaimInformer
+	ResourceClaimTemplatesInformer v1.TypedResourceClaimTemplateInformer
+	DeviceTaintsInformer           v1.TypedDeviceTaintRuleInformer
+	DeviceClassesInformer          v1.TypedDeviceClassInformer
 
 	// volume binder handles PV/PVC related operations
 	VolumeBinder volumebinding.SchedulerVolumeBinder
+	testMode     bool
 }
 
 func (c *Clients) WaitForSync() {
 	syncStartTime := time.Now()
 	counter := 0
 	for {
+		draInformersSynced := true
+		if c.IsFeatureEnabled(features.DynamicResourceAllocation) {
+			deviceTaintsInformerSynced := true
+			if c.IsFeatureEnabled(features.DRADeviceTaintRules) {
+				deviceTaintsInformerSynced = c.DeviceTaintsInformer.Informer().HasSynced()
+			}
+			draInformersSynced = c.ResourceSlicesInformer.Informer().HasSynced() &&
+				c.ResourceClaimsInformer.Informer().HasSynced() &&
+				c.ResourceClaimTemplatesInformer.Informer().HasSynced() &&
+				deviceTaintsInformerSynced &&
+				c.DeviceClassesInformer.Informer().HasSynced()
+		}
 		if c.ConfigMapInformer.Informer().HasSynced() &&
 			c.CSIDriverInformer.Informer().HasSynced() &&
 			c.CSINodeInformer.Informer().HasSynced() &&
@@ -86,7 +108,8 @@ func (c *Clients) WaitForSync() {
 			c.ServiceInformer.Informer().HasSynced() &&
 			c.StatefulSetInformer.Informer().HasSynced() &&
 			c.StorageClassInformer.Informer().HasSynced() &&
-			c.VolumeAttachmentInformer.Informer().HasSynced() {
+			c.VolumeAttachmentInformer.Informer().HasSynced() &&
+			draInformersSynced {
 			return
 		}
 		time.Sleep(time.Second)
@@ -115,4 +138,51 @@ func (c *Clients) Run(stopCh <-chan struct{}) {
 	go c.StatefulSetInformer.Informer().Run(stopCh)
 	go c.StorageClassInformer.Informer().Run(stopCh)
 	go c.VolumeAttachmentInformer.Informer().Run(stopCh)
+	if c.IsFeatureEnabled(features.DynamicResourceAllocation) {
+		go c.ResourceSlicesInformer.Informer().Run(stopCh)
+		go c.ResourceClaimsInformer.Informer().Run(stopCh)
+		go c.ResourceClaimTemplatesInformer.Informer().Run(stopCh)
+		if c.IsFeatureEnabled(features.DRADeviceTaintRules) {
+			go c.DeviceTaintsInformer.Informer().Run(stopCh)
+		}
+		go c.DeviceClassesInformer.Informer().Run(stopCh)
+	}
+}
+
+func (c *Clients) IsFeatureEnabled(fName featuregate.Feature) bool {
+	if c.testMode {
+		return true
+	}
+	parsedServerVersion, err := c.getServerVersion()
+	if parsedServerVersion == nil || err != nil {
+		return false
+	}
+	for featureName, versionedSpecs := range feature.DefaultMutableFeatureGate.GetAllVersioned() {
+		if featureName == fName {
+			for _, versionedSpec := range versionedSpecs {
+				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
+					return true
+				}
+				if versionedSpec.Version == parsedServerVersion && versionedSpec.Default {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c *Clients) getServerVersion() (*version.Version, error) {
+	log.Log(log.ShimClient).Debug("Detected client-go version",
+		zap.String("emulatedVersion", feature.DefaultMutableFeatureGate.EmulationVersion().String()),
+		zap.String("minCompatibilityVersion", feature.DefaultMutableFeatureGate.MinCompatibilityVersion().String()))
+	serverVersion, err := c.KubeClient.GetClientSet().Discovery().ServerVersion()
+	if err != nil {
+		log.Log(log.ShimClient).Warn("Failed to get server version",
+			zap.Error(err))
+		return nil, err
+	}
+	log.Log(log.ShimClient).Info("Using server version",
+		zap.String("gitVersion", serverVersion.String()))
+	return version.ParseGeneric(serverVersion.String())
 }
