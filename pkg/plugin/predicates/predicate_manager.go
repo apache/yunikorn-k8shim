@@ -379,15 +379,46 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 		// VolumeZone
 	}
 
-	// run all Filter plugins during allocation phase
-	allocationFilters := map[string]bool{
-		"*": true,
-	}
-	rp := map[string]bool{
-		names.DynamicResources: true,
-	}
-	pbp := map[string]bool{
-		names.DynamicResources: true,
+	var allocationFilters map[string]bool
+	var rp map[string]bool
+	var pbp map[string]bool
+	if handle.SharedDRAManager() != nil {
+		allocationFilters = map[string]bool{
+			"*": true,
+		}
+		rp = map[string]bool{
+			names.DynamicResources: true,
+		}
+		pbp = map[string]bool{
+			names.DynamicResources: true,
+		}
+	} else {
+		// Exclude DRA Plugin alone
+		allocationFilters = map[string]bool{
+			names.PrioritySort:                    true,
+			names.DefaultBinder:                   true,
+			names.DefaultPreemption:               true,
+			names.GangScheduling:                  true,
+			names.ImageLocality:                   true,
+			names.InterPodAffinity:                true,
+			names.NodeAffinity:                    true,
+			names.NodeDeclaredFeatures:            true,
+			names.NodeName:                        true,
+			names.NodePorts:                       true,
+			names.NodeResourcesBalancedAllocation: true,
+			names.NodeResourcesFit:                true,
+			names.NodeUnschedulable:               true,
+			names.NodeVolumeLimits:                true,
+			names.PodTopologySpread:               true,
+			names.DeferredPodScheduling:           true,
+			names.SchedulingGates:                 true,
+			names.TaintToleration:                 true,
+			names.VolumeBinding:                   true,
+			names.VolumeRestrictions:              true,
+			names.VolumeZone:                      true,
+			names.TopologyPlacementGenerator:      true,
+			names.PodGroupPodsCount:               true,
+		}
 	}
 	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, rp, pbp)
 }
