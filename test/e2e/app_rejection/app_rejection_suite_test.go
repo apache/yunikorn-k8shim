@@ -85,7 +85,9 @@ var _ = ginkgo.BeforeSuite(func() {
 			{
 				Name:       gangQueue,
 				SubmitACL:  "*",
-				Properties: map[string]string{"application.sort.policy": "fifo"},
+			// task groups are only allowed in fifo queues: without this the app is
+			// rejected for the sort type before the max check is reached
+			Properties: map[string]string{"application.sort.policy": "fifo"},
 				Resources: configs.Resources{
 					Max: map[string]string{"vcore": gangQueueMaxVcore, "memory": gangQueueMaxMemory},
 				},
