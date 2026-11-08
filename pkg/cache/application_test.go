@@ -1294,6 +1294,29 @@ func TestSkipReservationStage(t *testing.T) {
 	)
 	skip = app.skipReservationStage()
 	assert.Equal(t, skip, false, "expected not to skip reservation")
+
+	for _, tc := range []struct {
+		name        string
+		taskState   string
+		placeholder bool
+		wantSkip    bool
+	}{
+		{name: "no tasks", wantSkip: false},
+		{name: "bound task", taskState: TaskStates().Bound, wantSkip: true},
+		{name: "bound placeholder", taskState: TaskStates().Bound, placeholder: true, wantSkip: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := NewApplication(appID1, "root.queue", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
+			app.setTaskGroups([]TaskGroup{{Name: testGroup1, MinMember: 2}})
+			if tc.taskState != "" {
+				task := NewTask("task0001", app, context, &v1.Pod{})
+				task.sm.SetState(tc.taskState)
+				task.placeholder = tc.placeholder
+				app.addTask(task)
+			}
+			assert.Equal(t, app.skipReservationStage(), tc.wantSkip)
+		})
+	}
 }
 
 func TestReleaseAppAllocationInFailingState(t *testing.T) {
@@ -1730,7 +1753,7 @@ func TestApplicationString(t *testing.T) {
 }
 
 // TestTaskMapReadersAreRaceFree covers the readers that run without the application lock while
-// the pod informer adds tasks under it. Both readers used to walk taskMap unsynchronised.
+// the pod informer adds tasks under it. These readers used to walk taskMap unsynchronised.
 func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	readers := []struct {
 		name string
@@ -1738,6 +1761,7 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	}{
 		{"AreAllTasksTerminated", func(app *Application) { _ = app.AreAllTasksTerminated() }},
 		{"String", func(app *Application) { _ = app.String() }},
+		{"Schedule", func(app *Application) { app.Schedule() }},
 	}
 
 	for _, reader := range readers {
@@ -1745,6 +1769,9 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 			context := initContextForTest()
 			app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 			context.addApplicationToContext(app)
+			app.SetState(ApplicationStates().Accepted)
+			// Task groups prevent skipReservationStage from returning before it walks taskMap.
+			app.setTaskGroups([]TaskGroup{{Name: testGroup1, MinMember: 2}})
 
 			const taskCount = 200
 			start := make(chan struct{})
@@ -1775,57 +1802,6 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 			assert.Assert(t, !app.AreAllTasksTerminated())
 		})
 	}
-}
-
-// TestPostAppAcceptedConcurrentTaskAdd runs the scheduling loop against the task adds that arrive
-// from the informers. Schedule calls postAppAccepted outside any state machine transition, so
-// nothing holds the application lock for it, while addTask writes the task map under the lock.
-// Reading the map there is a data race, and iterating it while it is written is a fatal
-// "concurrent map iteration and map write".
-//
-// Run with -race. On the unfixed code this reports a data race between the read in
-// skipReservationStage and the write in addTask.
-func TestPostAppAcceptedConcurrentTaskAdd(t *testing.T) {
-	app := newAcceptedTestApp(t, "app-accepted-race")
-	// a couple of tasks up front so the map walk has something to iterate
-	for i := 0; i < 4; i++ {
-		app.addTask(newAcceptedTestTask(app, i))
-	}
-
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-
-	// the informer path: keeps adding tasks to the application under the lock
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 4; ; i++ {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			app.addTask(newAcceptedTestTask(app, i))
-		}
-	}()
-
-	// the scheduling loop: calls Schedule on every interval
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			app.Schedule()
-		}
-	}()
-
-	time.Sleep(200 * time.Millisecond)
-	close(stop)
-	wg.Wait()
 }
 
 // TestAcceptRemovesApplicationUnderContextLock covers the removal of an application that has no
