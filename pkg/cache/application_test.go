@@ -1294,6 +1294,29 @@ func TestSkipReservationStage(t *testing.T) {
 	)
 	skip = app.skipReservationStage()
 	assert.Equal(t, skip, false, "expected not to skip reservation")
+
+	for _, tc := range []struct {
+		name        string
+		taskState   string
+		placeholder bool
+		wantSkip    bool
+	}{
+		{name: "no tasks", wantSkip: false},
+		{name: "bound task", taskState: TaskStates().Bound, wantSkip: true},
+		{name: "bound placeholder", taskState: TaskStates().Bound, placeholder: true, wantSkip: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := NewApplication(appID1, "root.queue", "test-user", testGroups, map[string]string{}, newMockSchedulerAPI())
+			app.setTaskGroups([]TaskGroup{{Name: testGroup1, MinMember: 2}})
+			if tc.taskState != "" {
+				task := NewTask("task0001", app, context, &v1.Pod{})
+				task.sm.SetState(tc.taskState)
+				task.placeholder = tc.placeholder
+				app.addTask(task)
+			}
+			assert.Equal(t, app.skipReservationStage(), tc.wantSkip)
+		})
+	}
 }
 
 func TestReleaseAppAllocationInFailingState(t *testing.T) {
@@ -1734,7 +1757,7 @@ func TestApplicationString(t *testing.T) {
 }
 
 // TestTaskMapReadersAreRaceFree covers the readers that run without the application lock while
-// the pod informer adds tasks under it. Both readers used to walk taskMap unsynchronised.
+// the pod informer adds tasks under it. These readers used to walk taskMap unsynchronised.
 func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	readers := []struct {
 		name string
@@ -1742,6 +1765,7 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 	}{
 		{"AreAllTasksTerminated", func(app *Application) { _ = app.AreAllTasksTerminated() }},
 		{"String", func(app *Application) { _ = app.String() }},
+		{"Schedule", func(app *Application) { app.Schedule() }},
 	}
 
 	for _, reader := range readers {
@@ -1749,6 +1773,9 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 			context := initContextForTest()
 			app := NewApplication(appID, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 			context.addApplicationToContext(app)
+			app.SetState(ApplicationStates().Accepted)
+			// Task groups prevent skipReservationStage from returning before it walks taskMap.
+			app.setTaskGroups([]TaskGroup{{Name: testGroup1, MinMember: 2}})
 
 			const taskCount = 200
 			start := make(chan struct{})
