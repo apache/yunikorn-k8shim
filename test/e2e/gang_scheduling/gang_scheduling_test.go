@@ -687,14 +687,10 @@ var _ = Describe("", func() {
 		By("Verify originator classification and generated placeholder ownership")
 		verifyOriginatorAndPlaceholders(originator, remainingPlaceholders)
 
-		// Recovery can replenish a placeholder replaced by a task-group member.
-		// Keep this recovery check independent of that placeholder-count behavior.
-		if taskGroupName == "" {
-			By("Restart the scheduler and verify recovered allocations")
-			yunikorn.RestartYunikorn(&kClient)
-			yunikorn.RestorePortForwarding(&kClient)
-			verifyOriginatorAndPlaceholders(originator, remainingPlaceholders)
-		}
+		By("Restart the scheduler and verify recovered allocations")
+		yunikorn.RestartYunikorn(&kClient)
+		yunikorn.RestorePortForwarding(&kClient)
+		verifyOriginatorAndPlaceholders(originator, remainingPlaceholders)
 	},
 		ginkgo.Entry("without a task-group name", ""),
 		ginkgo.Entry("with a task-group name", groupA),

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2040,6 +2041,8 @@ func TestInitializeState(t *testing.T) {
 	dispatcher.Start()
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+	dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
 
 	apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
 		for _, node := range request.Nodes {
@@ -2050,6 +2053,7 @@ func TestInitializeState(t *testing.T) {
 		}
 		return nil
 	})
+	answerAsCore(t, context, apiProvider, true, 0)
 
 	// add a preemption policy
 	policy := v1.PreemptLowerPriority
@@ -2147,6 +2151,7 @@ func TestInitializeState(t *testing.T) {
 	task2 := context.getTask(appID2, podName2)
 	assert.Assert(t, task2 != nil, "pod2 not found")
 	assert.Equal(t, task2.pod.Spec.NodeName, nodeName1, "wrong node for pod2")
+	assert.Equal(t, task2.GetTaskState(), TaskStates().Bound, "pod2 not recovered")
 
 	// pod3 is an orphan, should not be found
 	task3 := context.getTask(appID3, podName3)
@@ -2192,6 +2197,153 @@ func TestInitializeStateDoesNotEnableCordonedNodes(t *testing.T) {
 	cordonedActions := actionsByNode[nodeName2]
 	assert.Equal(t, len(cordonedActions), 1)
 	assert.Equal(t, cordonedActions[0], si.NodeInfo_CREATE_DRAIN)
+	assert.DeepEqual(t, actionsByNode[nodeName1], []si.NodeInfo_ActionFromRM{si.NodeInfo_CREATE_DRAIN, si.NodeInfo_DRAIN_TO_SCHEDULABLE})
+}
+
+// answerAsCore answers through the callback as the core does, and returns what the shim sent and the core answered.
+func answerAsCore(t *testing.T, context *Context, apiProvider *client.MockedAPIProvider, accept bool, confirm time.Duration) func() []string {
+	callback := NewAsyncRMCallback(context, t.Context())
+	var lock sync.Mutex
+	var history []string
+	record := func(entry string) {
+		lock.Lock()
+		defer lock.Unlock()
+		history = append(history, entry)
+	}
+	apiProvider.MockSchedulerAPIUpdateApplicationFn(func(request *si.ApplicationRequest) error {
+		for _, app := range request.New {
+			record("submit " + app.ApplicationID)
+			go func(id string) {
+				response := &si.ApplicationResponse{Accepted: []*si.AcceptedApplication{{ApplicationID: id}}}
+				if accept {
+					record("accept " + id)
+				} else {
+					record("reject " + id)
+					response = &si.ApplicationResponse{Rejected: []*si.RejectedApplication{{ApplicationID: id}}}
+				}
+				assert.Check(t, callback.UpdateApplication(response))
+			}(app.ApplicationID)
+		}
+		return nil
+	})
+	apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+		if request.Releases != nil {
+			for _, release := range request.Releases.AllocationsToRelease {
+				record("release " + release.AllocationKey + " " + release.TerminationType.String())
+			}
+		}
+		for _, alloc := range request.Allocations {
+			record(alloc.AllocationKey)
+			go func(alloc *si.Allocation) {
+				time.Sleep(confirm)
+				assert.Check(t, callback.UpdateAllocation(&si.AllocationResponse{New: []*si.Allocation{alloc}}))
+			}(alloc)
+		}
+		return nil
+	})
+	apiProvider.MockDeleteFn(func(pod *v1.Pod) error {
+		record("delete " + pod.Name)
+		return nil
+	})
+	return func() []string {
+		lock.Lock()
+		defer lock.Unlock()
+		return append([]string(nil), history...)
+	}
+}
+
+//nolint:funlen
+func TestRecoverAllocations(t *testing.T) {
+	recovered := []string{"submit gang", "accept gang", "driver", "exec-0", "ph-exec-1"}
+	all := []string{"driver", "exec-0", "ph-exec-1"}
+	tests := []struct {
+		name    string
+		accept  bool
+		confirm time.Duration
+		pvc     string // pod using a PVC that does not exist
+		history []string
+		bound   []string
+	}{
+		{"real allocations first", true, 0, "", recovered, all},
+		{"application rejected", false, 0, "", []string{"submit gang", "reject gang"}, nil},
+		{"missing PVC", true, 0, "exec-0", recovered, all},
+		{"slow confirmation", true, 200 * time.Millisecond, "", recovered, all},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context, apiProvider := initContextAndAPIProviderForTest()
+			dispatcher.Start()
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+			dispatcher.RegisterEventHandler("TestAppHandler", dispatcher.EventTypeApp, context.ApplicationEventHandler())
+			dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, context.TaskEventHandler())
+			NewPlaceholderManager(apiProvider.GetAPIs())
+			apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+				for _, node := range request.Nodes {
+					dispatcher.Dispatch(CachedSchedulerNodeEvent{NodeID: node.NodeID, Event: NodeAccepted})
+				}
+				return nil
+			})
+			if tt.pvc != "" {
+				binder := test.NewVolumeBinderMock()
+				binder.EnableVolumeClaimsError("persistentvolumeclaim \"data\" not found")
+				setVolumeBinder(context, binder)
+			}
+			context.addNode(nodeForTest(fakeNodeName, "10G", "10"))
+			history := answerAsCore(t, context, apiProvider, tt.accept, tt.confirm)
+
+			created := time.Now()
+			for i, name := range []string{"driver", "exec-0", "ph-exec-1", "exec-1"} {
+				pod := newPodHelper(name, Default, name, fakeNodeName, "gang", v1.PodRunning)
+				pod.CreationTimestamp = apis.NewTime(created.Add(time.Duration(i) * time.Second))
+				pod.Annotations = map[string]string{
+					constants.AnnotationTaskGroups:            taskGroupInfo,
+					constants.AnnotationTaskGroupName:         "test-group-1",
+					constants.AnnotationSchedulingPolicyParam: "placeholderTimeoutInSeconds=600 gangSchedulingStyle=Hard",
+				}
+				switch name {
+				case "ph-exec-1":
+					pod.Annotations[constants.AnnotationPlaceholderFlag] = constants.True
+					pod.OwnerReferences = getOwnerReference(&v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "driver", UID: "driver"}})
+				case "exec-1":
+					pod.Spec.NodeName = ""
+					pod.Status.Phase = v1.PodPending
+				case tt.pvc:
+					pod.Spec.Volumes = []v1.Volume{{Name: "data", VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{ClaimName: "data"}}}}
+				}
+				context.AddPod(pod)
+			}
+
+			context.recoverAllocations()
+			bound := make(map[string]bool)
+			for _, name := range tt.bound {
+				bound[name] = true
+			}
+			for _, name := range []string{"driver", "exec-0", "ph-exec-1", "exec-1"} {
+				want := TaskStates().New
+				if bound[name] {
+					want = TaskStates().Bound
+				}
+				assert.Equal(t, context.getTask("gang", name).GetTaskState(), want, "task %s", name)
+			}
+			assert.DeepEqual(t, history(), tt.history)
+		})
+	}
+}
+
+func TestAssumePod_AlreadyBound(t *testing.T) {
+	binder := test.NewVolumeBinderMock()
+	binder.EnableVolumeClaimsError("persistentvolumeclaim \"data\" not found")
+	context := initAssumePodTest(binder)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	context.schedulerCache.UpdatePod(newPodHelper(podName1, namespace, pod1UID, fakeNodeName, appID, v1.PodRunning))
+
+	err := context.AssumePod(pod1UID, fakeNodeName)
+	assert.NilError(t, err)
+	assert.Assert(t, context.schedulerCache.IsAssumedPod(pod1UID))
+	assert.Assert(t, context.schedulerCache.ArePodVolumesAllBound(pod1UID))
 }
 
 func TestPodAdoption(t *testing.T) {

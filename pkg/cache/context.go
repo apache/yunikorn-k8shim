@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -242,8 +243,8 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			}
 		}
 
-		// if node is not cordoned, enable it in the core
-		if !node.Spec.Unschedulable {
+		// if node was registered in-line and is not cordoned, enable it in the core
+		if register && !node.Spec.Unschedulable {
 			if err := ctx.enableNode(node); err != nil {
 				log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
 			}
@@ -982,6 +983,11 @@ func (ctx *Context) AssumePod(name, node string) error {
 		// race when some other go-routines accessing it in parallel.
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			assumedPod := pod.DeepCopy()
+			// a pod already bound to the node has no volumes to bind, and a failed check would roll back a running pod
+			if pod.Spec.NodeName == node {
+				ctx.schedulerCache.AssumePod(assumedPod, true)
+				return nil
+			}
 			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
@@ -1639,6 +1645,10 @@ func (ctx *Context) InitializeState() error {
 		return err
 	}
 
+	// The core handles allocations and asks in order. Sending the existing allocations before the scheduling loop starts
+	// makes the core count the running applications before it starts any waiting one.
+	ctx.recoverAllocations()
+
 	// Step 4: Enable nodes. At this point all allocations and asks have been processed, so it is safe to allow the
 	// core to begin scheduling.
 	err = ctx.enableNodes(filterSchedulableNodes(acceptedNodes))
@@ -1880,6 +1890,68 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 		return err
 	}
 	return nil
+}
+
+// recoverAllocations sends the allocations of the pods already bound to a node, once the core has accepted their
+// applications. It waits for the confirmations so the tasks are bound before the scheduling loop starts, which would
+// otherwise reserve again for a running gang application.
+func (ctx *Context) recoverAllocations() {
+	var apps []*Application
+	for _, app := range ctx.GetAllApplications() {
+		if len(app.recoverableTasks()) == 0 {
+			continue
+		}
+		if err := app.TriggerAppSubmission(); err == nil {
+			apps = append(apps, app)
+		}
+	}
+	waitForCore("applications to be accepted", func() []string {
+		var ids []string
+		for _, app := range apps {
+			if app.GetApplicationState() == ApplicationStates().Submitted {
+				ids = append(ids, app.GetApplicationID())
+			}
+		}
+		return ids
+	})
+
+	var sent []*Task
+	for _, app := range apps {
+		if app.GetApplicationState() != ApplicationStates().Accepted {
+			continue
+		}
+		for _, task := range app.recoverableTasks() {
+			task.recoverAllocation()
+			sent = append(sent, task)
+		}
+	}
+	waitForCore("allocations to be confirmed", func() []string {
+		var pods []string
+		for _, task := range sent {
+			if task.GetTaskState() == TaskStates().New {
+				pods = append(pods, task.alias)
+			}
+		}
+		return pods
+	})
+}
+
+// waitForCore waits until pending returns nothing. It has no timeout because the core answers every new application
+// and allocation, a rejection included.
+func waitForCore(what string, pending func() []string) {
+	start := time.Now()
+	logged := start
+	for ids := pending(); len(ids) > 0; ids = pending() {
+		if time.Since(logged) >= 10*time.Second {
+			logged = time.Now()
+			log.Log(log.ShimContext).Info("waiting for the core to answer recovery",
+				zap.String("waitingFor", what),
+				zap.Int("pending", len(ids)),
+				zap.Strings("pendingIDs", ids[:min(len(ids), 10)]),
+				zap.Duration("waited", time.Since(start)))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func filterSchedulableNodes(nodes []*v1.Node) []*v1.Node {
