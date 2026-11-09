@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -348,34 +349,37 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 	var allocationPreFilters map[string]bool
 	var rp map[string]bool
 	var pbp map[string]bool
-	if handle.SharedDRAManager() != nil {
-		allocationPreFilters = map[string]bool{
-			"*": true,
+	s := reflect.ValueOf(handle.SharedDRAManager())
+	if s.Kind() == reflect.Ptr {
+		if !s.IsNil() {
+			allocationPreFilters = map[string]bool{
+				"*": true,
+			}
+			allocationFilters = allocationPreFilters
+			rp = map[string]bool{
+				names.DynamicResources: true,
+			}
+			pbp = rp
+		} else {
+			// Exclude DRA Plugin alone
+			allocationPreFilters = map[string]bool{
+				names.DeferredPodScheduling: true,
+				names.InterPodAffinity:      true,
+				names.NodeAffinity:          true,
+				names.NodeDeclaredFeatures:  true,
+				names.NodeName:              true,
+				names.NodePorts:             true,
+				names.NodeResourcesFit:      true,
+				names.NodeUnschedulable:     true,
+				names.NodeVolumeLimits:      true,
+				names.PodTopologySpread:     true,
+				names.TaintToleration:       true,
+				names.VolumeBinding:         true,
+				names.VolumeRestrictions:    true,
+				names.VolumeZone:            true,
+			}
+			allocationFilters = allocationPreFilters
 		}
-		allocationFilters = allocationPreFilters
-		rp = map[string]bool{
-			names.DynamicResources: true,
-		}
-		pbp = rp
-	} else {
-		// Exclude DRA Plugin alone
-		allocationPreFilters = map[string]bool{
-			names.DeferredPodScheduling: true,
-			names.InterPodAffinity:      true,
-			names.NodeAffinity:          true,
-			names.NodeDeclaredFeatures:  true,
-			names.NodeName:              true,
-			names.NodePorts:             true,
-			names.NodeResourcesFit:      true,
-			names.NodeUnschedulable:     true,
-			names.NodeVolumeLimits:      true,
-			names.PodTopologySpread:     true,
-			names.TaintToleration:       true,
-			names.VolumeBinding:         true,
-			names.VolumeRestrictions:    true,
-			names.VolumeZone:            true,
-		}
-		allocationFilters = allocationPreFilters
 	}
 	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, rp, pbp)
 }

@@ -163,7 +163,7 @@ func (c *Clients) IsFeatureEnabled(fName featuregate.Feature) bool {
 				if versionedSpec.LockToDefault && parsedServerVersion.GreaterThan(versionedSpec.Version) {
 					return true
 				}
-				if versionedSpec.Version == parsedServerVersion && versionedSpec.Default {
+				if versionedSpec.Version.EqualTo(parsedServerVersion) && versionedSpec.Default {
 					return true
 				}
 			}
@@ -183,6 +183,7 @@ func (c *Clients) getServerVersion() (*version.Version, error) {
 		return nil, err
 	}
 	log.Log(log.ShimClient).Info("Using server version",
-		zap.String("gitVersion", serverVersion.String()))
-	return version.ParseGeneric(serverVersion.String())
+		zap.String("major", serverVersion.Major),
+		zap.String("minor", serverVersion.Minor))
+	return version.ParseMajorMinor(serverVersion.Major + "." + serverVersion.Minor)
 }

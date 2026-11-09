@@ -35,6 +35,7 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
@@ -116,6 +117,12 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 
 	var sharedDRAManager *dynamicresources.DefaultDRAManager
 	if apis.GetAPIs().IsFeatureEnabled(features.DynamicResourceAllocation) {
+		if !apis.GetAPIs().IsFeatureEnabled(features.DRAExtendedResource) {
+			err := feature.DefaultMutableFeatureGate.OverrideDefault(features.DRAExtendedResource, false)
+			if err != nil {
+				log.Log(log.ShimContext).Warn("unable to override the DRAExtendedResource feature to false", zap.Error(err))
+			}
+		}
 		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
@@ -123,16 +130,15 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 			SliceInformer:          apis.GetAPIs().ResourceSlicesInformer,
 			TaintInformer:          apis.GetAPIs().DeviceTaintsInformer})
 		if err != nil {
-			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
+			log.Log(log.ShimContext).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil
 		}
 		ctx.resourceSliceTracker = resourceSliceTracker
 		sharedDRAManager = dynamicresources.NewDRAManager(context.TODO(), resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
-
 	config, err := predicates.DefaultConfig()
 	if err != nil {
-		log.Log(log.ShimClient).Error("unable to create the predicates config", zap.Error(err))
+		log.Log(log.ShimContext).Error("unable to create the predicates config", zap.Error(err))
 	}
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, csiManager, sharedDRAManager), plugins.NewInTreeRegistry(), config)
 	return ctx
