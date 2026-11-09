@@ -350,7 +350,7 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 	var rp map[string]bool
 	var pbp map[string]bool
 	s := reflect.ValueOf(handle.SharedDRAManager())
-	if s.Kind() == reflect.Ptr {
+	if s.Kind() == reflect.Pointer {
 		if !s.IsNil() {
 			allocationPreFilters = map[string]bool{
 				"*": true,
