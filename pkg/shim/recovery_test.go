@@ -21,6 +21,7 @@ package shim
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -221,8 +222,8 @@ func (c *podsClient) get() ([]string, []string) {
 	return append([]string(nil), c.failed...), append([]string(nil), c.deleted...)
 }
 
-// startGangCluster starts the scheduler on a cluster that runs a gang application: its driver and one executor, and a
-// placeholder that was not replaced.
+// startGangCluster starts the scheduler on a cluster that runs a gang application: its driver and one executor, and
+// three placeholders that were not replaced.
 func startGangCluster(t *testing.T, age time.Duration, params string, pending bool) (*MockScheduler, *podsClient) {
 	cluster := &MockScheduler{}
 	cluster.init()
@@ -243,7 +244,7 @@ func startGangCluster(t *testing.T, age time.Duration, params string, pending bo
 	})
 	created := time.Now().Add(-age)
 	controller := false
-	names := []string{"driver", "exec-0", "ph-exec-1"}
+	names := []string{"driver", "exec-0", "ph-exec-1", "ph-exec-2", "ph-exec-3"}
 	if pending {
 		names = append(names, "ph-pending")
 	}
@@ -254,7 +255,7 @@ func startGangCluster(t *testing.T, age time.Duration, params string, pending bo
 			v1.ResourceMemory: resource.MustParse("1M"),
 		}
 		pod.Annotations = map[string]string{
-			constants.AnnotationTaskGroups:            `[{"name":"group","minMember":2,"minResource":{"cpu":"1","memory":"1M"}}]`,
+			constants.AnnotationTaskGroups:            `[{"name":"group","minMember":4,"minResource":{"cpu":"1","memory":"1M"}}]`,
 			constants.AnnotationTaskGroupName:         "group",
 			constants.AnnotationSchedulingPolicyParam: params,
 		}
@@ -274,7 +275,8 @@ func startGangCluster(t *testing.T, age time.Duration, params string, pending bo
 	return cluster, pods
 }
 
-// waitForDeleted waits for the shim to delete exactly the given pods, and checks that it set no pod to Failed.
+// waitForDeleted waits for the shim to delete exactly the given pods, in any order, and checks that it set no pod to
+// Failed.
 func waitForDeleted(t *testing.T, pods *podsClient, names ...string) {
 	err := utils.WaitForCondition(func() bool {
 		_, deleted := pods.get()
@@ -282,29 +284,31 @@ func waitForDeleted(t *testing.T, pods *podsClient, names ...string) {
 	}, 100*time.Millisecond, 10*time.Second)
 	assert.NilError(t, err, "placeholders not deleted")
 	failed, deleted := pods.get()
+	sort.Strings(deleted)
 	assert.DeepEqual(t, deleted, names)
 	assert.Assert(t, len(failed) == 0, "pods set to Failed: %v", failed)
 }
 
-// TestRecoveryGangPlaceholderReleased checks that the core releases the placeholder when its timeout passes after
+// TestRecoveryGangPlaceholderReleased checks that the core releases the placeholders when their timeout passes after
 // the restart.
 func TestRecoveryGangPlaceholderReleased(t *testing.T) {
 	cluster, pods := startGangCluster(t, 0, "placeholderTimeoutInSeconds=3 gangSchedulingStyle=Hard", false)
 	defer cluster.stop()
 
-	waitForDeleted(t, pods, "ph-exec-1")
+	waitForDeleted(t, pods, "ph-exec-1", "ph-exec-2", "ph-exec-3")
 	assert.Equal(t, cluster.getApplicationFromCore("gang", partitionName).CurrentState(), objects.Running.String())
 }
 
-// TestRecoveryGangTimeoutPassed checks that a placeholder timeout that passed before the restart releases the
-// placeholder without failing the application, with an explicit and with the default timeout.
+// TestRecoveryGangTimeoutPassed checks that a placeholder timeout that passed before the restart releases every
+// placeholder without failing the application, with an explicit and with the default timeout. The timer can fire
+// before the core has the other placeholders.
 func TestRecoveryGangTimeoutPassed(t *testing.T) {
 	for _, params := range []string{"placeholderTimeoutInSeconds=900 gangSchedulingStyle=Hard", "gangSchedulingStyle=Hard"} {
 		t.Run(params, func(t *testing.T) {
 			cluster, pods := startGangCluster(t, time.Hour, params, false)
 			defer cluster.stop()
 
-			waitForDeleted(t, pods, "ph-exec-1")
+			waitForDeleted(t, pods, "ph-exec-1", "ph-exec-2", "ph-exec-3")
 			assert.Equal(t, cluster.getApplicationFromCore("gang", partitionName).CurrentState(), objects.Running.String())
 		})
 	}
