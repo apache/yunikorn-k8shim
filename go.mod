@@ -18,13 +18,12 @@
 
 module github.com/apache/yunikorn-k8shim
 
-go 1.26.8
+go 1.27
 
 require (
 	github.com/apache/yunikorn-core v0.0.0-20261008055918-0ef9fd72000e
 	github.com/apache/yunikorn-scheduler-interface v0.0.0-20261005015817-58254b18cb26
 	github.com/google/go-cmp v0.7.0
-	github.com/google/uuid v1.6.0
 	github.com/looplab/fsm v1.0.4
 	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.43.1
@@ -82,6 +81,7 @@ require (
 	github.com/google/cel-go v0.31.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
