@@ -496,7 +496,7 @@ func (task *Task) postTaskRejected() {
 // afterTaskFail releases the allocation after the FSM has dropped its locks.
 func (task *Task) afterTaskFail(eventSrc string) {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
+		v1.EventTypeWarning, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 	task.releaseAllocation(eventSrc, false)
 }

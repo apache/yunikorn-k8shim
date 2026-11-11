@@ -34,9 +34,15 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
-// clients encapsulates a set of useful client APIs
-// that can be shared by callers when talking to K8s api-server,
-// or the scheduler core.
+// Clients encapsulates the client APIs shared by callers when talking to the K8s api-server
+// or the scheduler core:
+//   - KubeClient carries the must-complete traffic: binds, pod create/delete, pod and status
+//     updates, the volume binder and the predicate handle, the configmap loads at
+//     registration, and the reads made in service of those writes (the get before a retried
+//     update). It also backs the informer factories. Its policy is the opt-in
+//     kubernetes.qps/burst cap.
+//   - events do not pass through it: the broadcaster writes through the shedding event sink
+//     on its own client, see NewEventSink.
 type Clients struct {
 	// client apis
 	KubeClient   KubeClient
