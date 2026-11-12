@@ -264,6 +264,8 @@ func (task *Task) SetTaskSchedulingState(state TaskSchedulingState) {
 
 func (task *Task) MarkPreviouslyAllocated(allocationKey string, nodeID string) {
 	task.sm.SetState(TaskStates().Bound)
+	// only a reservation in progress needs the update, entering Reserving counts the bound placeholders itself
+	reserving := task.application.GetApplicationState() == ApplicationStates().Reserving
 	task.lock.Lock()
 	defer task.lock.Unlock()
 	task.schedulingState = TaskSchedAllocated
@@ -274,7 +276,9 @@ func (task *Task) MarkPreviouslyAllocated(allocationKey string, nodeID string) {
 			zap.String("appID", task.applicationID),
 			zap.String("taskName", task.alias),
 			zap.String("taskGroupName", task.taskGroupName))
-		dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+		if reserving {
+			dispatcher.Dispatch(NewUpdateApplicationReservationEvent(task.applicationID))
+		}
 	}
 }
 
@@ -330,6 +334,12 @@ func (task *Task) updateAllocation() {
 		log.Log(log.ShimCacheTask).Debug("failed to send allocation to scheduler", zap.Error(err))
 		return
 	}
+}
+
+func (task *Task) recoverAllocation() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.updateAllocation()
 }
 
 // this is called after task reaches PENDING state,
