@@ -1258,14 +1258,18 @@ func (ctx *Context) RemoveApplication(appID string) {
 // A Failed application never schedules again, so pods that joined it after it failed are added to a new
 // application with the same ID, as if they had arrived after the removal.
 func (ctx *Context) RemoveFailedApplication(appID string) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-	app, exist := ctx.applications[appID]
-	if !exist {
+	// called every scheduling cycle: only take the write lock once the application can be removed
+	ctx.lock.RLock()
+	_, removable := ctx.getTasksToMoveFromFailedApplication(appID)
+	ctx.lock.RUnlock()
+	if !removable {
 		return
 	}
-	taskIDs, ok := app.getTasksAddedAfterFailure()
-	if !ok {
+
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	taskIDs, removable := ctx.getTasksToMoveFromFailedApplication(appID)
+	if !removable {
 		return
 	}
 	delete(ctx.applications, appID)
@@ -1281,6 +1285,17 @@ func (ctx *Context) RemoveFailedApplication(appID string) {
 			zap.String("podName", pod.Name))
 		ctx.ensureAppAndTaskCreated(pod, nil)
 	}
+}
+
+// getTasksToMoveFromFailedApplication returns the active tasks that joined the application after it failed, or
+// false if the application is not Failed or a task it failed with is still active.
+// Must be called while holding the context lock.
+func (ctx *Context) getTasksToMoveFromFailedApplication(appID string) ([]string, bool) {
+	app := ctx.getApplication(appID)
+	if app == nil || app.GetApplicationState() != ApplicationStates().Failed {
+		return nil, false
+	}
+	return app.getTasksAddedAfterFailure()
 }
 
 func (ctx *Context) RemoveCompletedApplication(appID string) {

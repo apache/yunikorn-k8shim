@@ -468,11 +468,13 @@ func TestRemoveApplication(t *testing.T) {
 func TestRemoveFailedApplication(t *testing.T) {
 	tests := []struct {
 		name        string
+		notFailed   bool
 		firstDone   bool
 		latePod     string
 		wantRemoved bool
 		wantReAdded bool
 	}{
+		{name: "application not failed, all tasks terminated", notFailed: true, firstDone: true},
 		{name: "task the application failed with is active"},
 		{name: "all tasks terminated", firstDone: true, wantRemoved: true},
 		{name: "late pod, task the application failed with is active", latePod: "active"},
@@ -487,7 +489,11 @@ func TestRemoveFailedApplication(t *testing.T) {
 			context.AddPod(newPodHelper(podName1, namespace, pod1UID, "", appID1, v1.PodPending))
 			app := context.GetApplication(appID1)
 			assert.Assert(t, app != nil)
-			app.SetState(ApplicationStates().Failed)
+			if tt.notFailed {
+				app.SetState(ApplicationStates().Running)
+			} else {
+				app.SetState(ApplicationStates().Failed)
+			}
 			if tt.firstDone {
 				app.GetTask(pod1UID).sm.SetState(TaskStates().Completed)
 			}
