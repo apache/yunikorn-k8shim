@@ -256,8 +256,8 @@ func (app *Application) addTask(task *Task) {
 		// skip adding duplicate task
 		return
 	}
-	// checked under the application lock so that the task is either failed together with the
-	// application or marked here, never neither
+	// the transition to Failed holds the application lock too, so a task is either part of the
+	// application when it fails or marked here
 	if app.sm.Current() == ApplicationStates().Failed {
 		task.addedAfterAppFailed = true
 	}
