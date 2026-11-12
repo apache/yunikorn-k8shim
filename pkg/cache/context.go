@@ -1254,6 +1254,35 @@ func (ctx *Context) RemoveApplication(appID string) {
 	delete(ctx.applications, appID)
 }
 
+// RemoveFailedApplication removes a Failed application once the tasks it failed with have terminated.
+// A Failed application never schedules again, so pods that joined it after it failed are added to a new
+// application with the same ID, as if they had arrived after the removal.
+func (ctx *Context) RemoveFailedApplication(appID string) {
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	app, exist := ctx.applications[appID]
+	if !exist {
+		return
+	}
+	taskIDs, ok := app.getTasksAddedAfterFailure()
+	if !ok {
+		return
+	}
+	delete(ctx.applications, appID)
+	for _, taskID := range taskIDs {
+		// a deleted or terminated pod leaves the cache straight away, its task completes asynchronously
+		pod := ctx.schedulerCache.GetPod(taskID)
+		if pod == nil {
+			continue
+		}
+		log.Log(log.ShimContext).Info("adding pod that arrived after its application failed to a new application",
+			zap.String("appID", appID),
+			zap.String("taskID", taskID),
+			zap.String("podName", pod.Name))
+		ctx.ensureAppAndTaskCreated(pod, nil)
+	}
+}
+
 func (ctx *Context) RemoveCompletedApplication(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
