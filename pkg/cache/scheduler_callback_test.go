@@ -161,7 +161,7 @@ func TestUpdateAllocation_PlaceholderTask_AssumePodFails(t *testing.T) {
 	}, 10*time.Millisecond, time.Second)
 	assert.NilError(t, err, "expected two K8s events to be recorded, got %d", len(recorder.Events))
 	assumePodErrorFound := false
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		event := <-recorder.Events
 		if strings.Contains(event, "AssumePodError") {
 			assumePodErrorFound = true
@@ -528,7 +528,7 @@ func testUpdateNode(t *testing.T, expectedEvent string, response *si.NodeRespons
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 	var nodeName atomic.Value
-	dispatcher.RegisterEventHandler("testNodeHandler", dispatcher.EventTypeNode, func(event interface{}) {
+	dispatcher.RegisterEventHandler("testNodeHandler", dispatcher.EventTypeNode, func(event any) {
 		nodeEvent := event.(CachedSchedulerNodeEvent) //nolint:errcheck
 		if nodeEvent.GetEvent() == expectedEvent {
 			nodeName.Store(nodeEvent.GetNodeID())
@@ -768,7 +768,7 @@ func TestCallbackGetStateDump(t *testing.T) {
 
 	stateDumpStr, err := callback.GetStateDump()
 	assert.NilError(t, err, "unable to get state dump")
-	stateDump := make(map[string]interface{})
+	stateDump := make(map[string]any)
 	err = json.Unmarshal([]byte(stateDumpStr), &stateDump)
 	assert.NilError(t, err)
 	assert.Assert(t, stateDump["cache"] != nil, "no 'cache' entry in the state dump")

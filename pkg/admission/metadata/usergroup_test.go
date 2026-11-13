@@ -53,7 +53,7 @@ var (
 )
 
 type TestCase struct {
-	obj  interface{}
+	obj  any
 	kind string
 	path string
 }
@@ -176,7 +176,7 @@ func TestGetPatchForPod(t *testing.T) {
 	verifyUserGroupAnnotation(t, patchOp.Value)
 }
 
-func verifyUserGroupAnnotation(t *testing.T, patchValue interface{}) {
+func verifyUserGroupAnnotation(t *testing.T, patchValue any) {
 	value, ok := patchValue.(map[string]string)
 	assert.Assert(t, ok, "type assertion failed")
 	assert.Equal(t, len(value), 2)
@@ -286,7 +286,7 @@ func getTestCases() []TestCase {
 	return tests
 }
 
-func getAdmissionRequest(t *testing.T, obj interface{}, kind string) *admissionv1.AdmissionRequest {
+func getAdmissionRequest(t *testing.T, obj any, kind string) *admissionv1.AdmissionRequest {
 	raw, err := json.Marshal(obj)
 	assert.NilError(t, err, "Could not marshal object")
 	req := &admissionv1.AdmissionRequest{

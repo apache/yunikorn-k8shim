@@ -1754,7 +1754,7 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				for i := 0; i < taskCount; i++ {
+				for i := range taskCount {
 					taskID := fmt.Sprintf("task-%d", i)
 					pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: taskID, UID: types.UID(taskID)}}
 					app.addTask(NewTask(taskID, app, context, pod))
@@ -1763,7 +1763,7 @@ func TestTaskMapReadersAreRaceFree(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				for i := 0; i < taskCount; i++ {
+				for range taskCount {
 					reader.read(app)
 				}
 			}()
@@ -1785,7 +1785,7 @@ func TestAcceptRemovesApplicationUnderContextLock(t *testing.T) {
 
 	const appCount = 50
 	apps := make([]*Application, 0, appCount)
-	for i := 0; i < appCount; i++ {
+	for i := range appCount {
 		app := NewApplication(fmt.Sprintf("app-%d", i), "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
 		context.addApplicationToContext(app)
 		task := addTaskHelper(context, app, fmt.Sprintf("task-%d", i))
@@ -1808,7 +1808,7 @@ func TestAcceptRemovesApplicationUnderContextLock(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		for i := 0; i < appCount; i++ {
+		for range appCount {
 			context.GetAllApplications()
 		}
 	}()

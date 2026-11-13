@@ -196,11 +196,11 @@ func (ctx *Context) AddSchedulingEventHandlers() error {
 	return nil
 }
 
-func (ctx *Context) addNode(obj interface{}) {
+func (ctx *Context) addNode(obj any) {
 	ctx.updateNode(nil, obj)
 }
 
-func (ctx *Context) updateNode(_, obj interface{}) {
+func (ctx *Context) updateNode(_, obj any) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	node, err := convertToNode(obj)
@@ -278,7 +278,7 @@ func (ctx *Context) updateNodeSchedulability(prevNode, node *v1.Node) error {
 	return ctx.apiProvider.GetAPIs().SchedulerAPI.UpdateNode(request)
 }
 
-func (ctx *Context) deleteNode(obj interface{}) {
+func (ctx *Context) deleteNode(obj any) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	var node *v1.Node
@@ -332,11 +332,11 @@ func (ctx *Context) deleteNodeInternal(node *v1.Node) {
 	}
 }
 
-func (ctx *Context) AddPod(obj interface{}) {
+func (ctx *Context) AddPod(obj any) {
 	ctx.UpdatePod(nil, obj)
 }
 
-func (ctx *Context) UpdatePod(oldObj, newObj interface{}) {
+func (ctx *Context) UpdatePod(oldObj, newObj any) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	pod, err := utils.Convert2Pod(newObj)
@@ -501,7 +501,7 @@ func (ctx *Context) updateForeignPod(oldPod, pod *v1.Pod) {
 	}
 }
 
-func (ctx *Context) DeletePod(obj interface{}) {
+func (ctx *Context) DeletePod(obj any) {
 	var pod *v1.Pod
 	switch t := obj.(type) {
 	case *v1.Pod:
@@ -550,7 +550,7 @@ func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
 }
 
 // filter configMap for the scheduler
-func (ctx *Context) filterConfigMaps(obj interface{}) bool {
+func (ctx *Context) filterConfigMaps(obj any) bool {
 	switch obj := obj.(type) {
 	case *v1.ConfigMap:
 		return (obj.Name == constants.DefaultConfigMapName || obj.Name == constants.ConfigMapName) && obj.Namespace == ctx.namespace
@@ -562,7 +562,7 @@ func (ctx *Context) filterConfigMaps(obj interface{}) bool {
 }
 
 // when the configMap for the scheduler is added, trigger hot-refresh
-func (ctx *Context) addConfigMaps(obj interface{}) {
+func (ctx *Context) addConfigMaps(obj any) {
 	log.Log(log.ShimContext).Debug("configMap added")
 	configmap := utils.Convert2ConfigMap(obj)
 	switch configmap.Name {
@@ -577,7 +577,7 @@ func (ctx *Context) addConfigMaps(obj interface{}) {
 }
 
 // when the configMap for the scheduler is updated, trigger hot-refresh
-func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
+func (ctx *Context) updateConfigMaps(_, newObj any) {
 	log.Log(log.ShimContext).Debug("configMap updated")
 	configmap := utils.Convert2ConfigMap(newObj)
 	switch configmap.Name {
@@ -592,7 +592,7 @@ func (ctx *Context) updateConfigMaps(_, newObj interface{}) {
 }
 
 // when the configMap for the scheduler is deleted, trigger refresh using default config
-func (ctx *Context) deleteConfigMaps(obj interface{}) {
+func (ctx *Context) deleteConfigMaps(obj any) {
 	log.Log(log.ShimContext).Debug("configMap deleted")
 	var configmap *v1.ConfigMap = nil
 	switch t := obj.(type) {
@@ -616,7 +616,7 @@ func (ctx *Context) deleteConfigMaps(obj interface{}) {
 	}
 }
 
-func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
+func (ctx *Context) filterPriorityClasses(obj any) bool {
 	switch obj := obj.(type) {
 	case *schedulingv1.PriorityClass:
 		return true
@@ -627,11 +627,11 @@ func (ctx *Context) filterPriorityClasses(obj interface{}) bool {
 	}
 }
 
-func (ctx *Context) addPriorityClass(obj interface{}) {
+func (ctx *Context) addPriorityClass(obj any) {
 	ctx.updatePriorityClass(nil, obj)
 }
 
-func (ctx *Context) updatePriorityClass(_, newObj interface{}) {
+func (ctx *Context) updatePriorityClass(_, newObj any) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if priorityClass := utils.Convert2PriorityClass(newObj); priorityClass != nil {
@@ -643,7 +643,7 @@ func (ctx *Context) updatePriorityClassInternal(priorityClass *schedulingv1.Prio
 	ctx.schedulerCache.UpdatePriorityClass(priorityClass)
 }
 
-func (ctx *Context) deletePriorityClass(obj interface{}) {
+func (ctx *Context) deletePriorityClass(obj any) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	log.Log(log.ShimContext).Debug("priorityClass deleted")
@@ -1360,8 +1360,8 @@ func (ctx *Context) HandleContainerStateUpdate(stopCtx context.Context, request 
 	}
 }
 
-func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
-	return func(obj interface{}) {
+func (ctx *Context) ApplicationEventHandler() func(obj any) {
+	return func(obj any) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			appID := event.GetApplicationID()
 			app := ctx.GetApplication(appID)
@@ -1393,8 +1393,8 @@ func (ctx *Context) ApplicationEventHandler() func(obj interface{}) {
 	}
 }
 
-func (ctx *Context) TaskEventHandler() func(obj interface{}) {
-	return func(obj interface{}) {
+func (ctx *Context) TaskEventHandler() func(obj any) {
+	return func(obj any) {
 		if event, ok := obj.(events.TaskEvent); ok {
 			appID := event.GetApplicationID()
 			taskID := event.GetTaskID()
@@ -1449,7 +1449,7 @@ func (ctx *Context) LoadConfigMaps() ([]*v1.ConfigMap, error) {
 func (ctx *Context) GetStateDump() (string, error) {
 	log.Log(log.ShimContext).Info("State dump requested")
 
-	dump := map[string]interface{}{
+	dump := map[string]any{
 		"cache": ctx.schedulerCache.GetSchedulerCacheDao(),
 	}
 
@@ -1671,7 +1671,7 @@ func (ctx *Context) registerNodesInternal(nodesToRegister []*si.NodeInfo, pendin
 	wg.Add(len(pendingNodes))
 
 	handlerID := fmt.Sprintf("%s-%d", registerNodeContextHandler, ctx.txnID.Add(1))
-	dispatcher.RegisterEventHandler(handlerID, dispatcher.EventTypeNode, func(event interface{}) {
+	dispatcher.RegisterEventHandler(handlerID, dispatcher.EventTypeNode, func(event any) {
 		nodeEvent, ok := event.(CachedSchedulerNodeEvent)
 		if !ok {
 			return
@@ -1889,7 +1889,7 @@ func getExistingAllocation(pod *v1.Pod) *si.Allocation {
 	return nil
 }
 
-func convertToNode(obj interface{}) (*v1.Node, error) {
+func convertToNode(obj any) (*v1.Node, error) {
 	if node, ok := obj.(*v1.Node); ok {
 		return node, nil
 	}

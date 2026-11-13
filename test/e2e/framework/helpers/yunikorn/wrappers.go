@@ -19,6 +19,7 @@
 package yunikorn
 
 import (
+	"maps"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -106,9 +107,7 @@ func UpdateCustomConfigMapWrapperWithMap(oldConfigMap *v1.ConfigMap, schedPolicy
 	Ω(yamlErr).NotTo(HaveOccurred())
 	c.Data[configmanager.DefaultPolicyGroup] = configStr
 
-	for k, v := range customMap {
-		c.Data[k] = v
-	}
+	maps.Copy(c.Data, customMap)
 	c.BinaryData = nil
 	var d, err3 = k.UpdateConfigMap(c, configmanager.YuniKornTestConfig.YkNamespace)
 	Ω(err3).NotTo(HaveOccurred())

@@ -21,6 +21,7 @@ package shim
 import (
 	ctx "context"
 	"fmt"
+	"maps"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -384,9 +385,7 @@ func createUpdateRequestForNewNode(nodeID string, nodeLabels map[string]string, 
 	}
 
 	// Add nodeLabels key value to Attributes map
-	for k, v := range nodeLabels {
-		nodeInfo.Attributes[k] = v
-	}
+	maps.Copy(nodeInfo.Attributes, nodeLabels)
 
 	// Add instanceType to Attributes map
 	nodeInfo.Attributes[siCommon.InstanceType] = nodeLabels[conf.GetSchedulerConf().InstanceTypeNodeLabelKey]

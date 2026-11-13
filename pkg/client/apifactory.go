@@ -75,10 +75,10 @@ type APIProvider interface {
 // The associated the type field points the handler functions to the correct receiver.
 type ResourceEventHandlers struct {
 	Type
-	FilterFn func(obj interface{}) bool
-	AddFn    func(obj interface{})
-	UpdateFn func(old, new interface{})
-	DeleteFn func(obj interface{})
+	FilterFn func(obj any) bool
+	AddFn    func(obj any)
+	UpdateFn func(old, new any)
+	DeleteFn func(obj any)
 }
 
 // API factory maintains shared clients which can be used to access other external components

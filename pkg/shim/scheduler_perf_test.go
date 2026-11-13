@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime/pprof"
 	"strconv"
@@ -109,7 +110,7 @@ func BenchmarkSchedulingThroughPut(b *testing.B) {
 	assert.NilError(b, err, "update config failed")
 
 	// add nodes to the scheduler & wait until they're registered in the core
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		addNode(cluster, "test.host."+strconv.Itoa(i))
 	}
 	err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Second*60, true, func(ctx context.Context) (bool, error) {
@@ -226,9 +227,7 @@ func newPodStatusUpdater(cluster *MockScheduler, pods map[string]*v1.Pod) *podSt
 		cluster: cluster,
 	}
 	podsCopy := make(map[string]*v1.Pod, len(pods))
-	for name, pod := range pods {
-		podsCopy[name] = pod
-	}
+	maps.Copy(podsCopy, pods)
 	ps.pods = podsCopy
 
 	return ps
@@ -287,9 +286,9 @@ func getTestPods(noApps, noTasksPerApp int, queue string) []*v1.Pod {
 	resources[v1.ResourceCPU] = *resource.NewMilliQuantity(10, resource.DecimalSI)
 	resources[v1.ResourceMemory] = *resource.NewScaledQuantity(1, resource.Mega)
 
-	for i := 0; i < noApps; i++ {
+	for i := range noApps {
 		appId := "app000" + strconv.Itoa(i) + "-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
-		for j := 0; j < noTasksPerApp; j++ {
+		for j := range noTasksPerApp {
 			taskName := "task000" + strconv.Itoa(j)
 			podName := appId + "-" + taskName
 			pod := &v1.Pod{

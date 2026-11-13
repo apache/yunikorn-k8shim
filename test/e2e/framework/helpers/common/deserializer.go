@@ -34,8 +34,8 @@ func Yaml2Obj(yamlPath string) (runtime.Object, error) {
 	return nil, err
 }
 
-func Y2Map(yamlPath string) (map[interface{}]interface{}, error) {
-	m := make(map[interface{}]interface{})
+func Y2Map(yamlPath string) (map[any]any, error) {
+	m := make(map[any]any)
 	content, err := GetFileContents(yamlPath)
 	if err == nil {
 		err1 := yaml.Unmarshal(content, &m)

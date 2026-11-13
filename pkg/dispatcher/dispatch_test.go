@@ -21,6 +21,7 @@ package dispatcher
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func (t TestAppEvent) GetEvent() string {
 	return t.eventType
 }
 
-func (t TestAppEvent) GetArgs() []interface{} {
+func (t TestAppEvent) GetArgs() []any {
 	return nil
 }
 
@@ -61,9 +62,9 @@ func TestRegisterEventHandler(t *testing.T) {
 	createDispatcher(t)
 	defer createDispatcher(t)
 
-	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {})
-	RegisterEventHandler("TestTaskHandler", EventTypeTask, func(obj interface{}) {})
-	RegisterEventHandler("TestTaskHandler2", EventTypeTask, func(obj interface{}) {})
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj any) {})
+	RegisterEventHandler("TestTaskHandler", EventTypeTask, func(obj any) {})
+	RegisterEventHandler("TestTaskHandler2", EventTypeTask, func(obj any) {})
 	assert.Equal(t, len(dispatcher.handlers), 2)
 	assert.Equal(t, len(dispatcher.handlers[EventTypeTask]), 2)
 
@@ -92,12 +93,7 @@ func (a *appEventsRecorder) addApp(appID string) {
 func (a *appEventsRecorder) contains(appID string) bool {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
-	for _, existingAppID := range a.apps {
-		if existingAppID == appID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a.apps, appID)
 }
 
 func (a *appEventsRecorder) size() int {
@@ -115,7 +111,7 @@ func TestDispatcherStartStop(t *testing.T) {
 		lock: &locking.RWMutex{},
 	}
 
-	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj any) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			recorder.addApp(event.GetApplicationID())
 		}
@@ -171,7 +167,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 		lock: &locking.RWMutex{},
 	}
 	// pretend to be an time-consuming event-handler
-	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj any) {
 		if event, ok := obj.(events.ApplicationEvent); ok {
 			recorder.addApp(event.GetApplicationID())
 			time.Sleep(1 * time.Millisecond)
@@ -183,7 +179,7 @@ func TestEventWillNotBeLostWhenEventChannelIsFull(t *testing.T) {
 
 	// send events
 	numEvents := 10
-	for i := 0; i < numEvents; i++ {
+	for range numEvents {
 		Dispatch(TestAppEvent{
 			appID:     "test",
 			eventType: RunApplication,
@@ -218,7 +214,7 @@ func TestDispatchTimeout(t *testing.T) {
 	dispatcher.dispatchTimeout = 500 * time.Millisecond
 
 	// start the handler, but waiting on a flag
-	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj any) {
 		if appEvent, ok := obj.(TestAppEvent); ok {
 			fmt.Printf("handling %s\n", appEvent.appID)
 			<-appEvent.flag
@@ -231,7 +227,7 @@ func TestDispatchTimeout(t *testing.T) {
 
 	// dispatch 3 events, the third event will be dispatched asynchronously
 	stop := make(chan bool)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		Dispatch(TestAppEvent{
 			appID:     fmt.Sprintf("test-%d", i),
 			eventType: RunApplication,
@@ -276,7 +272,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	dispatcher.eventChan = make(chan events.SchedulingEvent, 1)
 	dispatcher.asyncDispatchLimit = 1
 	// pretend to be an time-consuming event-handler
-	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj interface{}) {
+	RegisterEventHandler("TestAppHandler", EventTypeApp, func(obj any) {
 		if _, ok := obj.(events.ApplicationEvent); ok {
 			time.Sleep(2 * time.Second)
 		}
@@ -297,7 +293,7 @@ func TestExceedAsyncDispatchLimit(t *testing.T) {
 	// start the dispatcher
 	Start()
 	// dispatch 4 events, the third and forth events will be dispatched asynchronously
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		Dispatch(TestAppEvent{
 			appID:     "test",
 			eventType: RunApplication,
@@ -315,10 +311,7 @@ func createDispatcher(t *testing.T) {
 			Stop()
 		}
 		if d.asyncDispatchCount.Load() > 0 {
-			waitTimeout := d.dispatchTimeout + d.asyncDispatchCheckInterval + time.Second
-			if waitTimeout > maxTestAsyncDispatchDrain {
-				waitTimeout = maxTestAsyncDispatchDrain
-			}
+			waitTimeout := min(d.dispatchTimeout+d.asyncDispatchCheckInterval+time.Second, maxTestAsyncDispatchDrain)
 			err := utils.WaitForCondition(func() bool {
 				return d.asyncDispatchCount.Load() == 0
 			}, testAsyncDispatchPollPeriod, waitTimeout)

@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -235,7 +236,7 @@ func (k *KubeCtl) UpdatePod(pod *v1.Pod, namespace string) (*v1.Pod, error) {
 	return k.clientSet.CoreV1().Pods(namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 }
 
-func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]interface{}, subresources ...string) (*v1.Pod, error) {
+func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]any, subresources ...string) (*v1.Pod, error) {
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
 		return nil, err
@@ -251,7 +252,7 @@ func (k *KubeCtl) PatchPod(pod *v1.Pod, namespace string, patch []map[string]int
 }
 
 func (k *KubeCtl) ModifyResourceUsage(pod *v1.Pod, namespace string, newVcore int64, newMemory int64) (*v1.Pod, error) {
-	patch := []map[string]interface{}{
+	patch := []map[string]any{
 		{
 			"op":    "replace",
 			"path":  "/spec/containers/0/resources/requests/cpu",
@@ -986,10 +987,8 @@ func (k *KubeCtl) isPodNotInNS(podName string, namespace string) wait.ConditionF
 		if err != nil {
 			return false, err
 		}
-		for _, name := range podNames {
-			if podName == name {
-				return false, nil
-			}
+		if slices.Contains(podNames, podName) {
+			return false, nil
 		}
 		return true, nil
 	}
@@ -1002,10 +1001,8 @@ func (k *KubeCtl) isJobNotInNS(jobName string, namespace string) wait.ConditionF
 		if err != nil {
 			return false, err
 		}
-		for _, name := range jobNames {
-			if jobName == name {
-				return false, nil
-			}
+		if slices.Contains(jobNames, jobName) {
+			return false, nil
 		}
 		return true, nil
 	}

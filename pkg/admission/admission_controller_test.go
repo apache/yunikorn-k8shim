@@ -1204,28 +1204,28 @@ func schedulerName(t *testing.T, patch []byte) string {
 	return ""
 }
 
-func labels(t *testing.T, patch []byte) map[string]interface{} {
+func labels(t *testing.T, patch []byte) map[string]any {
 	ops := parsePatch(t, patch)
 	for _, op := range ops {
 		if op.Path == "/metadata/labels" {
-			val, ok := op.Value.(map[string]interface{})
+			val, ok := op.Value.(map[string]any)
 			assert.Assert(t, ok, "labels value is not a map")
 			return val
 		}
 	}
-	return make(map[string]interface{})
+	return make(map[string]any)
 }
 
-func annotationsFromDeployment(t *testing.T, patch []byte) map[string]interface{} {
+func annotationsFromDeployment(t *testing.T, patch []byte) map[string]any {
 	ops := parsePatch(t, patch)
 	for _, op := range ops {
 		if op.Path == "/spec/template/metadata/annotations" {
-			val, ok := op.Value.(map[string]interface{})
+			val, ok := op.Value.(map[string]any)
 			assert.Assert(t, ok, "annotations value is not a map")
 			return val
 		}
 	}
-	return make(map[string]interface{})
+	return make(map[string]any)
 }
 
 func TestShouldProcessNamespace(t *testing.T) {

@@ -1690,23 +1690,23 @@ func TestGetStateDump(t *testing.T) {
 
 	stateDumpStr, err := context.GetStateDump()
 	assert.NilError(t, err, "error during state dump")
-	var stateDump = make(map[string]interface{})
+	var stateDump = make(map[string]any)
 	err = json.Unmarshal([]byte(stateDumpStr), &stateDump)
 	assert.NilError(t, err, "unable to parse state dump")
 
 	cacheObj, ok := stateDump["cache"]
 	assert.Assert(t, ok, "cache not found")
-	cache, ok := cacheObj.(map[string]interface{})
+	cache, ok := cacheObj.(map[string]any)
 	assert.Assert(t, ok, "unable to cast cache")
 
 	podsObj, ok := cache["pods"]
 	assert.Assert(t, ok, "pods not found")
-	pods, ok := podsObj.(map[string]interface{})
+	pods, ok := podsObj.(map[string]any)
 	assert.Assert(t, ok, "unable to cast pods")
 
 	podObj, ok := pods["default/app00001"]
 	assert.Assert(t, ok, "pod not found")
-	pod, ok := podObj.(map[string]interface{})
+	pod, ok := podObj.(map[string]any)
 	assert.Assert(t, ok, "unable to cast pod")
 
 	uidObj, ok := pod["uid"]
@@ -2134,7 +2134,7 @@ func TestOrphanPodDelete(t *testing.T) {
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
 	var taskEventSent atomic.Bool
-	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, func(obj interface{}) {
+	dispatcher.RegisterEventHandler("TestTaskHandler", dispatcher.EventTypeTask, func(obj any) {
 		taskEventSent.Store(true)
 	})
 	var request *si.AllocationRequest
