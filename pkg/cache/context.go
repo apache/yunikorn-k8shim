@@ -116,24 +116,29 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 	csiManager := support.NewCSIManager(apis.GetAPIs().CSINodeInformer.Lister())
 
 	var sharedDRAManager *dynamicresources.DefaultDRAManager
-	if feature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
-		resourceClaimInformer := informerFactory.Resource().V1().ResourceClaims().Informer()
+	if apis.GetAPIs().IsFeatureEnabled(features.DynamicResourceAllocation) {
+		if !apis.GetAPIs().IsFeatureEnabled(features.DRAExtendedResource) {
+			err := feature.DefaultMutableFeatureGate.OverrideDefault(features.DRAExtendedResource, false)
+			if err != nil {
+				log.Log(log.ShimContext).Warn("unable to override the DRAExtendedResource feature to false", zap.Error(err))
+			}
+		}
+		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
-			EnableDeviceTaintRules: feature.DefaultFeatureGate.Enabled(features.DRADeviceTaints),
-			SliceInformer:          informerFactory.Resource().V1().ResourceSlices(),
-			TaintInformer:          informerFactory.Resource().V1().DeviceTaintRules()})
+			EnableDeviceTaintRules: apis.GetAPIs().IsFeatureEnabled(features.DRADeviceTaintRules),
+			SliceInformer:          apis.GetAPIs().ResourceSlicesInformer,
+			TaintInformer:          apis.GetAPIs().DeviceTaintsInformer})
 		if err != nil {
-			log.Log(log.ShimClient).Error("unable to create the resource slice tracker", zap.Error(err))
+			log.Log(log.ShimContext).Error("unable to create the resource slice tracker", zap.Error(err))
 			return nil
 		}
 		ctx.resourceSliceTracker = resourceSliceTracker
 		sharedDRAManager = dynamicresources.NewDRAManager(context.TODO(), resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
-
 	config, err := predicates.DefaultConfig()
 	if err != nil {
-		log.Log(log.ShimClient).Error("unable to create the predicates config", zap.Error(err))
+		log.Log(log.ShimContext).Error("unable to create the predicates config", zap.Error(err))
 	}
 	ctx.predManager = predicates.NewPredicateManager(support.NewFrameworkHandle(sharedLister, informerFactory, clientSet, csiManager, sharedDRAManager), plugins.NewInTreeRegistry(), config)
 	return ctx
