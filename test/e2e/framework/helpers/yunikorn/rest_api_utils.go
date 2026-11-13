@@ -51,7 +51,7 @@ type RClient struct {
 	httpClient *http.Client
 }
 
-func (c *RClient) newRequest(method, path string, body interface{}) (*http.Request, error) {
+func (c *RClient) newRequest(method, path string, body any) (*http.Request, error) {
 	rel := &url.URL{Path: path}
 	if c.BaseURL == nil {
 		c.BaseURL = &url.URL{Host: GetYKHost(),
@@ -83,7 +83,7 @@ func (c *RClient) newRequest(method, path string, body interface{}) (*http.Reque
 	req.Header.Set("User-Agent", c.UserAgent)
 	return req, nil
 }
-func (c *RClient) do(req *http.Request, v interface{}) (*http.Response, error) {
+func (c *RClient) do(req *http.Request, v any) (*http.Response, error) {
 	//nolint:gosec // safe to ignore as these are tests.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -442,15 +442,15 @@ func HasNegativeNodeResources(nodes []dao.NodeDAOInfo) bool {
 }
 
 func formatFailedHealthChecks(healthCheck dao.SchedulerHealthDAOInfo) string {
-	var failCheck string
+	var failCheck strings.Builder
 	if !healthCheck.Healthy {
 		for _, check := range healthCheck.HealthChecks {
 			if !check.Succeeded {
-				failCheck += fmt.Sprintln("Name:", check.Name, "Message:", check.DiagnosisMessage)
+				fmt.Fprintln(&failCheck, "Name:", check.Name, "Message:", check.DiagnosisMessage)
 			}
 		}
 	}
-	return failCheck
+	return failCheck.String()
 }
 
 func GetFailedHealthChecks() (string, error) {

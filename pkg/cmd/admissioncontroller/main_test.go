@@ -27,7 +27,7 @@ import (
 
 func TestWebhookStartupShutdownRace(t *testing.T) {
 	webhook := CreateWebhook(nil, 0)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		webhook.Startup(&tls.Certificate{})
 		assert.Assert(t, webhook.server != nil, "startup must set the server")
 		webhook.Shutdown()

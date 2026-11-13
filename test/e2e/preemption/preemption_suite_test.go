@@ -81,7 +81,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	// Extract node allocatable resources
 	for _, node := range nodes.Items {
 		// skip master if it's marked as such
-		node := node
 		if k8s.IsMasterNode(&node) || !k8s.IsComputeNode(&node) {
 			continue
 		}

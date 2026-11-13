@@ -969,7 +969,7 @@ var _ = Describe("Predicates", func() {
 		}()
 
 		port := int32(54321)
-		portMap := [][]interface{}{
+		portMap := [][]any{
 			{"127.0.0.1", v1.ProtocolTCP},
 			{"127.0.0.2", v1.ProtocolTCP},
 			{"127.0.0.2", v1.ProtocolUDP},

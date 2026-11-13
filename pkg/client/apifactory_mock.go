@@ -57,8 +57,8 @@ type operation int
 type informerEvent struct {
 	handlerType Type
 	op          operation
-	obj         interface{}
-	oldObj      interface{}
+	obj         any
+	oldObj      any
 }
 
 const (

@@ -501,7 +501,7 @@ var _ = ginkgo.Describe("Preemption", func() {
 
 func createSandbox1SleepPodCofigs(cnt, time int, queueName string) []k8s.SleepPodConfig {
 	sandbox1Configs := make([]k8s.SleepPodConfig, 0, cnt)
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		sandbox1Configs = append(sandbox1Configs, k8s.SleepPodConfig{Name: fmt.Sprintf("sleepjob%d", i+1), NS: dev, Mem: sleepPodMemLimit, Time: time, Optedout: k8s.Allow, Labels: map[string]string{"queue": queueName}})
 	}
 	return sandbox1Configs

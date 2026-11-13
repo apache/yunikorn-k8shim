@@ -91,7 +91,7 @@ func InitAdmissionController(conf *conf.AdmissionControllerConf, pcCache *Priori
 
 func parseRegexes(patterns string) ([]*regexp.Regexp, error) {
 	result := make([]*regexp.Regexp, 0)
-	for _, pattern := range strings.Split(patterns, ",") {
+	for pattern := range strings.SplitSeq(patterns, ",") {
 		pattern = strings.TrimSpace(pattern)
 		if len(pattern) == 0 {
 			continue

@@ -73,7 +73,7 @@ var _ = Describe("", func() {
 
 		// Submit pods to nodeA/nodeB to stabilize node order
 		padPct := []float64{0.2, 0.1}
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			// Determine memory padding amount
 			nodeName := sortedWorkerNodes[i].Name
 			nodeAvailMem := nodesAvailRes[nodeName][domRes]
