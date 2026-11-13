@@ -170,7 +170,7 @@ endif
 export PATH := $(BASE_DIR)/$(SHELLCHECK_PATH):$(PATH)
 
 # golangci-lint
-GOLANGCI_LINT_VERSION=2.10.1
+GOLANGCI_LINT_VERSION=2.14.0
 GOLANGCI_LINT_PATH=$(TOOLS_DIR)/golangci-lint-v$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_BIN=$(GOLANGCI_LINT_PATH)/golangci-lint
 GOLANGCI_LINT_ARCHIVEBASE=golangci-lint-$(GOLANGCI_LINT_VERSION)-$(OS)-$(EXEC_ARCH)
@@ -184,7 +184,7 @@ KUBECTL_BIN=$(KUBECTL_PATH)/kubectl
 export PATH := $(BASE_DIR)/$(KUBECTL_PATH):$(PATH)
 
 # kind
-KIND_VERSION=v0.32.0
+KIND_VERSION=v0.33.0
 KIND_PATH=$(TOOLS_DIR)/kind-$(KIND_VERSION)
 KIND_BIN=$(KIND_PATH)/kind
 export PATH := $(BASE_DIR)/$(KIND_PATH):$(PATH)
@@ -234,6 +234,19 @@ ifeq ($(REGISTRY),)
 REGISTRY := apache
 endif
 
+# Container engine used to build images. Can be overridden with DOCKER=podman.
+ifeq ($(DOCKER),)
+ifneq ($(shell command -v docker 2>/dev/null),)
+DOCKER := docker
+else
+DOCKER := podman
+endif
+endif
+
+ifeq ($(DOCKER),podman)
+export KIND_EXPERIMENTAL_PROVIDER := podman
+endif
+
 # Force Go modules even when checked out inside GOPATH
 GO111MODULE := on
 export GO111MODULE
@@ -259,6 +272,8 @@ print_kind_version:
 	@echo $(KIND_VERSION)
 print_helm_version:
 	@echo $(HELM_VERSION)
+print_docker:
+	@echo $(DOCKER)
 
 # Install tools
 tools: $(SHELLCHECK_BIN) $(GOLANGCI_LINT_BIN) $(KUBECTL_BIN) $(KIND_BIN) $(HELM_BIN) $(GO_LICENSES_BIN) $(GINKGO_BIN)
@@ -405,11 +420,12 @@ $(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY): go.mod go.sum $(shell find pkg)
 	@echo "building binary for scheduler docker image"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=${RELEASE_BIN_DIR}/${SCHEDULER_BINARY} \
 	-trimpath \
+	-buildvcs=false \
 	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH} -X ${FLAG_PREFIX}.coreSHA=${CORE_SHA} -X ${FLAG_PREFIX}.siSHA=${SI_SHA} -X ${FLAG_PREFIX}.shimSHA=${SHIM_SHA}' \
 	-tags netgo \
 	./pkg/cmd/shim/"
@@ -444,7 +460,7 @@ sched_image: $(OUTPUT)/third-party-licenses.md scheduler docker/scheduler
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(RELEASE_BIN_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -471,7 +487,7 @@ sched_image_instrumented: $(OUTPUT)/third-party-licenses.md scheduler_instrument
 	@cp -a "docker/scheduler/." "$(DOCKER_DIR)/scheduler/."
 	@cp "$(COVERAGE_DIR)/$(SCHEDULER_BINARY)" "$(DOCKER_DIR)/scheduler/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/scheduler/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/scheduler" \
 	-t "$(SCHEDULER_INSTRUMENTED_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -498,11 +514,12 @@ $(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY): go.mod go.sum $(shell find pk
 	@echo "building admission controller binary"
 	@mkdir -p "$(RELEASE_BIN_DIR)"
 ifeq ($(REPRO),1)
-	docker run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
+	$(DOCKER) run -t --rm=true --volume "$(DOCKER_BUILDROOT):/buildroot" "docker.io/library/golang:$(GO_REPRO_VERSION)" sh -c "cd $(DOCKER_SRCROOT) && \
 	CGO_ENABLED=0 GOOS=linux GOARCH=\"${EXEC_ARCH}\" go build \
 	-a \
 	-o=$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY) \
 	-trimpath \
+	-buildvcs=false \
 	-ldflags '-buildid= -extldflags \"-static\" -X ${FLAG_PREFIX}.buildVersion=${VERSION} -X ${FLAG_PREFIX}.buildDate=${DATE} -X ${FLAG_PREFIX}.goVersion=${GO_REPRO_VERSION} -X ${FLAG_PREFIX}.arch=${EXEC_ARCH}' \
 	-tags netgo \
 	./pkg/cmd/admissioncontroller"
@@ -524,7 +541,7 @@ adm_image: $(OUTPUT)/third-party-licenses.md admission docker/admission
 	@cp -a "docker/admission/." "$(DOCKER_DIR)/admission/."
 	@cp "$(RELEASE_BIN_DIR)/$(ADMISSION_CONTROLLER_BINARY)" "$(DOCKER_DIR)/admission/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/admission/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/admission" \
 	-t "$(ADMISSION_TAG)" \
 	--platform "linux/${DOCKER_ARCH}" \
@@ -555,7 +572,7 @@ webtest_image: $(OUTPUT)/third-party-licenses.md build_web_test_server_prod dock
 	@cp -a "docker/webtest/." "$(DOCKER_DIR)/webtest/."
 	@cp "$(RELEASE_BIN_DIR)/$(TEST_SERVER_BINARY)" "$(DOCKER_DIR)/webtest/."
 	@cp -a LICENSE NOTICE "$(OUTPUT)/third-party-licenses.md" "$(DOCKER_DIR)/webtest/."
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 	"$(DOCKER_DIR)/webtest" \
 	-t "${REGISTRY}/yunikorn:webtest-${DOCKER_ARCH}-${VERSION}" \
 	--label "yunikorn-e2e-web-image" \
@@ -590,7 +607,7 @@ test:
 	@echo "running unit tests"
 	@mkdir -p "$(OUTPUT)"
 	"$(GO)" clean -testcache
-	"$(GO)" test ./pkg/... -cover -race -tags deadlock -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
+	"$(GO)" test ./pkg/... -cover -race -coverprofile="$(OUTPUT)/coverage.txt" -covermode=atomic
 	"$(GO)" vet "$(REPO)"...
 
 # Run benchmarks
@@ -642,4 +659,4 @@ kind-e2e: $(KIND_BIN)
 e2e_test: tools
 	@echo "running e2e tests"
 	cd ./test/e2e && \
-	ginkgo -r $(E2E_TEST) -v -keep-going -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
+	ginkgo -r -v -keep-going $(E2E_TEST) -- -yk-namespace "yunikorn" -kube-config $(KUBECONFIG)
