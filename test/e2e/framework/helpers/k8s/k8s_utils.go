@@ -147,6 +147,8 @@ func (k *KubeCtl) SetClient() error {
 	if err != nil {
 		return err
 	}
+	k.kubeConfig.QPS = 100
+	k.kubeConfig.Burst = 200
 	k.clientSet, err = kubernetes.NewForConfig(k.kubeConfig)
 	return err
 }
