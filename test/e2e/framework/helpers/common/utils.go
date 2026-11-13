@@ -28,8 +28,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/configmanager"
@@ -95,7 +95,7 @@ func GetFileContents(filename string) ([]byte, error) {
 }
 
 func GetUUID() string {
-	return uuid.NewString()
+	return uuid.NewV4().String()
 }
 
 func RandSeq(n int) string {
