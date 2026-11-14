@@ -1184,6 +1184,7 @@ func TestRecoverTask(t *testing.T) {
 			assert.Equal(t, rt.allocationKey, tt.expectedAllocationKey)
 			assert.Equal(t, rt.pod.Name, tt.expectedPodName)
 			assert.Equal(t, rt.alias, fmt.Sprintf("%s/%s", podNamespace, tt.expectedPodName))
+			assert.Equal(t, rt.GetNodeName(), tt.expectedNodeName)
 		})
 	}
 }
