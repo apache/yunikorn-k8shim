@@ -72,9 +72,13 @@ var _ = ginkgo.Describe("", func() {
 	})
 
 	ginkgo.It("Verify_App_Rejected_Submit_ACL", func() {
+		ginkgo.By("Verify root." + restrictedQueue + " exists")
+		_, err := restClient.GetQueue(configmanager.DefaultPartition, "root."+restrictedQueue, false)
+		Ω(err).NotTo(HaveOccurred())
+
 		ginkgo.By("Submit a pod to root." + restrictedQueue + " which the user cannot submit to")
 		pod := createSleepPod("sleep-acl", "root."+restrictedQueue)
-		// an ACL denial shows up as a placement failure
+		// an ACL denial shows up as a placement failure, same as a missing queue
 		appInfo := verifyAppRejected(pod, "")
 		Ω(appInfo.RejectedMessage).To(gomega.ContainSubstring("no placement rule matched"))
 	})
@@ -105,6 +109,8 @@ var _ = ginkgo.Describe("", func() {
 		pod := createSleepPod("sleep-rejected", "root."+restrictedQueue)
 		rejected := verifyAppRejected(pod, "")
 
+		// the shim only drops the failed app on its next scheduling pass, a pod that arrives before that stays Pending
+		time.Sleep(2 * time.Second)
 		ginkgo.By("Resubmit the same application ID to root." + openQueue)
 		pod = createSleepPod("sleep-resubmitted", "root."+openQueue)
 		err := kClient.WaitForPodRunning(dev, pod.Name, 60*time.Second)
@@ -184,14 +190,17 @@ func verifyAppRejected(pod *v1.Pod, expectedQueue string) *dao.ApplicationDAOInf
 	Ω(err).NotTo(HaveOccurred())
 	events, err := kClient.GetEvents(dev)
 	Ω(err).NotTo(HaveOccurred())
+	found := false
 	for _, event := range events.Items {
 		if event.InvolvedObject.Name != pod.Name || event.Reason != appFailedEventReason {
 			continue
 		}
+		found = true
 		Ω(event.Type).To(gomega.Equal(v1.EventTypeWarning))
 		// other failures use the same reason, the message tells them apart
 		Ω(event.Message).To(gomega.ContainSubstring(constants.ApplicationRejectedFailure + ": " + failedPod.Status.Message))
 	}
+	Ω(found).To(gomega.BeTrue(), "no %s event found for pod %s", appFailedEventReason, pod.Name)
 
 	ginkgo.By("Wait for the application in the rejected list")
 	err = restClient.WaitForRejectedApp(configmanager.DefaultPartition, appID, 30)
