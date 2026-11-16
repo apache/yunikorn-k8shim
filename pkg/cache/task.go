@@ -716,10 +716,10 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 		// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
 		// even if AssumePodVolumes was never reached or already cleaned up internally.
 		task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
-
-		// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
-		task.context.ForgetPod(allocationKey)
 	}
+
+	// Safe if the pod was never assumed.
+	task.context.ForgetPod(allocationKey)
 
 	// Notify the core to roll back the allocation to a pending ask.
 	if schedulerAPI := task.context.apiProvider.GetAPIs().SchedulerAPI; schedulerAPI != nil {

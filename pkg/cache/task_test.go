@@ -968,7 +968,7 @@ func newRollbackTask(ctx *Context, allocationKey, nodeID string) *Task {
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	pod := &v1.Pod{
 		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
-		ObjectMeta: metav1.ObjectMeta{Name: "rollback-pod", UID: "rollback-uid"},
+		ObjectMeta: metav1.ObjectMeta{Name: "rollback-pod", UID: types.UID(allocationKey)},
 	}
 	task := NewTask(allocationKey, app, ctx, pod)
 	task.sm.SetState(TaskStates().Scheduling)
@@ -1114,12 +1114,19 @@ func TestRescheduleOnBindFailure_ClearsStateAndReschedules(t *testing.T) {
 	})
 
 	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	mockedContext.schedulerCache.UpdateNode(nodeForTest(fakeNodeName, "10G", "10"))
+	pod := task.GetTaskPod().DeepCopy()
+	pod.Spec.NodeName = fakeNodeName
+	mockedContext.schedulerCache.AssumePod(pod, true)
 	task.sm.SetState(TaskStates().Allocated)
 	task.rescheduleOnBindFailure(taskUID1, fakeNodeName, "PodBindFailure", "bind failed, it will be retried")
 
 	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should be back in Scheduling after bind failure")
 	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared")
 	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared")
+	assert.Assert(t, !mockedContext.schedulerCache.IsAssumedPod(taskUID1), "pod should not be assumed")
+	assert.Equal(t, "", mockedContext.schedulerCache.GetPod(taskUID1).Spec.NodeName, "pod nodeName should be cleared")
+	assert.Equal(t, 0, len(mockedContext.schedulerCache.GetNode(fakeNodeName).GetPods()), "node should not count the pod")
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 	assert.Assert(t, len(recorder.Events) >= 1, "a bind failure event should be posted")
 }
