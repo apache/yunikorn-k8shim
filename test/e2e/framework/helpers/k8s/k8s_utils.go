@@ -141,8 +141,8 @@ func expand(path string) (string, error) {
 }
 
 func (k *KubeCtl) SetClient() error {
-	var err error
-	if k.findKubeConfig() != nil {
+	err := k.findKubeConfig()
+	if err != nil {
 		return err
 	}
 	k.kubeConfig, err = clientcmd.BuildConfigFromFlags("", k.kubeConfigPath)

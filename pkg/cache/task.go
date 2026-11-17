@@ -384,9 +384,6 @@ func (task *Task) postTaskAllocated() {
 			if reschedule {
 				preBind := task.context.preBind(string(pod.UID), nodeName)
 				reschedule = preBind
-				if !reschedule {
-					task.context.unreserve(string(pod.UID), nodeName)
-				}
 				hasDRABindings = true
 			}
 			if !reschedule {
@@ -415,9 +412,6 @@ func (task *Task) postTaskAllocated() {
 			}, func() error {
 				return task.context.bindPodVolumes(pod)
 			}); err != nil {
-				if hasDRABindings {
-					task.context.unreserve(string(pod.UID), nodeName)
-				}
 				log.Log(log.ShimCacheTask).Error("bind volumes to pod failed after retries",
 					zap.String("taskID", task.taskID),
 					zap.Bool("hasDRABindings", hasDRABindings),
@@ -726,10 +720,10 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 		// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
 		// even if AssumePodVolumes was never reached or already cleaned up internally.
 		task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
-
-		// ForgetPod is idempotent: removes the pod from the assumed-pods cache.
-		task.context.ForgetPod(allocationKey)
 	}
+
+	// Safe if the pod was never assumed.
+	task.context.ForgetPod(allocationKey)
 
 	// Notify the core to roll back the allocation to a pending ask.
 	if schedulerAPI := task.context.apiProvider.GetAPIs().SchedulerAPI; schedulerAPI != nil {
@@ -774,6 +768,10 @@ func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, ev
 	task.nodeName = ""
 	task.lock.Unlock()
 
+	// Even a failed Reserve can leave pending allocations.
+	if len(podCopy.Spec.ResourceClaims) > 0 {
+		task.context.unreserve(string(podCopy.UID), nodeID)
+	}
 	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, eventReason, eventMsg)
 }
 

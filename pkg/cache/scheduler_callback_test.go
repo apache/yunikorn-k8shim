@@ -812,6 +812,7 @@ type mockPredicateManager struct {
 	failPreemptionFilter bool
 	failReserve          bool
 	failPreBind          bool
+	unreserveFn          func()
 }
 
 func NewMockPredicateManager(failPreFilter, failFilter, failPreemptionFilter, failReserve bool, failPreBind bool) *mockPredicateManager {
@@ -852,6 +853,9 @@ func (m *mockPredicateManager) PreBind(pod *v1.Pod, cycleState *framework.CycleS
 }
 
 func (m *mockPredicateManager) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
+	if m.unreserveFn != nil {
+		m.unreserveFn()
+	}
 }
 
 func (m *mockPredicateManager) PreemptionFilter(_ *v1.Pod, _ *framework.NodeInfo, _ *framework.CycleState, _ []*v1.Pod, _ int) (int, map[string]int32) {

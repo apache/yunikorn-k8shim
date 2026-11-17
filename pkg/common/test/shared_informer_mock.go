@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	apiresourcev1 "k8s.io/api/resource/v1"
+	v1 "k8s.io/client-go/informers/resource/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -35,13 +37,38 @@ var (
 	RunningInformers atomic.Int64
 
 	_ cache.SharedIndexInformer = &SharedInformerMock{}
+
+	_ cache.TypedSharedIndexInformer[*apiresourcev1.ResourceSlice]   = &TypedSharedIndexInformerMock{}
+	_ cache.TypedSharedIndexInformer[*apiresourcev1.DeviceTaintRule] = &TypedDeviceTaintInformerMock{}
 )
+
+type DoneCheckerMock struct {
+}
+
+func (*DoneCheckerMock) Name() string {
+	return "mock"
+}
+
+func (*DoneCheckerMock) Done() <-chan struct{} {
+	return nil
+}
+
+type ResourceEventHandlerRegistrationMock struct {
+}
+
+func (*ResourceEventHandlerRegistrationMock) HasSynced() bool {
+	return false
+}
+
+func (*ResourceEventHandlerRegistrationMock) HasSyncedChecker() cache.DoneChecker {
+	return &DoneCheckerMock{}
+}
 
 type SharedInformerMock struct {
 }
 
 func (s *SharedInformerMock) HasSyncedChecker() cache.DoneChecker {
-	return nil
+	return &DoneCheckerMock{}
 }
 
 func (s *SharedInformerMock) AddEventHandlerWithOptions(_ cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
@@ -107,4 +134,180 @@ func (s *SharedInformerMock) AddIndexers(_ cache.Indexers) error {
 
 func (s *SharedInformerMock) GetIndexer() cache.Indexer {
 	return nil
+}
+
+type TypedSharedIndexInformerMock struct {
+}
+
+func (s *TypedSharedIndexInformerMock) AddTypedEventHandler(_ cache.TypedResourceEventHandler[*apiresourcev1.ResourceSlice], _ ...cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	return &ResourceEventHandlerRegistrationMock{}, nil
+}
+
+func (s *TypedSharedIndexInformerMock) AddTypedIndexers(_ cache.TypedIndexers[*apiresourcev1.ResourceSlice]) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) GetTypedIndexer() cache.TypedIndexer[*apiresourcev1.ResourceSlice] {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) HasSyncedChecker() cache.DoneChecker {
+	return &DoneCheckerMock{}
+}
+
+func (s *TypedSharedIndexInformerMock) AddEventHandlerWithOptions(_ cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedSharedIndexInformerMock) RunWithContext(_ ctx.Context) {
+}
+
+func (s *TypedSharedIndexInformerMock) SetWatchErrorHandlerWithContext(_ cache.WatchErrorHandlerWithContext) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) AddEventHandler(_ cache.ResourceEventHandler) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedSharedIndexInformerMock) AddEventHandlerWithResyncPeriod(_ cache.ResourceEventHandler, _ time.Duration) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedSharedIndexInformerMock) RemoveEventHandler(handle cache.ResourceEventHandlerRegistration) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) GetStore() cache.Store {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) GetController() cache.Controller {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) Run(stopCh <-chan struct{}) {
+	RunningInformers.Add(1)
+	<-stopCh
+	RunningInformers.Add(-1)
+}
+
+func (s *TypedSharedIndexInformerMock) HasSynced() bool {
+	return SyncDone.Load()
+}
+
+func (s *TypedSharedIndexInformerMock) LastSyncResourceVersion() string {
+	return ""
+}
+
+func (s *TypedSharedIndexInformerMock) SetWatchErrorHandler(_ cache.WatchErrorHandler) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) SetTransform(_ cache.TransformFunc) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) IsStopped() bool {
+	return false
+}
+
+func (s *TypedSharedIndexInformerMock) AddIndexers(_ cache.Indexers) error {
+	return nil
+}
+
+func (s *TypedSharedIndexInformerMock) GetIndexer() cache.Indexer {
+	return nil
+}
+
+func MockNewTypedSharedIndexInformer() v1.ResourceSliceIndexInformer {
+	return &TypedSharedIndexInformerMock{}
+}
+
+type TypedDeviceTaintInformerMock struct {
+}
+
+func (s *TypedDeviceTaintInformerMock) AddTypedEventHandler(_ cache.TypedResourceEventHandler[*apiresourcev1.DeviceTaintRule], _ ...cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	return &ResourceEventHandlerRegistrationMock{}, nil
+}
+
+func (s *TypedDeviceTaintInformerMock) AddTypedIndexers(_ cache.TypedIndexers[*apiresourcev1.DeviceTaintRule]) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) GetTypedIndexer() cache.TypedIndexer[*apiresourcev1.DeviceTaintRule] {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) HasSyncedChecker() cache.DoneChecker {
+	return &DoneCheckerMock{}
+}
+
+func (s *TypedDeviceTaintInformerMock) AddEventHandlerWithOptions(_ cache.ResourceEventHandler, _ cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedDeviceTaintInformerMock) RunWithContext(_ ctx.Context) {
+}
+
+func (s *TypedDeviceTaintInformerMock) SetWatchErrorHandlerWithContext(_ cache.WatchErrorHandlerWithContext) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) AddEventHandler(_ cache.ResourceEventHandler) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedDeviceTaintInformerMock) AddEventHandlerWithResyncPeriod(_ cache.ResourceEventHandler, _ time.Duration) (cache.ResourceEventHandlerRegistration, error) {
+	return nil, nil
+}
+
+func (s *TypedDeviceTaintInformerMock) RemoveEventHandler(handle cache.ResourceEventHandlerRegistration) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) GetStore() cache.Store {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) GetController() cache.Controller {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) Run(stopCh <-chan struct{}) {
+	RunningInformers.Add(1)
+	<-stopCh
+	RunningInformers.Add(-1)
+}
+
+func (s *TypedDeviceTaintInformerMock) HasSynced() bool {
+	return SyncDone.Load()
+}
+
+func (s *TypedDeviceTaintInformerMock) LastSyncResourceVersion() string {
+	return ""
+}
+
+func (s *TypedDeviceTaintInformerMock) SetWatchErrorHandler(_ cache.WatchErrorHandler) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) SetTransform(_ cache.TransformFunc) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) IsStopped() bool {
+	return false
+}
+
+func (s *TypedDeviceTaintInformerMock) AddIndexers(_ cache.Indexers) error {
+	return nil
+}
+
+func (s *TypedDeviceTaintInformerMock) GetIndexer() cache.Indexer {
+	return nil
+}
+
+func MockNewTypedDeviceTainInformerMock() v1.DeviceTaintRuleIndexInformer {
+	return &TypedDeviceTaintInformerMock{}
 }

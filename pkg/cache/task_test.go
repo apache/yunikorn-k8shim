@@ -968,7 +968,7 @@ func newRollbackTask(ctx *Context, allocationKey, nodeID string) *Task {
 		ctx.apiProvider.GetAPIs().SchedulerAPI)
 	pod := &v1.Pod{
 		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
-		ObjectMeta: metav1.ObjectMeta{Name: "rollback-pod", UID: "rollback-uid"},
+		ObjectMeta: metav1.ObjectMeta{Name: "rollback-pod", UID: types.UID(allocationKey)},
 	}
 	task := NewTask(allocationKey, app, ctx, pod)
 	task.sm.SetState(TaskStates().Scheduling)
@@ -1114,12 +1114,19 @@ func TestRescheduleOnBindFailure_ClearsStateAndReschedules(t *testing.T) {
 	})
 
 	task := newRollbackTask(mockedContext, taskUID1, fakeNodeName)
+	mockedContext.schedulerCache.UpdateNode(nodeForTest(fakeNodeName, "10G", "10"))
+	pod := task.GetTaskPod().DeepCopy()
+	pod.Spec.NodeName = fakeNodeName
+	mockedContext.schedulerCache.AssumePod(pod, true)
 	task.sm.SetState(TaskStates().Allocated)
 	task.rescheduleOnBindFailure(taskUID1, fakeNodeName, "PodBindFailure", "bind failed, it will be retried")
 
 	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should be back in Scheduling after bind failure")
 	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared")
 	assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared")
+	assert.Assert(t, !mockedContext.schedulerCache.IsAssumedPod(taskUID1), "pod should not be assumed")
+	assert.Equal(t, "", mockedContext.schedulerCache.GetPod(taskUID1).Spec.NodeName, "pod nodeName should be cleared")
+	assert.Equal(t, 0, len(mockedContext.schedulerCache.GetNode(fakeNodeName).GetPods()), "node should not count the pod")
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 	assert.Assert(t, len(recorder.Events) >= 1, "a bind failure event should be posted")
 }
@@ -1199,8 +1206,8 @@ func TestPostTaskAllocated_BindExhaustedReschedules(t *testing.T) {
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 }
 
-// TestPostTaskAllocatedWithDRABindings verifies that when pod DRA binding keeps
-// failing, the allocation is rolled back and the task returns to Scheduling.
+// TestPostTaskAllocatedWithDRABindings verifies that when binding a DRA pod fails, the claims are
+// unreserved, the allocation is rolled back and the task returns to Scheduling.
 func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 	events.SetRecorder(events.NewMockedRecorder())
 	defer events.SetRecorder(events.NewMockedRecorder())
@@ -1212,11 +1219,13 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 		name             string
 		failReserve      bool
 		failPreBind      bool
+		failPodBind      bool
 		shouldReschedule bool
 	}{
-		{"success", false, false, false},
-		{"fail reserve", true, false, true},
-		{"fail prebind", false, true, true},
+		{"success", false, false, false, false},
+		{"fail reserve", true, false, false, true},
+		{"fail prebind", false, true, false, true},
+		{"fail pod bind", false, false, true, true},
 	}
 
 	for _, tt := range tests {
@@ -1240,7 +1249,13 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 			cache.UpdatePod(draTestPod)
 			cache.StoreCycleState(draTestPod, framework.NewCycleState())
 
-			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, NewMockPredicateManager(false, false, false, tt.failReserve, tt.failPreBind), cache)
+			pm := NewMockPredicateManager(false, false, false, tt.failReserve, tt.failPreBind)
+			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, pm, cache)
+			if tt.failPodBind {
+				apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
+					return fmt.Errorf("permanent bind error")
+				})
+			}
 
 			var rollbackSent atomic.Bool
 			if tt.shouldReschedule {
@@ -1259,18 +1274,43 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 				apiProvider.GetAPIs().SchedulerAPI)
 			task := NewTask(taskUID1, app, mockedContext, draTestPod)
 			task.sm.SetState(TaskStates().Scheduling)
+
+			var unreserved, unreservedLocked atomic.Int32
+			pm.unreserveFn = func() {
+				unreserved.Add(1)
+				// check from another goroutine, unreserve holds the context lock
+				free := make(chan struct{})
+				go func() {
+					task.lock.Lock()
+					close(free)
+					task.lock.Unlock()
+				}()
+				select {
+				case <-free:
+				case <-time.After(time.Second):
+					unreservedLocked.Add(1)
+				}
+			}
+
 			err := task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, taskUID1, fakeNodeName))
 			assert.NilError(t, err, "failed to handle AllocateTask event")
 			if tt.shouldReschedule {
 				err = utils.WaitForCondition(func() bool {
-					return task.GetTaskState() == TaskStates().Scheduling
+					return task.GetTaskState() == TaskStates().Scheduling && rollbackSent.Load()
 				}, 10*time.Millisecond, 3*time.Second)
 				assert.NilError(t, err, "task should be moved back to Scheduling after bind exhaustion")
 				assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
 				assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
 				assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
+				assert.Equal(t, int32(1), unreserved.Load(), "unreserve should be called once")
+				assert.Equal(t, int32(0), unreservedLocked.Load(), "unreserve should not run with the task lock held")
 			} else {
+				err = utils.WaitForCondition(func() bool {
+					return task.GetTaskSchedulingState() == TaskSchedAllocated
+				}, 10*time.Millisecond, 3*time.Second)
+				assert.NilError(t, err, "pod should be bound")
 				assert.Assert(t, !rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should not be sent")
+				assert.Equal(t, int32(0), unreserved.Load(), "unreserve should not be called")
 			}
 		})
 	}

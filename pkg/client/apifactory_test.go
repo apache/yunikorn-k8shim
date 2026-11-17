@@ -25,7 +25,7 @@ import (
 )
 
 func TestInformerTypes(t *testing.T) {
-	assert.Equal(t, 16, len(informerTypes), "wrong informerTypes length")
+	assert.Equal(t, 21, len(informerTypes), "wrong informerTypes length")
 
 	assert.Equal(t, "Pod", PodInformerHandlers.String())
 	assert.Equal(t, "Node", NodeInformerHandlers.String())
@@ -43,6 +43,11 @@ func TestInformerTypes(t *testing.T) {
 	assert.Equal(t, "ReplicaSet", ReplicaSetInformerHandlers.String())
 	assert.Equal(t, "StatefulSet", StatefulSetInformerHandlers.String())
 	assert.Equal(t, "VolumeAttachment", VolumeAttachmentInformerHandlers.String())
+	assert.Equal(t, "ResourceClaims", ResourceClaimsInformerHandlers.String())
+	assert.Equal(t, "ResourceClaimTemplates", ResourceClaimTemplatesInformerHandlers.String())
+	assert.Equal(t, "ResourceSlices", ResourceSlicesInformerHandlers.String())
+	assert.Equal(t, "DeviceTaints", DeviceTaintsInformerHandlers.String())
+	assert.Equal(t, "DeviceClasses", DeviceClassesInformerHandlers.String())
 }
 
 func TestMockedAPIProvider_GetPodBindStats(t *testing.T) {

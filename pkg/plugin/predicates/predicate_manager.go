@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -316,19 +317,6 @@ func EnableOptionalKubernetesFeatureGates() {
 }
 
 func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config *apiConfig.KubeSchedulerConfiguration) PredicateManager {
-	/*
-		Default K8S plugins as of 1.32 that implement PreFilter:
-			NodeAffinity
-			NodePorts
-			NodeResourcesFit
-			VolumeRestrictions
-			NodeVolumeLimits
-			VolumeBinding
-			VolumeZone
-			PodTopologySpread
-			InterPodAffinity
-	*/
-
 	// run only the simpler PreFilter plugins during reservation phase
 	reservationPreFilters := map[string]bool{
 		names.NodeAffinity:      true,
@@ -341,28 +329,6 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 		// VolumeBinding
 		// VolumeZone
 	}
-
-	// run all PreFilter plugins during allocation phase
-	allocationPreFilters := map[string]bool{
-		"*": true,
-	}
-
-	/*
-		Default K8S plugins as of 1.32 that implement Filter:
-		    NodeUnschedulable
-			NodeName
-			TaintToleration
-			NodeAffinity
-			NodePorts
-			NodeResourcesFit
-			VolumeRestrictions
-			NodeVolumeLimits
-			VolumeBinding
-			VolumeZone
-			PodTopologySpread
-			InterPodAffinity
-	*/
-
 	// run only the simpler Filter plugins during reservation phase
 	reservationFilters := map[string]bool{
 		names.NodeUnschedulable: true,
@@ -379,15 +345,41 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 		// VolumeZone
 	}
 
-	// run all Filter plugins during allocation phase
-	allocationFilters := map[string]bool{
-		"*": true,
-	}
-	rp := map[string]bool{
-		names.DynamicResources: true,
-	}
-	pbp := map[string]bool{
-		names.DynamicResources: true,
+	var allocationFilters map[string]bool
+	var allocationPreFilters map[string]bool
+	var rp map[string]bool
+	var pbp map[string]bool
+	s := reflect.ValueOf(handle.SharedDRAManager())
+	if s.Kind() == reflect.Pointer {
+		if !s.IsNil() {
+			allocationPreFilters = map[string]bool{
+				"*": true,
+			}
+			allocationFilters = allocationPreFilters
+			rp = map[string]bool{
+				names.DynamicResources: true,
+			}
+			pbp = rp
+		} else {
+			// Exclude DRA Plugin alone
+			allocationPreFilters = map[string]bool{
+				names.DeferredPodScheduling: true,
+				names.InterPodAffinity:      true,
+				names.NodeAffinity:          true,
+				names.NodeDeclaredFeatures:  true,
+				names.NodeName:              true,
+				names.NodePorts:             true,
+				names.NodeResourcesFit:      true,
+				names.NodeUnschedulable:     true,
+				names.NodeVolumeLimits:      true,
+				names.PodTopologySpread:     true,
+				names.TaintToleration:       true,
+				names.VolumeBinding:         true,
+				names.VolumeRestrictions:    true,
+				names.VolumeZone:            true,
+			}
+			allocationFilters = allocationPreFilters
+		}
 	}
 	return newPredicateManagerInternal(handle, registry, config, reservationPreFilters, allocationPreFilters, reservationFilters, allocationFilters, rp, pbp)
 }
