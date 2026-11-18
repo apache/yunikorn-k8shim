@@ -74,8 +74,10 @@ const (
 	CMSvcNodeInstanceTypeNodeLabelKey = PrefixService + "nodeInstanceTypeNodeLabelKey"
 
 	// kubernetes
-	CMKubeQPS   = PrefixKubernetes + "qps"
-	CMKubeBurst = PrefixKubernetes + "burst"
+	CMKubeQPS        = PrefixKubernetes + "qps"
+	CMKubeBurst      = PrefixKubernetes + "burst"
+	CMKubeEventQPS   = PrefixKubernetes + "eventQPS"
+	CMKubeEventLevel = PrefixKubernetes + "eventLevel"
 
 	// admissioncontroller
 	PrefixAMFiltering               = PrefixAdmissionController + "filtering."
@@ -94,7 +96,14 @@ const (
 	DefaultEnableConfigHotRefresh          = true
 	DefaultKubeQPS                         = 1000
 	DefaultKubeBurst                       = 1000
+	DefaultKubeEventQPS                    = 200 // budget for low-impact progress events: <= 0 means no budget
+	DefaultKubeEventLevel                  = EventLevelNormal
 	DefaultAMFilteringGenerateUniqueAppIds = false
+
+	// event levels, the value of CMKubeEventLevel: all events, or the Warning events only.
+	// They mirror the Kubernetes event types Normal and Warning.
+	EventLevelNormal  = "normal"
+	EventLevelWarning = "warning"
 )
 
 var (
@@ -124,6 +133,8 @@ type SchedulerConf struct {
 	DispatchTimeout          time.Duration      `json:"dispatchTimeout"`
 	KubeQPS                  int                `json:"kubeQPS"`
 	KubeBurst                int                `json:"kubeBurst"`
+	KubeEventQPS             int                `json:"kubeEventQPS"`
+	KubeEventLevel           string             `json:"kubeEventLevel"`
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
 	PlaceHolderConfig        *PlaceHolderConfig `json:"placeHolderConfig"`
@@ -157,6 +168,8 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		DispatchTimeout:          conf.DispatchTimeout,
 		KubeQPS:                  conf.KubeQPS,
 		KubeBurst:                conf.KubeBurst,
+		KubeEventQPS:             conf.KubeEventQPS,
+		KubeEventLevel:           conf.KubeEventLevel,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
 		PlaceHolderConfig:        conf.PlaceHolderConfig,
@@ -175,8 +188,14 @@ func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
 	// flatten configmap entries to single map
 	config := FlattenConfigMaps(configMaps)
 
+	// an unrecognised event level keeps the level in effect: the running one, at startup the default
+	keepLevel := DefaultKubeEventLevel
+	if !initial {
+		keepLevel = GetSchedulerConf().KubeEventLevel
+	}
+
 	// parse values from configmaps
-	newConf, cmErrors := parseConfig(config, prev)
+	newConf, cmErrors := parseConfig(config, prev, keepLevel)
 	if cmErrors != nil {
 		for _, err := range cmErrors {
 			log.Log(log.ShimConfig).Error("failed to parse configmap entry", zap.Error(err))
@@ -216,6 +235,7 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableDuration(CMSvcDispatchTimeout, &old.DispatchTimeout, &new.DispatchTimeout)
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
+	checkNonReloadableInt(CMKubeEventQPS, &old.KubeEventQPS, &new.KubeEventQPS)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
@@ -329,6 +349,8 @@ func CreateDefaultConfig() *SchedulerConf {
 		DispatchTimeout:          DefaultDispatchTimeout,
 		KubeQPS:                  DefaultKubeQPS,
 		KubeBurst:                DefaultKubeBurst,
+		KubeEventQPS:             DefaultKubeEventQPS,
+		KubeEventLevel:           DefaultKubeEventLevel,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
 		InstanceTypeNodeLabelKey: constants.DefaultNodeInstanceTypeNodeLabelKey,
@@ -339,7 +361,7 @@ func CreateDefaultConfig() *SchedulerConf {
 	}
 }
 
-func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf, []error) {
+func parseConfig(config map[string]string, prev *SchedulerConf, keepLevel string) (*SchedulerConf, []error) {
 	conf := prev.Clone()
 
 	if len(config) == 0 {
@@ -368,6 +390,8 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	// kubernetes
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
 	parser.intVar(&conf.KubeBurst, CMKubeBurst)
+	parser.intVar(&conf.KubeEventQPS, CMKubeEventQPS)
+	parser.stringVar(&conf.KubeEventLevel, CMKubeEventLevel)
 
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
@@ -375,6 +399,21 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	if len(parser.errors) > 0 {
 		return nil, parser.errors
 	}
+
+	// a bad event level must not reject the configmap: its other settings still apply
+	conf.KubeEventLevel = strings.ToLower(strings.TrimSpace(conf.KubeEventLevel))
+	switch conf.KubeEventLevel {
+	case EventLevelNormal, EventLevelWarning:
+	case "":
+		conf.KubeEventLevel = DefaultKubeEventLevel
+	default:
+		log.Log(log.ShimConfig).Warn("unknown event level, keeping the current level",
+			zap.String("key", CMKubeEventLevel),
+			zap.String("value", config[CMKubeEventLevel]),
+			zap.String("kept", keepLevel))
+		conf.KubeEventLevel = keepLevel
+	}
+
 	return conf, nil
 }
 

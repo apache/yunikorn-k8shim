@@ -24,6 +24,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,6 +34,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestUpdateStatusCancelledWhileAPIServerHangs(t *testing.T) {
@@ -140,4 +144,153 @@ func TestSchedulerKubeClientPlaceholderRequestsCancellation(t *testing.T) {
 			}
 		})
 	}
+}
+
+const testKubeConfig = `apiVersion: v1
+kind: Config
+clusters:
+- name: test
+  cluster:
+    server: https://localhost:6443
+contexts:
+- name: test
+  context:
+    cluster: test
+    user: test
+current-context: test
+users:
+- name: test
+  user: {}
+`
+
+func TestClientRateLimit(t *testing.T) {
+	testCases := []struct {
+		name          string
+		qps           int
+		burst         int
+		expectedQPS   float32
+		expectedBurst int
+	}{
+		{"negative is no limiter", -1, -1, -1, 0},
+		{"zero leaves the client-go defaults", 0, 0, 0, 0},
+		{"burst defaults to qps", 100, 0, 100, 100},
+		{"negative burst defaults to qps", 100, -1, 100, 100},
+		{"qps and burst", 100, 50, 100, 50},
+		{"burst is kept without a qps", -1, 50, -1, 50},
+		{"burst is kept on the client-go defaults", 0, 50, 0, 50},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			qps, burst := clientRateLimit(tc.qps, tc.burst)
+			assert.Equal(t, tc.expectedQPS, qps, "unexpected QPS")
+			assert.Equal(t, tc.expectedBurst, burst, "unexpected burst")
+		})
+	}
+}
+
+func TestNewRestConfig(t *testing.T) {
+	kc := writeKubeConfig(t)
+
+	testCases := []struct {
+		name    string
+		concern string
+		qps     int
+		burst   int
+	}{
+		{"unlimited", userAgentScheduler, -1, -1},
+		{"client-go defaults", userAgentBootstrap, 0, 0},
+		{"limited", userAgentEvents, 100, 200},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expectedQPS, expectedBurst := clientRateLimit(tc.qps, tc.burst)
+			config := newRestConfig(kc, tc.qps, tc.burst, tc.concern)
+			assert.Equal(t, tc.concern, config.UserAgent, "user agent not set to the concern")
+			// creating the limiter is always left to client-go: a negative QPS makes it
+			// create none, a QPS of 0 falls back to the client-go defaults
+			assert.Assert(t, config.RateLimiter == nil, "rate limiter must be left to client-go")
+			assert.Equal(t, expectedQPS, config.QPS, "QPS not normalised")
+			assert.Equal(t, expectedBurst, config.Burst, "burst not normalised")
+		})
+	}
+}
+
+// the default configuration gives the scheduler and the events clients a limiter each, with the
+// values the scheduler used before the clients were split
+func TestRestConfigDefaults(t *testing.T) {
+	kc := writeKubeConfig(t)
+	defaults := conf.CreateDefaultConfig()
+
+	scheduler := newRestConfig(kc, defaults.KubeQPS, defaults.KubeBurst, userAgentScheduler)
+	assert.Equal(t, float32(1000), scheduler.QPS)
+	assert.Equal(t, 1000, scheduler.Burst)
+
+	events := newEventsRestConfig(kc, defaults)
+	assert.Equal(t, userAgentEvents, events.UserAgent)
+	assert.Equal(t, float32(1000), events.QPS)
+	assert.Equal(t, 1000, events.Burst)
+}
+
+// the events client takes its limits from kubernetes.qps and kubernetes.burst
+func TestNewEventsRestConfig(t *testing.T) {
+	kc := writeKubeConfig(t)
+	testCases := []struct {
+		name          string
+		qps           int
+		burst         int
+		expectedQPS   float32
+		expectedBurst int
+	}{
+		{"qps and burst", 300, 500, 300, 500},
+		{"burst defaults to qps", 300, 0, 300, 300},
+		{"client-go defaults", 0, 0, 0, 0},
+		{"no limiter", -1, -1, -1, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			schedulerConf := conf.CreateDefaultConfig()
+			schedulerConf.KubeQPS = tc.qps
+			schedulerConf.KubeBurst = tc.burst
+			config := newEventsRestConfig(kc, schedulerConf)
+			assert.Equal(t, "yunikorn-scheduler/events", config.UserAgent)
+			assert.Assert(t, config.RateLimiter == nil, "rate limiter must be left to client-go")
+			assert.Equal(t, tc.expectedQPS, config.QPS)
+			assert.Equal(t, tc.expectedBurst, config.Burst)
+		})
+	}
+}
+
+// client-go must accept every configuration we generate, it rejects a QPS which is set
+// without a burst and a rejected configuration is fatal at startup
+func TestNewClientSetAcceptsRestConfig(t *testing.T) {
+	kc := writeKubeConfig(t)
+
+	testCases := []struct {
+		name  string
+		qps   int
+		burst int
+	}{
+		{"unlimited", 0, 0},
+		{"qps without burst", 100, 0},
+		{"qps and burst", 100, 200},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := kubernetes.NewForConfig(newRestConfig(kc, tc.qps, tc.burst, userAgentScheduler))
+			assert.NilError(t, err, "clientset creation failed")
+		})
+	}
+}
+
+// writeKubeConfig creates a kubeconfig file for a non existing cluster and returns its path
+func writeKubeConfig(t *testing.T) string {
+	t.Helper()
+	kc := filepath.Join(t.TempDir(), "kubeconfig")
+	err := os.WriteFile(kc, []byte(testKubeConfig), 0600)
+	assert.NilError(t, err, "could not write kubeconfig")
+	return kc
 }

@@ -238,7 +238,8 @@ func TestSetUnallocatedPodsToFailedWhenFailApplication(t *testing.T) {
 	mgr.Start()
 	defer mgr.Stop()
 
-	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	mockClient, ok := mockedAPIProvider.GetAPIs().KubeClient.(*client.KubeClientMock)
+	assert.Assert(t, ok, "expecting KubeClientMock")
 	context.apiProvider.GetAPIs().KubeClient = mockClient
 
 	ms := &mockSchedulerAPI{}
@@ -340,7 +341,8 @@ func TestSetUnallocatedPodsToFailedWhenRejectApplication(t *testing.T) {
 		return pod, nil
 	})
 
-	mockClient := mockedAPIProvider.GetAPIs().KubeClient
+	mockClient, ok := mockedAPIProvider.GetAPIs().KubeClient.(*client.KubeClientMock)
+	assert.Assert(t, ok, "expecting KubeClientMock")
 	context.apiProvider.GetAPIs().KubeClient = mockClient
 	mgr := NewPlaceholderManager(mockedAPIProvider.GetAPIs())
 	mgr.Start()
@@ -1135,7 +1137,8 @@ func TestOnReservingPlaceholderCreateFailure(t *testing.T) {
 			events.SetRecorder(recorder)
 			defer events.SetRecorder(events.NewMockedRecorder())
 
-			mockClient := mockedAPIProvider.GetAPIs().KubeClient
+			mockClient, ok := mockedAPIProvider.GetAPIs().KubeClient.(*client.KubeClientMock)
+			assert.Assert(t, ok, "expected a KubeClientMock")
 			pod, err := mockClient.Create(t.Context(), &v1.Pod{
 				TypeMeta:   apis.TypeMeta{Kind: "Pod", APIVersion: "v1"},
 				ObjectMeta: apis.ObjectMeta{Name: "pod-test-01", Namespace: "default", UID: "UID-01"},
