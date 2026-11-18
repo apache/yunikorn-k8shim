@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -82,6 +83,7 @@ type Context struct {
 	txnID                atomic.Uint64                  // transaction ID counter
 	klogger              klog.Logger
 	resourceSliceTracker *tracker.Tracker
+	changed              chan struct{}
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -104,6 +106,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
+		changed:      make(chan struct{}, 1),
 	}
 
 	// create the cache
@@ -247,8 +250,8 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			}
 		}
 
-		// if node is not cordoned, enable it in the core
-		if !node.Spec.Unschedulable {
+		// if node was registered in-line and is not cordoned, enable it in the core
+		if register && !node.Spec.Unschedulable {
 			if err := ctx.enableNode(node); err != nil {
 				log.Log(log.ShimContext).Warn("Failed to enable node", zap.Error(err))
 			}
@@ -987,6 +990,11 @@ func (ctx *Context) AssumePod(name, node string) error {
 		// race when some other go-routines accessing it in parallel.
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
 			assumedPod := pod.DeepCopy()
+			// a pod already bound to the node has no volumes to bind, and a failed check would roll back a running pod
+			if pod.Spec.NodeName == node {
+				ctx.schedulerCache.AssumePod(assumedPod, true)
+				return nil
+			}
 			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info
@@ -1644,6 +1652,10 @@ func (ctx *Context) InitializeState() error {
 		return err
 	}
 
+	// The core handles allocations and asks in order. Sending the existing allocations before the scheduling loop starts
+	// makes the core count the running applications before it starts any waiting one.
+	ctx.recoverAllocations()
+
 	// Step 4: Enable nodes. At this point all allocations and asks have been processed, so it is safe to allow the
 	// core to begin scheduling.
 	err = ctx.enableNodes(filterSchedulableNodes(acceptedNodes))
@@ -1885,6 +1897,78 @@ func (ctx *Context) enableNodes(nodes []*v1.Node) error {
 		return err
 	}
 	return nil
+}
+
+// recoverAllocations sends the allocations of the pods already bound to a node, once the core has accepted their
+// applications. It waits for the confirmations so the tasks are bound before the scheduling loop starts, which would
+// otherwise reserve again for a running gang application.
+func (ctx *Context) recoverAllocations() {
+	var apps []*Application
+	for _, app := range ctx.GetAllApplications() {
+		if len(app.recoverableTasks()) == 0 {
+			continue
+		}
+		if err := app.TriggerAppSubmission(); err == nil {
+			apps = append(apps, app)
+		}
+	}
+	ctx.waitForCore("applications to be accepted", len(apps), func(i int) (string, bool) {
+		return apps[i].GetApplicationID(), apps[i].GetApplicationState() == ApplicationStates().Submitted
+	})
+
+	var sent []*Task
+	for _, app := range apps {
+		if app.GetApplicationState() != ApplicationStates().Accepted {
+			continue
+		}
+		for _, task := range app.recoverableTasks() {
+			task.recoverAllocation()
+			sent = append(sent, task)
+		}
+	}
+	ctx.waitForCore("allocations to be confirmed", len(sent), func(i int) (string, bool) {
+		return sent[i].alias, sent[i].GetTaskState() == TaskStates().New
+	})
+}
+
+// waitForCore waits until no item is pending. An answer is final, so only the first item not answered yet is checked
+// again. It has no timeout because the core answers every new application and allocation, a rejection included.
+func (ctx *Context) waitForCore(what string, n int, pending func(i int) (string, bool)) {
+	start := time.Now()
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+	for i := 0; i < n; {
+		if _, waiting := pending(i); !waiting {
+			i++
+			continue
+		}
+		select {
+		case <-ctx.changed:
+		case <-tick.C:
+			var left []string
+			for j := i; j < n; j++ {
+				if id, waiting := pending(j); waiting {
+					left = append(left, id)
+				}
+			}
+			log.Log(log.ShimContext).Info("waiting for the core to answer recovery",
+				zap.String("waitingFor", what),
+				zap.Int("pending", len(left)),
+				zap.Strings("pendingIDs", left[:min(len(left), 10)]),
+				zap.Duration("waited", time.Since(start)))
+		}
+	}
+}
+
+// stateChanged wakes waitForCore. A wake-up already pending is enough.
+func (ctx *Context) stateChanged() {
+	if ctx == nil {
+		return
+	}
+	select {
+	case ctx.changed <- struct{}{}:
+	default:
+	}
 }
 
 func filterSchedulableNodes(nodes []*v1.Node) []*v1.Node {

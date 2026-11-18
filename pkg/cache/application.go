@@ -34,6 +34,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/events"
+	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
 	"github.com/apache/yunikorn-k8shim/pkg/locking"
@@ -561,6 +562,38 @@ func (app *Application) isPlaceholderTimeoutElapsed() bool {
 	}
 	elapsed := time.Since(time.Unix(createdAtSec, 0))
 	return elapsed >= time.Duration(app.placeholderTimeoutInSec)*time.Second
+}
+
+// recoverableTasks returns the new tasks of the pods already bound to a node, real tasks first. The core then runs the
+// application before its placeholders arrive, so their timeout releases them instead of failing the application.
+func (app *Application) recoverableTasks() []*Task {
+	var phs, tasks []*Task
+	for _, task := range app.GetNewTasks() {
+		if !utils.PodAlreadyBound(task.GetTaskPod()) {
+			continue
+		}
+		if task.IsPlaceholder() {
+			phs = append(phs, task)
+		} else {
+			tasks = append(tasks, task)
+		}
+	}
+	return append(tasks, phs...)
+}
+
+// onRunning triggered when entering the running state. A running application does not schedule placeholders, so the
+// pods of those never scheduled are deleted.
+func (app *Application) onRunning() {
+	for _, task := range app.taskMap {
+		if task.IsPlaceholder() && task.GetTaskState() == TaskStates().New && !utils.IsAssignedPod(task.GetTaskPod()) {
+			log.Log(log.ShimCacheApplication).Info("deleting placeholder that was never scheduled",
+				zap.String("appID", app.applicationID),
+				zap.String("taskID", task.taskID))
+			if err := task.DeleteTaskPod(); err != nil {
+				log.Log(log.ShimCacheApplication).Warn("failed to delete placeholder", zap.Error(err))
+			}
+		}
+	}
 }
 
 // onReserving triggered when entering the reserving state.

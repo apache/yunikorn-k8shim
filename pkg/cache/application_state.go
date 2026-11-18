@@ -458,6 +458,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 					zap.String("source", event.Src),
 					zap.String("destination", event.Dst),
 					zap.String("event", event.Event))
+				app.context.stateChanged()
 			},
 			states.Accepted: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -466,6 +467,10 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			states.Reserving: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.onReserving()
+			},
+			states.Running: func(_ context.Context, event *fsm.Event) {
+				app := event.Args[0].(*Application) //nolint:errcheck
+				app.onRunning()
 			},
 			states.Resuming: func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

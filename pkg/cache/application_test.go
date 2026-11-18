@@ -468,6 +468,31 @@ func TestReleaseAppAllocation(t *testing.T) {
 	assertAppState(t, app, ApplicationStates().Running, 3*time.Second)
 }
 
+// During recovery the core can release an expired placeholder before it confirms its allocation, so the release can
+// move the application to Running while that placeholder is still New on its node.
+func TestOnRunning(t *testing.T) {
+	ctx, api := initContextAndAPIProviderForTest()
+	var lock sync.Mutex
+	var deleted []string
+	api.MockDeleteFn(func(pod *v1.Pod) error {
+		lock.Lock()
+		defer lock.Unlock()
+		deleted = append(deleted, pod.Name)
+		return nil
+	})
+	app := NewApplication(appID, "root.a", "user", testGroups, map[string]string{}, newMockSchedulerAPI())
+	ctx.addApplicationToContext(app)
+	app.addTask(NewTaskPlaceholder("ph-recovered", app, ctx, newPodHelper("ph-recovered", "default", "ph-recovered", "node-1", appID, v1.PodRunning)))
+	app.addTask(NewTaskPlaceholder("ph-pending", app, ctx, newPodHelper("ph-pending", "default", "ph-pending", "", appID, v1.PodPending)))
+	app.SetState(ApplicationStates().Accepted)
+
+	assert.NilError(t, app.handle(NewReleaseAppAllocationEvent(appID, si.TerminationType_TIMEOUT, "ph-recovered")))
+	assert.Equal(t, app.GetApplicationState(), ApplicationStates().Running)
+	lock.Lock()
+	defer lock.Unlock()
+	assert.DeepEqual(t, deleted, []string{"ph-pending", "ph-recovered"})
+}
+
 func newMockSchedulerAPI() *mockSchedulerAPI {
 	return &mockSchedulerAPI{
 		registerFn: func(request *si.RegisterResourceManagerRequest, callback api.ResourceManagerCallback) (*si.RegisterResourceManagerResponse, error) {
