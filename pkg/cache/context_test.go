@@ -2054,7 +2054,7 @@ func TestInitializeState(t *testing.T) {
 		}
 		return nil
 	})
-	answerAsCore(t, context, apiProvider, true, 0)
+	answerAsCore(t, context, apiProvider, true, 0, "")
 
 	// add a preemption policy
 	policy := v1.PreemptLowerPriority
@@ -2202,7 +2202,7 @@ func TestInitializeStateDoesNotEnableCordonedNodes(t *testing.T) {
 }
 
 // answerAsCore answers through the callback as the core does, and returns what the shim sent and the core answered.
-func answerAsCore(t *testing.T, context *Context, apiProvider *client.MockedAPIProvider, accept bool, confirm time.Duration) func() []string {
+func answerAsCore(t *testing.T, context *Context, apiProvider *client.MockedAPIProvider, accept bool, confirm time.Duration, reject string) func() []string {
 	callback := NewAsyncRMCallback(context, t.Context())
 	var lock sync.Mutex
 	var history []string
@@ -2237,7 +2237,14 @@ func answerAsCore(t *testing.T, context *Context, apiProvider *client.MockedAPIP
 			record(alloc.AllocationKey)
 			go func(alloc *si.Allocation) {
 				time.Sleep(confirm)
-				assert.Check(t, callback.UpdateAllocation(&si.AllocationResponse{New: []*si.Allocation{alloc}}))
+				response := &si.AllocationResponse{New: []*si.Allocation{alloc}}
+				if alloc.AllocationKey == reject {
+					// answer last, so nothing else wakes the recovery wait
+					time.Sleep(100 * time.Millisecond)
+					response = &si.AllocationResponse{RejectedAllocations: []*si.RejectedAllocation{
+						{AllocationKey: alloc.AllocationKey, ApplicationID: alloc.ApplicationID}}}
+				}
+				assert.Check(t, callback.UpdateAllocation(response))
 			}(alloc)
 		}
 		return nil
@@ -2262,13 +2269,15 @@ func TestRecoverAllocations(t *testing.T) {
 		accept  bool
 		confirm time.Duration
 		pvc     string // pod using a PVC that does not exist
+		reject  string
 		history []string
 		bound   []string
 	}{
-		{"real allocations first", true, 0, "", recovered, all},
-		{"application rejected", false, 0, "", []string{"submit gang", "reject gang"}, nil},
-		{"missing PVC", true, 0, "exec-0", recovered, all},
-		{"slow confirmation", true, 200 * time.Millisecond, "", recovered, all},
+		{"real allocations first", true, 0, "", "", recovered, all},
+		{"application rejected", false, 0, "", "", []string{"submit gang", "reject gang"}, nil},
+		{"missing PVC", true, 0, "exec-0", "", recovered, all},
+		{"slow confirmation", true, 200 * time.Millisecond, "", "", recovered, all},
+		{"allocation rejected", true, 0, "", "exec-0", []string{"submit gang", "accept gang", "driver", "exec-0", "ph-exec-1", "release exec-0 STOPPED_BY_RM"}, []string{"driver", "ph-exec-1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2291,7 +2300,7 @@ func TestRecoverAllocations(t *testing.T) {
 				setVolumeBinder(context, binder)
 			}
 			context.addNode(nodeForTest(fakeNodeName, "10G", "10"))
-			history := answerAsCore(t, context, apiProvider, tt.accept, tt.confirm)
+			history := answerAsCore(t, context, apiProvider, tt.accept, tt.confirm, tt.reject)
 
 			created := time.Now()
 			for i, name := range []string{"driver", "exec-0", "ph-exec-1", "exec-1"} {
@@ -2316,21 +2325,114 @@ func TestRecoverAllocations(t *testing.T) {
 				context.AddPod(pod)
 			}
 
-			context.recoverAllocations()
+			done := make(chan struct{})
+			go func() {
+				context.recoverAllocations()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("recovery did not wake on an answer from the core")
+			}
 			bound := make(map[string]bool)
 			for _, name := range tt.bound {
 				bound[name] = true
 			}
 			for _, name := range []string{"driver", "exec-0", "ph-exec-1", "exec-1"} {
-				want := TaskStates().New
-				if bound[name] {
-					want = TaskStates().Bound
+				state := context.getTask("gang", name).GetTaskState()
+				switch {
+				case bound[name]:
+					assert.Equal(t, state, TaskStates().Bound, "task %s", name)
+				case name == tt.reject:
+					assert.Assert(t, state != TaskStates().New, "task %s is still waiting for the core", name)
+				default:
+					assert.Equal(t, state, TaskStates().New, "task %s", name)
 				}
-				assert.Equal(t, context.getTask("gang", name).GetTaskState(), want, "task %s", name)
 			}
+			// a rejected allocation is released after the task fails
+			err := utils.WaitForCondition(func() bool { return len(history()) >= len(tt.history) }, 10*time.Millisecond, 5*time.Second)
+			assert.NilError(t, err, "history %v", history())
 			assert.DeepEqual(t, history(), tt.history)
 		})
 	}
+}
+
+func TestWaitForCore(t *testing.T) {
+	wait := func(t *testing.T, ctx *Context, n int, pending func(i int) bool) {
+		done := make(chan struct{})
+		go func() {
+			ctx.waitForCore("test", n, func(i int) (string, bool) { return "", pending(i) })
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("waitForCore did not return")
+		}
+	}
+
+	t.Run("answers in any order", func(t *testing.T) {
+		ctx := initContextForTest()
+		var answered [3]atomic.Bool
+		var once sync.Once
+		checked := make(chan struct{})
+		go func() {
+			<-checked
+			for _, i := range []int{2, 0, 1} {
+				time.Sleep(10 * time.Millisecond)
+				answered[i].Store(true)
+				ctx.stateChanged()
+			}
+		}()
+		wait(t, ctx, len(answered), func(i int) bool {
+			pending := !answered[i].Load()
+			once.Do(func() { close(checked) })
+			return pending
+		})
+		for i := range answered {
+			assert.Assert(t, answered[i].Load(), "returned before %d was answered", i)
+		}
+	})
+	t.Run("state change during the check", func(t *testing.T) {
+		ctx := initContextForTest()
+		var answered [1000]bool
+		checks := 0
+		wait(t, ctx, len(answered), func(i int) bool {
+			checks++
+			if answered[i] {
+				return false
+			}
+			answered[i] = true
+			ctx.stateChanged()
+			return true
+		})
+		assert.Assert(t, checks <= 2*len(answered), "%d checks for %d items", checks, len(answered))
+	})
+}
+
+func TestStateChanged(t *testing.T) {
+	ctx := initContextForTest()
+	app := NewApplication(appID1, "root.a", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	app.setContext(ctx)
+	pod := newPodHelper("pod-1", Default, "pod-1", fakeNodeName, appID1, v1.PodRunning)
+	woken := func() bool {
+		select {
+		case <-ctx.changed:
+			return true
+		default:
+			return false
+		}
+	}
+
+	assert.NilError(t, app.handle(NewSubmitApplicationEvent(appID1)))
+	assert.Assert(t, woken(), "application event")
+	task := NewTask("task-1", app, ctx, pod)
+	assert.NilError(t, task.handle(NewSimpleTaskEvent(appID1, task.taskID, InitTask)))
+	assert.Assert(t, woken(), "task event")
+	task = NewTask("task-2", app, ctx, pod)
+	task.MarkPreviouslyAllocated("task-2", fakeNodeName)
+	assert.Assert(t, woken(), "recovered task bound")
 }
 
 func TestAssumePod_AlreadyBound(t *testing.T) {

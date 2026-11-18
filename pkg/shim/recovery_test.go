@@ -319,7 +319,10 @@ func TestRecoveryCoreStateAtInit(t *testing.T) {
 	cluster.apiProvider.Start()
 	defer cluster.stop()
 	assert.NilError(t, cluster.scheduler.registerShimLayer())
+	start := time.Now()
 	assert.NilError(t, cluster.scheduler.initSchedulerState())
+	// a missed wake-up waits for the 10s tick
+	assert.Check(t, time.Since(start) < 5*time.Second, "initialising the state took %v", time.Since(start))
 
 	calls := rec.get()
 	firstEnable := -1

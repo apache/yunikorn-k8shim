@@ -83,6 +83,7 @@ type Context struct {
 	txnID                atomic.Uint64                  // transaction ID counter
 	klogger              klog.Logger
 	resourceSliceTracker *tracker.Tracker
+	changed              chan struct{}
 }
 
 // NewContext create a new context for the scheduler using a default (empty) configuration
@@ -105,6 +106,7 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 		configMaps:   bootstrapConfigMaps,
 		lock:         &locking.RWMutex{},
 		klogger:      klog.NewKlogr(),
+		changed:      make(chan struct{}, 1),
 	}
 
 	// create the cache
@@ -1910,14 +1912,8 @@ func (ctx *Context) recoverAllocations() {
 			apps = append(apps, app)
 		}
 	}
-	waitForCore("applications to be accepted", func() []string {
-		var ids []string
-		for _, app := range apps {
-			if app.GetApplicationState() == ApplicationStates().Submitted {
-				ids = append(ids, app.GetApplicationID())
-			}
-		}
-		return ids
+	ctx.waitForCore("applications to be accepted", len(apps), func(i int) (string, bool) {
+		return apps[i].GetApplicationID(), apps[i].GetApplicationState() == ApplicationStates().Submitted
 	})
 
 	var sent []*Task
@@ -1930,32 +1926,48 @@ func (ctx *Context) recoverAllocations() {
 			sent = append(sent, task)
 		}
 	}
-	waitForCore("allocations to be confirmed", func() []string {
-		var pods []string
-		for _, task := range sent {
-			if task.GetTaskState() == TaskStates().New {
-				pods = append(pods, task.alias)
-			}
-		}
-		return pods
+	ctx.waitForCore("allocations to be confirmed", len(sent), func(i int) (string, bool) {
+		return sent[i].alias, sent[i].GetTaskState() == TaskStates().New
 	})
 }
 
-// waitForCore waits until pending returns nothing. It has no timeout because the core answers every new application
-// and allocation, a rejection included.
-func waitForCore(what string, pending func() []string) {
+// waitForCore waits until no item is pending. An answer is final, so only the first item not answered yet is checked
+// again. It has no timeout because the core answers every new application and allocation, a rejection included.
+func (ctx *Context) waitForCore(what string, n int, pending func(i int) (string, bool)) {
 	start := time.Now()
-	logged := start
-	for ids := pending(); len(ids) > 0; ids = pending() {
-		if time.Since(logged) >= 10*time.Second {
-			logged = time.Now()
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+	for i := 0; i < n; {
+		if _, waiting := pending(i); !waiting {
+			i++
+			continue
+		}
+		select {
+		case <-ctx.changed:
+		case <-tick.C:
+			var left []string
+			for j := i; j < n; j++ {
+				if id, waiting := pending(j); waiting {
+					left = append(left, id)
+				}
+			}
 			log.Log(log.ShimContext).Info("waiting for the core to answer recovery",
 				zap.String("waitingFor", what),
-				zap.Int("pending", len(ids)),
-				zap.Strings("pendingIDs", ids[:min(len(ids), 10)]),
+				zap.Int("pending", len(left)),
+				zap.Strings("pendingIDs", left[:min(len(left), 10)]),
 				zap.Duration("waited", time.Since(start)))
 		}
-		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// stateChanged wakes waitForCore. A wake-up already pending is enough.
+func (ctx *Context) stateChanged() {
+	if ctx == nil {
+		return
+	}
+	select {
+	case ctx.changed <- struct{}{}:
+	default:
 	}
 }
 

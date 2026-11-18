@@ -385,6 +385,7 @@ func callbacks(states *TStates) fsm.Callbacks {
 				zap.String("source", event.Src),
 				zap.String("destination", event.Dst),
 				zap.String("event", event.Event))
+			task.context.stateChanged()
 		},
 		states.Pending: func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck

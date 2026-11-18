@@ -264,6 +264,8 @@ func (task *Task) SetTaskSchedulingState(state TaskSchedulingState) {
 
 func (task *Task) MarkPreviouslyAllocated(allocationKey string, nodeID string) {
 	task.sm.SetState(TaskStates().Bound)
+	// SetState skips the state callbacks
+	task.context.stateChanged()
 	// only a reservation in progress needs the update, entering Reserving counts the bound placeholders itself
 	reserving := task.application.GetApplicationState() == ApplicationStates().Reserving
 	task.lock.Lock()
