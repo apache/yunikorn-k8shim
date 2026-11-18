@@ -78,18 +78,27 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	}
 	rmCallback, cancelCallbacks := newCallbackWithCancel(context)
 
-	// the sink sheds the events above the configured event rate
-	eventBroadcaster := k8events.NewBroadcaster(client.NewEventSink(configs.KubeConfig))
-	err = eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
+	sink := &k8events.EventSinkImpl{Interface: client.NewEventsClient(configs.KubeConfig).EventsV1()}
+	recorder, err := newEventRecorder(sink)
 	if err != nil {
 		log.Log(log.Shim).Error("Could not create event broadcaster",
 			zap.Error(err))
 	} else {
-		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
-		events.SetRecorder(events.NewLevelFilteredRecorder(eventRecorder))
+		events.SetRecorder(recorder)
 	}
 
 	return newShimSchedulerInternal(context, apiFactory, rmCallback, cancelCallbacks)
+}
+
+// newEventRecorder builds the recorder events are posted through: a broadcaster writing to the
+// sink, behind the event level filter and the event budget. Split out of NewShimScheduler so it
+// can be tested without a live Kubernetes client.
+func newEventRecorder(sink k8events.EventSink) (k8events.EventRecorder, error) {
+	eventBroadcaster := k8events.NewBroadcaster(sink)
+	if err := eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background()); err != nil {
+		return nil, err
+	}
+	return events.NewFilteredRecorder(eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)), nil
 }
 
 // newCallbackWithCancel builds the async RM callback used by the shim together

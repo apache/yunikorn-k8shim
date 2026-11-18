@@ -44,6 +44,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
 	"github.com/apache/yunikorn-k8shim/pkg/dispatcher"
+	"github.com/apache/yunikorn-k8shim/pkg/locking"
 	"github.com/apache/yunikorn-k8shim/pkg/log"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
@@ -2004,11 +2005,20 @@ type recordedEvent struct {
 
 // eventTypeRecorder records the type and the reason of every event it receives
 type eventTypeRecorder struct {
+	locking.Mutex
 	recorded []recordedEvent
 }
 
 func (r *eventTypeRecorder) Eventf(_ runtime.Object, _ runtime.Object, eventtype, reason, _, _ string, _ ...interface{}) {
+	r.Lock()
+	defer r.Unlock()
 	r.recorded = append(r.recorded, recordedEvent{eventType: eventtype, reason: reason})
+}
+
+func (r *eventTypeRecorder) events() []recordedEvent {
+	r.Lock()
+	defer r.Unlock()
+	return append([]recordedEvent(nil), r.recorded...)
 }
 
 // an unschedulable pod must be reported as a Warning: the type decides if the event survives the
@@ -2053,9 +2063,10 @@ func TestHandleContainerStateUpdateEventType(t *testing.T) {
 				Reason:        "reason",
 			})
 
-			assert.Equal(t, 1, len(recorder.recorded), "one event expected")
-			assert.Equal(t, "PodUnschedulable", recorder.recorded[0].reason, "unexpected event reason")
-			assert.Equal(t, v1.EventTypeWarning, recorder.recorded[0].eventType, "unexpected event type")
+			recorded := recorder.events()
+			assert.Equal(t, 1, len(recorded), "one event expected")
+			assert.Equal(t, "PodUnschedulable", recorded[0].reason, "unexpected event reason")
+			assert.Equal(t, v1.EventTypeWarning, recorded[0].eventType, "unexpected event type")
 		})
 	}
 }

@@ -76,7 +76,6 @@ const (
 	CMKubeQPS        = PrefixKubernetes + "qps"
 	CMKubeBurst      = PrefixKubernetes + "burst"
 	CMKubeEventQPS   = PrefixKubernetes + "eventQPS"
-	CMKubeEventBurst = PrefixKubernetes + "eventBurst"
 	CMKubeEventLevel = PrefixKubernetes + "eventLevel"
 
 	// admissioncontroller
@@ -94,10 +93,9 @@ const (
 	DefaultOperatorPlugins                 = "general"
 	DefaultDisableGangScheduling           = false
 	DefaultEnableConfigHotRefresh          = true
-	DefaultKubeQPS                         = -1 // client side write limiting is opt-in: <= 0 means no limiter
-	DefaultKubeBurst                       = -1
-	DefaultKubeEventQPS                    = 200 // events are discardable and limited by default: <= 0 means no limiter
-	DefaultKubeEventBurst                  = 400
+	DefaultKubeQPS                         = 1000
+	DefaultKubeBurst                       = 1000
+	DefaultKubeEventQPS                    = 200 // budget for low-impact progress events: <= 0 means no budget
 	DefaultKubeEventLevel                  = EventLevelNormal
 	DefaultAMFilteringGenerateUniqueAppIds = false
 
@@ -135,7 +133,6 @@ type SchedulerConf struct {
 	KubeQPS                  int                `json:"kubeQPS"`
 	KubeBurst                int                `json:"kubeBurst"`
 	KubeEventQPS             int                `json:"kubeEventQPS"`
-	KubeEventBurst           int                `json:"kubeEventBurst"`
 	KubeEventLevel           string             `json:"kubeEventLevel"`
 	EnableConfigHotRefresh   bool               `json:"enableConfigHotRefresh"`
 	DisableGangScheduling    bool               `json:"disableGangScheduling"`
@@ -171,7 +168,6 @@ func (conf *SchedulerConf) Clone() *SchedulerConf {
 		KubeQPS:                  conf.KubeQPS,
 		KubeBurst:                conf.KubeBurst,
 		KubeEventQPS:             conf.KubeEventQPS,
-		KubeEventBurst:           conf.KubeEventBurst,
 		KubeEventLevel:           conf.KubeEventLevel,
 		EnableConfigHotRefresh:   conf.EnableConfigHotRefresh,
 		DisableGangScheduling:    conf.DisableGangScheduling,
@@ -233,7 +229,6 @@ func handleNonReloadableConfig(old *SchedulerConf, new *SchedulerConf) {
 	checkNonReloadableInt(CMKubeQPS, &old.KubeQPS, &new.KubeQPS)
 	checkNonReloadableInt(CMKubeBurst, &old.KubeBurst, &new.KubeBurst)
 	checkNonReloadableInt(CMKubeEventQPS, &old.KubeEventQPS, &new.KubeEventQPS)
-	checkNonReloadableInt(CMKubeEventBurst, &old.KubeEventBurst, &new.KubeEventBurst)
 	checkNonReloadableBool(CMSvcDisableGangScheduling, &old.DisableGangScheduling, &new.DisableGangScheduling)
 	checkNonReloadableString(CMSvcNodeInstanceTypeNodeLabelKey, &old.InstanceTypeNodeLabelKey, &new.InstanceTypeNodeLabelKey)
 	checkNonReloadableBool(AMFilteringGenerateUniqueAppIds, &old.GenerateUniqueAppIds, &new.GenerateUniqueAppIds)
@@ -348,7 +343,6 @@ func CreateDefaultConfig() *SchedulerConf {
 		KubeQPS:                  DefaultKubeQPS,
 		KubeBurst:                DefaultKubeBurst,
 		KubeEventQPS:             DefaultKubeEventQPS,
-		KubeEventBurst:           DefaultKubeEventBurst,
 		KubeEventLevel:           DefaultKubeEventLevel,
 		EnableConfigHotRefresh:   DefaultEnableConfigHotRefresh,
 		DisableGangScheduling:    DefaultDisableGangScheduling,
@@ -390,21 +384,19 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	parser.intVar(&conf.KubeQPS, CMKubeQPS)
 	parser.intVar(&conf.KubeBurst, CMKubeBurst)
 	parser.intVar(&conf.KubeEventQPS, CMKubeEventQPS)
-	parser.intVar(&conf.KubeEventBurst, CMKubeEventBurst)
 	parser.stringVar(&conf.KubeEventLevel, CMKubeEventLevel)
 
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
 
-	// an unknown event level falls back to the default, it must not fail the configuration
+	// an unknown event level is rejected: it must never lower the level of a running scheduler
+	conf.KubeEventLevel = strings.ToLower(conf.KubeEventLevel)
 	switch conf.KubeEventLevel {
 	case EventLevelNormal, EventLevelWarning:
 	default:
-		log.Log(log.ShimConfig).Warn("unknown event level, using the default",
-			zap.String("key", CMKubeEventLevel),
-			zap.String("value", conf.KubeEventLevel),
-			zap.String("default", DefaultKubeEventLevel))
-		conf.KubeEventLevel = DefaultKubeEventLevel
+		err := fmt.Errorf("unknown event level %q, expected %s or %s", conf.KubeEventLevel, EventLevelNormal, EventLevelWarning)
+		log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", CMKubeEventLevel), zap.Error(err))
+		parser.errors = append(parser.errors, err)
 	}
 
 	if len(parser.errors) > 0 {

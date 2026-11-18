@@ -75,16 +75,7 @@ func assertDefaults(t *testing.T, conf *SchedulerConf) {
 	assert.Equal(t, conf.KubeQPS, DefaultKubeQPS)
 	assert.Equal(t, conf.KubeBurst, DefaultKubeBurst)
 	assert.Equal(t, conf.KubeEventQPS, DefaultKubeEventQPS)
-	assert.Equal(t, conf.KubeEventBurst, DefaultKubeEventBurst)
 	assert.Equal(t, conf.KubeEventLevel, DefaultKubeEventLevel)
-}
-
-// the write path is unlimited by default, events are limited: a value <= 0 means no limiter
-func TestKubeRateLimitDefaults(t *testing.T) {
-	assert.Equal(t, -1, DefaultKubeQPS)
-	assert.Equal(t, -1, DefaultKubeBurst)
-	assert.Equal(t, 200, DefaultKubeEventQPS)
-	assert.Equal(t, 400, DefaultKubeEventBurst)
 }
 
 func TestDecompress(t *testing.T) {
@@ -157,7 +148,6 @@ func TestParseConfigMap(t *testing.T) {
 		{CMKubeQPS, "KubeQPS", 2345},
 		{CMKubeBurst, "KubeBurst", 3456},
 		{CMKubeEventQPS, "KubeEventQPS", 4567},
-		{CMKubeEventBurst, "KubeEventBurst", 5678},
 		{CMKubeEventLevel, "KubeEventLevel", EventLevelWarning},
 	}
 
@@ -194,7 +184,6 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 		{CMKubeQPS, "KubeQPS", 2345, false},
 		{CMKubeBurst, "KubeBurst", 3456, false},
 		{CMKubeEventQPS, "KubeEventQPS", 4567, false},
-		{CMKubeEventBurst, "KubeEventBurst", 5678, false},
 		{CMKubeEventLevel, "KubeEventLevel", EventLevelWarning, true},
 	}
 
@@ -221,28 +210,52 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 	}
 }
 
-// an unknown event level must not fail the configuration, it falls back to the default
 func TestParseEventLevel(t *testing.T) {
 	testCases := []struct {
 		name     string
 		value    string
 		expected string
+		valid    bool
 	}{
-		{"normal", EventLevelNormal, EventLevelNormal},
-		{"warning", EventLevelWarning, EventLevelWarning},
-		{"none", "none", DefaultKubeEventLevel},
-		{"unknown", "verbose", DefaultKubeEventLevel},
+		{"normal", "normal", EventLevelNormal, true},
+		{"warning", "warning", EventLevelWarning, true},
+		{"capitalised", "Warning", EventLevelWarning, true},
+		{"upper case", "WARNING", EventLevelWarning, true},
+		{"none", "none", "", false},
+		{"unknown", "verbose", "", false},
+		{"empty", "", "", false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			prev := CreateDefaultConfig()
 			conf, errs := parseConfig(map[string]string{CMKubeEventLevel: tc.value}, prev)
+			if !tc.valid {
+				assert.Assert(t, conf == nil, "conf must not be returned for an invalid level")
+				assert.Equal(t, 1, len(errs), "one parse error expected")
+				return
+			}
 			assert.Assert(t, conf != nil, "conf was nil")
 			assert.Assert(t, errs == nil, errs)
 			assert.Equal(t, tc.expected, conf.KubeEventLevel, "unexpected event level")
 		})
 	}
+}
+
+// a rejected update must leave a running warning level in place
+func TestUpdateConfigMapInvalidEventLevel(t *testing.T) {
+	defer func() {
+		err := UpdateConfigMaps([]*v1.ConfigMap{nil, nil}, true)
+		assert.NilError(t, err, "failed to reset configmap")
+	}()
+
+	err := UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "Warning"}}}, true)
+	assert.NilError(t, err, "failed to set configmap")
+	assert.Equal(t, EventLevelWarning, GetSchedulerConf().KubeEventLevel)
+
+	err = UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "verbose"}}}, false)
+	assert.Assert(t, err != nil, "invalid event level must reject the update")
+	assert.Equal(t, EventLevelWarning, GetSchedulerConf().KubeEventLevel, "invalid level changed the running level")
 }
 
 func TestParseConfigMapWithUnknownKeyDoesNotFail(t *testing.T) {

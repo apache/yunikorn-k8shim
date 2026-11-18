@@ -663,9 +663,10 @@ func TestBeforeTaskFailEventType(t *testing.T) {
 	assert.NilError(t, err, "failed to handle FailTask event")
 	assert.Equal(t, task.GetTaskState(), TaskStates().Failed)
 
-	assert.Equal(t, 1, len(recorder.recorded), "one event expected")
-	assert.Equal(t, "TaskFailed", recorder.recorded[0].reason, "unexpected event reason")
-	assert.Equal(t, v1.EventTypeWarning, recorder.recorded[0].eventType, "unexpected event type")
+	recorded := recorder.events()
+	assert.Equal(t, 1, len(recorded), "one event expected")
+	assert.Equal(t, "TaskFailed", recorded[0].reason, "unexpected event reason")
+	assert.Equal(t, v1.EventTypeWarning, recorded[0].eventType, "unexpected event type")
 }
 
 func TestSimultaneousTaskCompleteAndAllocate(t *testing.T) {

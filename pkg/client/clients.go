@@ -39,10 +39,10 @@ import (
 //   - KubeClient carries the must-complete traffic: binds, pod create/delete, pod and status
 //     updates, the volume binder and the predicate handle, the configmap loads at
 //     registration, and the reads made in service of those writes (the get before a retried
-//     update). It also backs the informer factories. Its policy is the opt-in
+//     update). It also backs the informer factories. Its policy is the
 //     kubernetes.qps/burst cap.
-//   - events do not pass through it: the broadcaster writes through the shedding event sink
-//     on its own client, see NewEventSink.
+//   - events do not pass through it: the broadcaster writes through its own client, see
+//     NewEventsClient.
 type Clients struct {
 	// client apis
 	KubeClient   KubeClient

@@ -34,6 +34,8 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
 
 func TestUpdateStatusCancelledWhileAPIServerHangs(t *testing.T) {
@@ -169,7 +171,7 @@ func TestClientRateLimit(t *testing.T) {
 		expectedQPS   float32
 		expectedBurst int
 	}{
-		{"unset is no limiter", -1, -1, -1, 0},
+		{"negative is no limiter", -1, -1, -1, 0},
 		{"zero leaves the client-go defaults", 0, 0, 0, 0},
 		{"burst defaults to qps", 100, 0, 100, 100},
 		{"negative burst defaults to qps", 100, -1, 100, 100},
@@ -196,7 +198,7 @@ func TestNewRestConfig(t *testing.T) {
 		qps     int
 		burst   int
 	}{
-		{"unset", userAgentScheduler, -1, -1},
+		{"unlimited", userAgentScheduler, -1, -1},
 		{"client-go defaults", userAgentBootstrap, 0, 0},
 		{"limited", userAgentEvents, 100, 200},
 	}
@@ -211,6 +213,52 @@ func TestNewRestConfig(t *testing.T) {
 			assert.Assert(t, config.RateLimiter == nil, "rate limiter must be left to client-go")
 			assert.Equal(t, expectedQPS, config.QPS, "QPS not normalised")
 			assert.Equal(t, expectedBurst, config.Burst, "burst not normalised")
+		})
+	}
+}
+
+// the default configuration gives the scheduler and the events clients a limiter each, with the
+// values the scheduler used before the clients were split
+func TestRestConfigDefaults(t *testing.T) {
+	kc := writeKubeConfig(t)
+	defaults := conf.CreateDefaultConfig()
+
+	scheduler := newRestConfig(kc, defaults.KubeQPS, defaults.KubeBurst, userAgentScheduler)
+	assert.Equal(t, float32(1000), scheduler.QPS)
+	assert.Equal(t, 1000, scheduler.Burst)
+
+	events := newEventsRestConfig(kc, defaults)
+	assert.Equal(t, userAgentEvents, events.UserAgent)
+	assert.Equal(t, float32(1000), events.QPS)
+	assert.Equal(t, 1000, events.Burst)
+}
+
+// the events client takes its limits from kubernetes.qps and kubernetes.burst
+func TestNewEventsRestConfig(t *testing.T) {
+	kc := writeKubeConfig(t)
+	testCases := []struct {
+		name          string
+		qps           int
+		burst         int
+		expectedQPS   float32
+		expectedBurst int
+	}{
+		{"qps and burst", 300, 500, 300, 500},
+		{"burst defaults to qps", 300, 0, 300, 300},
+		{"client-go defaults", 0, 0, 0, 0},
+		{"no limiter", -1, -1, -1, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			schedulerConf := conf.CreateDefaultConfig()
+			schedulerConf.KubeQPS = tc.qps
+			schedulerConf.KubeBurst = tc.burst
+			config := newEventsRestConfig(kc, schedulerConf)
+			assert.Equal(t, "yunikorn-scheduler/events", config.UserAgent)
+			assert.Assert(t, config.RateLimiter == nil, "rate limiter must be left to client-go")
+			assert.Equal(t, tc.expectedQPS, config.QPS)
+			assert.Equal(t, tc.expectedBurst, config.Burst)
 		})
 	}
 }

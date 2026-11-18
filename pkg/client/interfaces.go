@@ -23,6 +23,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/apache/yunikorn-k8shim/pkg/conf"
 )
@@ -59,4 +60,17 @@ func NewKubeClient(kc string) KubeClient {
 // secret write.
 func NewAdmissionControllerKubeClient(kc string) KubeClient {
 	return newKubeClient(kc, 0, 0, userAgentAdmissionController)
+}
+
+// newEventsRestConfig creates the REST config of the events client. It has its own client
+// side limiter, built from the same kubernetes.qps and kubernetes.burst as the scheduler client,
+// so events do not take tokens away from the scheduling traffic.
+func newEventsRestConfig(kc string, schedulerConf *conf.SchedulerConf) *rest.Config {
+	return newRestConfig(kc, schedulerConf.KubeQPS, schedulerConf.KubeBurst, userAgentEvents)
+}
+
+// NewEventsClient creates the client the event broadcaster writes through. It must be created
+// after the configmaps are loaded.
+func NewEventsClient(kc string) kubernetes.Interface {
+	return newClientSetOrDie(newEventsRestConfig(kc, conf.GetSchedulerConf()))
 }

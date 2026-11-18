@@ -83,7 +83,7 @@ func newClientSetOrDie(config *rest.Config) *kubernetes.Clientset {
 
 // newKubeClient creates a client for a single concern. Beside the pod writes the scheduler
 // client also backs the volume binder and the predicate framework handle, so the configured
-// QPS and burst are an opt-in policy cap on those paths as well.
+// QPS and burst apply on those paths as well.
 // The QPS and burst are passed in by the caller: the values from the configuration singleton
 // can only be read after UpdateConfigMaps has run.
 func newKubeClient(kc string, qps, burst int, concern string) SchedulerKubeClient {
