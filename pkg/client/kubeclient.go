@@ -48,10 +48,9 @@ const (
 	userAgentAdmissionController = "yunikorn-admission-controller"
 )
 
-// clientRateLimit normalises the configured qps and burst into the values set on the REST
-// config. A negative qps creates no client side limiter, a qps of 0 gives client-go's default
-// rate (5 QPS) with the configured burst, or 10 if the burst is also 0. For a positive qps an
-// unset burst defaults to the qps.
+// clientRateLimit turns the configured qps and burst into REST config values: qps < 0 means
+// no client side limiter, qps 0 gives client-go's 5 QPS with the configured burst (10 if that
+// is also 0), and for qps > 0 a burst <= 0 defaults to the qps.
 func clientRateLimit(qps, burst int) (float32, int) {
 	if burst <= 0 {
 		burst = max(0, qps)

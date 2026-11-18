@@ -91,8 +91,8 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 }
 
 // newEventRecorder builds the recorder events are posted through: a broadcaster writing to the
-// sink, behind the event level filter and the event budget. Split out of NewShimScheduler so it
-// can be tested without a live Kubernetes client.
+// sink, behind the event level filter and the event budget. It records until stop is done; the
+// caller may Shutdown the returned broadcaster. Split out so it can be tested without a client.
 func newEventRecorder(stop ctx.Context, sink k8events.EventSink) (k8events.EventRecorder, k8events.EventBroadcaster, error) {
 	eventBroadcaster := k8events.NewBroadcaster(sink)
 	if err := eventBroadcaster.StartRecordingToSinkWithContext(stop); err != nil {

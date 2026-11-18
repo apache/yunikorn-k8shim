@@ -395,6 +395,10 @@ func parseConfig(config map[string]string, prev *SchedulerConf, keepLevel string
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
 
+	if len(parser.errors) > 0 {
+		return nil, parser.errors
+	}
+
 	// a bad event level must not reject the configmap: its other settings still apply
 	conf.KubeEventLevel = strings.ToLower(strings.TrimSpace(conf.KubeEventLevel))
 	switch conf.KubeEventLevel {
@@ -409,9 +413,6 @@ func parseConfig(config map[string]string, prev *SchedulerConf, keepLevel string
 		conf.KubeEventLevel = keepLevel
 	}
 
-	if len(parser.errors) > 0 {
-		return nil, parser.errors
-	}
 	return conf, nil
 }
 
