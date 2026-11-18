@@ -187,8 +187,14 @@ func UpdateConfigMaps(configMaps []*v1.ConfigMap, initial bool) error {
 	// flatten configmap entries to single map
 	config := FlattenConfigMaps(configMaps)
 
+	// an unrecognised event level keeps the level in effect: the running one, at startup the default
+	keepLevel := DefaultKubeEventLevel
+	if !initial {
+		keepLevel = GetSchedulerConf().KubeEventLevel
+	}
+
 	// parse values from configmaps
-	newConf, cmErrors := parseConfig(config, prev)
+	newConf, cmErrors := parseConfig(config, prev, keepLevel)
 	if cmErrors != nil {
 		for _, err := range cmErrors {
 			log.Log(log.ShimConfig).Error("failed to parse configmap entry", zap.Error(err))
@@ -354,7 +360,7 @@ func CreateDefaultConfig() *SchedulerConf {
 	}
 }
 
-func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf, []error) {
+func parseConfig(config map[string]string, prev *SchedulerConf, keepLevel string) (*SchedulerConf, []error) {
 	conf := prev.Clone()
 
 	if len(config) == 0 {
@@ -389,14 +395,18 @@ func parseConfig(config map[string]string, prev *SchedulerConf) (*SchedulerConf,
 	// admission controller
 	parser.boolVar(&conf.GenerateUniqueAppIds, AMFilteringGenerateUniqueAppIds)
 
-	// an unknown event level is rejected: it must never lower the level of a running scheduler
-	conf.KubeEventLevel = strings.ToLower(conf.KubeEventLevel)
+	// a bad event level must not reject the configmap: its other settings still apply
+	conf.KubeEventLevel = strings.ToLower(strings.TrimSpace(conf.KubeEventLevel))
 	switch conf.KubeEventLevel {
 	case EventLevelNormal, EventLevelWarning:
+	case "":
+		conf.KubeEventLevel = DefaultKubeEventLevel
 	default:
-		err := fmt.Errorf("unknown event level %q, expected %s or %s", conf.KubeEventLevel, EventLevelNormal, EventLevelWarning)
-		log.Log(log.ShimConfig).Error("Unable to parse configmap entry", zap.String("key", CMKubeEventLevel), zap.Error(err))
-		parser.errors = append(parser.errors, err)
+		log.Log(log.ShimConfig).Warn("unknown event level, keeping the current level",
+			zap.String("key", CMKubeEventLevel),
+			zap.String("value", config[CMKubeEventLevel]),
+			zap.String("kept", keepLevel))
+		conf.KubeEventLevel = keepLevel
 	}
 
 	if len(parser.errors) > 0 {

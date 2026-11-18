@@ -49,8 +49,8 @@ const (
 )
 
 // clientRateLimit normalises the configured qps and burst into the values set on the REST
-// config. A negative qps creates no client side limiter, a qps of 0 leaves client-go on its
-// defaults (5 QPS / 10 burst). For a positive qps client-go requires a positive burst, so an
+// config. A negative qps creates no client side limiter, a qps of 0 gives client-go's default
+// rate (5 QPS) with the configured burst, or 10 if the burst is also 0. For a positive qps an
 // unset burst defaults to the qps.
 func clientRateLimit(qps, burst int) (float32, int) {
 	if burst <= 0 {
@@ -81,11 +81,8 @@ func newClientSetOrDie(config *rest.Config) *kubernetes.Clientset {
 	return configuredClient
 }
 
-// newKubeClient creates a client for a single concern. Beside the pod writes the scheduler
-// client also backs the volume binder and the predicate framework handle, so the configured
-// QPS and burst apply on those paths as well.
-// The QPS and burst are passed in by the caller: the values from the configuration singleton
-// can only be read after UpdateConfigMaps has run.
+// newKubeClient creates a client for a single concern. The caller passes qps and burst: the
+// configuration singleton is only populated after UpdateConfigMaps has run.
 func newKubeClient(kc string, qps, burst int, concern string) SchedulerKubeClient {
 	return SchedulerKubeClient{
 		clientSet: newClientSetOrDie(newRestConfig(kc, qps, burst, concern)),

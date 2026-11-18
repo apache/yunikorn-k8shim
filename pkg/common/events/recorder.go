@@ -76,10 +76,9 @@ type filteredRecorder struct {
 	lastLogged atomic.Int64 // unix nanoseconds
 }
 
-// NewFilteredRecorder wraps a recorder and drops the events below the configured
-// kubernetes.eventLevel. The budgeted events are shed above kubernetes.eventQPS, with a burst
-// of twice that, a value <= 0 turns the budget off. A suppressed or shed event is never cached
-// or written.
+// NewFilteredRecorder drops the events below kubernetes.eventLevel and sheds the budgeted
+// events above kubernetes.eventQPS (burst twice that, <= 0 turns the budget off). A dropped
+// or shed event is never cached or written.
 func NewFilteredRecorder(inner events.EventRecorder) events.EventRecorder {
 	return newFilteredRecorder(inner, conf.GetSchedulerConf().KubeEventQPS, clock.RealClock{})
 }

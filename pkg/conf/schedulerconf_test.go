@@ -154,7 +154,7 @@ func TestParseConfigMap(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			prev := CreateDefaultConfig()
-			conf, errs := parseConfig(map[string]string{tc.name: fmt.Sprintf("%v", tc.value)}, prev)
+			conf, errs := parseConfig(map[string]string{tc.name: fmt.Sprintf("%v", tc.value)}, prev, DefaultKubeEventLevel)
 			assert.Assert(t, conf != nil, "conf was nil")
 			assert.Assert(t, errs == nil, errs)
 			assert.Equal(t, tc.value, getConfValue(t, conf, tc.field))
@@ -214,27 +214,23 @@ func TestParseEventLevel(t *testing.T) {
 	testCases := []struct {
 		name     string
 		value    string
+		keep     string
 		expected string
-		valid    bool
 	}{
-		{"normal", "normal", EventLevelNormal, true},
-		{"warning", "warning", EventLevelWarning, true},
-		{"capitalised", "Warning", EventLevelWarning, true},
-		{"upper case", "WARNING", EventLevelWarning, true},
-		{"none", "none", "", false},
-		{"unknown", "verbose", "", false},
-		{"empty", "", "", false},
+		{"normal", "normal", EventLevelNormal, EventLevelNormal},
+		{"warning", "warning", EventLevelNormal, EventLevelWarning},
+		{"capitalised", "Warning", EventLevelNormal, EventLevelWarning},
+		{"upper case", "WARNING", EventLevelNormal, EventLevelWarning},
+		{"padded", " warning ", EventLevelNormal, EventLevelWarning},
+		{"empty", "", EventLevelWarning, EventLevelNormal},
+		{"blank", "  ", EventLevelWarning, EventLevelNormal},
+		{"unknown keeps level", "warnings", EventLevelWarning, EventLevelWarning},
+		{"unknown keeps default", "verbose", EventLevelNormal, EventLevelNormal},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			prev := CreateDefaultConfig()
-			conf, errs := parseConfig(map[string]string{CMKubeEventLevel: tc.value}, prev)
-			if !tc.valid {
-				assert.Assert(t, conf == nil, "conf must not be returned for an invalid level")
-				assert.Equal(t, 1, len(errs), "one parse error expected")
-				return
-			}
+			conf, errs := parseConfig(map[string]string{CMKubeEventLevel: tc.value}, CreateDefaultConfig(), tc.keep)
 			assert.Assert(t, conf != nil, "conf was nil")
 			assert.Assert(t, errs == nil, errs)
 			assert.Equal(t, tc.expected, conf.KubeEventLevel, "unexpected event level")
@@ -242,7 +238,7 @@ func TestParseEventLevel(t *testing.T) {
 	}
 }
 
-// a rejected update must leave a running warning level in place
+// a bad level keeps the running one and must not drop the rest of the update
 func TestUpdateConfigMapInvalidEventLevel(t *testing.T) {
 	defer func() {
 		err := UpdateConfigMaps([]*v1.ConfigMap{nil, nil}, true)
@@ -252,22 +248,43 @@ func TestUpdateConfigMapInvalidEventLevel(t *testing.T) {
 	err := UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "Warning"}}}, true)
 	assert.NilError(t, err, "failed to set configmap")
 	assert.Equal(t, EventLevelWarning, GetSchedulerConf().KubeEventLevel)
+	assert.Assert(t, GetSchedulerConf().EnableConfigHotRefresh)
 
-	err = UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "verbose"}}}, false)
-	assert.Assert(t, err != nil, "invalid event level must reject the update")
+	err = UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{
+		CMKubeEventLevel:            "warnings",
+		CMSvcEnableConfigHotRefresh: "false",
+	}}}, false)
+	assert.NilError(t, err, "invalid event level must not reject the update")
 	assert.Equal(t, EventLevelWarning, GetSchedulerConf().KubeEventLevel, "invalid level changed the running level")
+	assert.Assert(t, !GetSchedulerConf().EnableConfigHotRefresh, "other keys of the update were not applied")
+}
+
+// at startup there is no running level: a bad one gives the default
+func TestUpdateConfigMapInvalidEventLevelAtStartup(t *testing.T) {
+	defer func() {
+		err := UpdateConfigMaps([]*v1.ConfigMap{nil, nil}, true)
+		assert.NilError(t, err, "failed to reset configmap")
+	}()
+
+	err := UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "warning"}}}, true)
+	assert.NilError(t, err, "failed to set configmap")
+	assert.Equal(t, EventLevelWarning, GetSchedulerConf().KubeEventLevel)
+
+	err = UpdateConfigMaps([]*v1.ConfigMap{nil, {Data: map[string]string{CMKubeEventLevel: "warnings"}}}, true)
+	assert.NilError(t, err, "invalid event level must not fail startup")
+	assert.Equal(t, EventLevelNormal, GetSchedulerConf().KubeEventLevel)
 }
 
 func TestParseConfigMapWithUnknownKeyDoesNotFail(t *testing.T) {
 	prev := CreateDefaultConfig()
-	conf, errs := parseConfig(map[string]string{"key": "value"}, prev)
+	conf, errs := parseConfig(map[string]string{"key": "value"}, prev, DefaultKubeEventLevel)
 	assert.Assert(t, conf != nil)
 	assert.Assert(t, errs == nil, errs)
 }
 
 func TestParseConfigMapWithInvalidInt(t *testing.T) {
 	prev := CreateDefaultConfig()
-	conf, errs := parseConfig(map[string]string{CMSvcEventChannelCapacity: "x"}, prev)
+	conf, errs := parseConfig(map[string]string{CMSvcEventChannelCapacity: "x"}, prev, DefaultKubeEventLevel)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
@@ -275,7 +292,7 @@ func TestParseConfigMapWithInvalidInt(t *testing.T) {
 
 func TestParseConfigMapWithInvalidBool(t *testing.T) {
 	prev := CreateDefaultConfig()
-	conf, errs := parseConfig(map[string]string{CMSvcEnableConfigHotRefresh: "x"}, prev)
+	conf, errs := parseConfig(map[string]string{CMSvcEnableConfigHotRefresh: "x"}, prev, DefaultKubeEventLevel)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
@@ -283,7 +300,7 @@ func TestParseConfigMapWithInvalidBool(t *testing.T) {
 
 func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 	prev := CreateDefaultConfig()
-	conf, errs := parseConfig(map[string]string{CMSvcSchedulingInterval: "x"}, prev)
+	conf, errs := parseConfig(map[string]string{CMSvcSchedulingInterval: "x"}, prev, DefaultKubeEventLevel)
 	assert.Assert(t, conf == nil, "conf exists")
 	assert.Equal(t, 1, len(errs), "wrong error count")
 	assert.ErrorContains(t, errs[0], "invalid duration", "wrong error type")
@@ -291,7 +308,7 @@ func TestParseConfigMapWithInvalidDuration(t *testing.T) {
 
 func TestParseConfigMapWithInvalidInt64(t *testing.T) {
 	prev := CreateDefaultConfig()
-	conf, errs := parseConfig(map[string]string{CMSvcPlaceholderRunAsUser: "x"}, prev)
+	conf, errs := parseConfig(map[string]string{CMSvcPlaceholderRunAsUser: "x"}, prev, DefaultKubeEventLevel)
 	assert.Assert(t, conf == nil, "Conf parsing failed")
 	assert.Equal(t, 1, len(errs), "1 Error for parsing invalid runAsUser")
 	assert.ErrorContains(t, errs[0], "invalid syntax", "wrong error type")
