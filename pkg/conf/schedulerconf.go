@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -506,9 +507,7 @@ func FlattenConfigMaps(configMaps []*v1.ConfigMap) map[string]string {
 	result := make(map[string]string)
 	for _, configMap := range configMaps {
 		if configMap != nil {
-			for k, v := range configMap.Data {
-				result[k] = v
-			}
+			maps.Copy(result, configMap.Data)
 			for k, v := range configMap.BinaryData {
 				strippedKey, uncompressedData := Decompress(k, v)
 				result[strippedKey] = uncompressedData

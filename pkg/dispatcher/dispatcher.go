@@ -49,7 +49,7 @@ const (
 type Dispatcher struct {
 	eventChan chan events.SchedulingEvent
 	stopChan  chan struct{}
-	handlers  map[EventType]map[string]func(interface{})
+	handlers  map[EventType]map[string]func(any)
 	running   atomic.Bool
 	lock      locking.RWMutex
 	stopped   sync.WaitGroup
@@ -64,7 +64,7 @@ func initDispatcher() {
 	eventChannelCapacity := conf.GetSchedulerConf().EventChannelCapacity
 	dispatcher = &Dispatcher{
 		eventChan: make(chan events.SchedulingEvent, eventChannelCapacity),
-		handlers:  make(map[EventType]map[string]func(interface{})),
+		handlers:  make(map[EventType]map[string]func(any)),
 		stopChan:  make(chan struct{}),
 		lock:      locking.RWMutex{},
 
@@ -80,12 +80,12 @@ func initDispatcher() {
 		zap.Float64("DispatchTimeoutInSeconds", dispatcher.dispatchTimeout.Seconds()))
 }
 
-func RegisterEventHandler(handlerID string, eventType EventType, handlerFn func(interface{})) {
+func RegisterEventHandler(handlerID string, eventType EventType, handlerFn func(any)) {
 	eventDispatcher := getDispatcher()
 	eventDispatcher.lock.Lock()
 	defer eventDispatcher.lock.Unlock()
 	if _, ok := eventDispatcher.handlers[eventType]; !ok {
-		eventDispatcher.handlers[eventType] = make(map[string]func(interface{}))
+		eventDispatcher.handlers[eventType] = make(map[string]func(any))
 	}
 	eventDispatcher.handlers[eventType][handlerID] = handlerFn
 }
@@ -106,20 +106,20 @@ func UnregisterAllEventHandlers() {
 	eventDispatcher := getDispatcher()
 	eventDispatcher.lock.Lock()
 	defer eventDispatcher.lock.Unlock()
-	eventDispatcher.handlers = make(map[EventType]map[string]func(interface{}))
+	eventDispatcher.handlers = make(map[EventType]map[string]func(any))
 }
 
 // a thread-safe way to get event handlers
-func getEventHandler(eventType EventType) func(interface{}) {
+func getEventHandler(eventType EventType) func(any) {
 	eventDispatcher := getDispatcher()
 	eventDispatcher.lock.RLock()
 	defer eventDispatcher.lock.RUnlock()
 
-	handlers := make([]func(interface{}), 0)
+	handlers := make([]func(any), 0)
 	for _, handler := range eventDispatcher.handlers[eventType] {
 		handlers = append(handlers, handler)
 	}
-	return func(event interface{}) {
+	return func(event any) {
 		for _, handler := range handlers {
 			handler(event)
 		}

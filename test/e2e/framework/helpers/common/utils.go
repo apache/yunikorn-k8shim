@@ -108,7 +108,7 @@ func RandSeq(n int) string {
 	return string(b)
 }
 
-func SliceExists(slice interface{}, item interface{}) (bool, error) {
+func SliceExists(slice any, item any) (bool, error) {
 	s := reflect.ValueOf(slice)
 
 	if s.Kind() != reflect.Slice {
@@ -128,7 +128,7 @@ func SliceExists(slice interface{}, item interface{}) (bool, error) {
 //  2. Validates qA and qB have same number of sub-queues
 //     3a. If same queue name and 0 sub-queues, return true
 //     3b. Otherwise, call CompareQueueMap on each child pairing of qA and qB
-func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, error) {
+func CompareQueueMap(a map[string]any, b map[string]any) (bool, error) {
 	// Validate queue name
 	if a["queuename"] != b["queuename"] {
 		return false, fmt.Errorf("%s is not equal to %s", a["queuename"], b["queuename"])
@@ -152,7 +152,7 @@ func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, 
 
 	// Fix order of children
 	aOrder, bOrder := make(map[string]int), make(map[string]int)
-	for i := 0; i < len(aChildren); i++ {
+	for i := range aChildren {
 		aChildName, ok := aChildren[i]["queuename"].(string)
 		if !ok {
 			return false, fmt.Errorf("casting error")
@@ -184,7 +184,7 @@ func CompareQueueMap(a map[string]interface{}, b map[string]interface{}) (bool, 
 }
 
 // Returns a list of the children Q's of input. If no children, returns nil
-func GetSubQueues(q map[string]interface{}) ([]map[string]interface{}, error) {
+func GetSubQueues(q map[string]any) ([]map[string]any, error) {
 	qs, ok := q["queues"]
 	if !ok {
 		return nil, fmt.Errorf("invalid arguments")
@@ -194,13 +194,13 @@ func GetSubQueues(q map[string]interface{}) ([]map[string]interface{}, error) {
 		return nil, nil
 	}
 
-	var subQs []map[string]interface{}
-	subQResp, ok := qs.([]interface{})
+	var subQs []map[string]any
+	subQResp, ok := qs.([]any)
 	if !ok {
 		return nil, fmt.Errorf("casting error")
 	}
 	for _, qResp := range subQResp {
-		subQ, ok := qResp.(map[string]interface{})
+		subQ, ok := qResp.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("casting error")
 		}

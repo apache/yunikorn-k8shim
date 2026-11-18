@@ -24,7 +24,7 @@ const EnterState = "enter_state"
 // General event interface
 // ----------------------------------------------
 type SchedulingEvent interface {
-	GetArgs() []interface{}
+	GetArgs() []any
 }
 
 // ----------------------------------------------
@@ -41,7 +41,7 @@ type ApplicationEvent interface {
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
+	GetArgs() []any
 }
 
 // ----------------------------------------------
@@ -61,7 +61,7 @@ type TaskEvent interface {
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
+	GetArgs() []any
 }
 
 // --------------------------------------
@@ -77,5 +77,5 @@ type SchedulerNodeEvent interface {
 
 	// an event can have multiple arguments, these arguments will be passed to
 	// state machines' callbacks when doing state transition
-	GetArgs() []interface{}
+	GetArgs() []any
 }

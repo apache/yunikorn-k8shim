@@ -81,7 +81,7 @@ func ObserveEventAfterAction(c clientset.Interface, ns string, eventPredicate fu
 		},
 		ObjectType: &v1.Event{},
 		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
+			AddFunc: func(obj any) {
 				e, ok := obj.(*v1.Event)
 				ginkgo.By(fmt.Sprintf("Considering event: \nType = [%s], Name = [%s], Reason = [%s], Message = [%s]", e.Type, e.Name, e.Reason, e.Message))
 				gomega.Expect(ok).To(gomega.BeTrue())
@@ -119,13 +119,13 @@ type EventHandler struct {
 	updateCh chan struct{}
 }
 
-func (e *EventHandler) OnAdd(_ interface{}, _ bool) {}
+func (e *EventHandler) OnAdd(_ any, _ bool) {}
 
-func (e *EventHandler) OnUpdate(_, _ interface{}) {
+func (e *EventHandler) OnUpdate(_, _ any) {
 	e.updateCh <- struct{}{}
 }
 
-func (e *EventHandler) OnDelete(_ interface{}) {}
+func (e *EventHandler) OnDelete(_ any) {}
 
 func (e *EventHandler) WaitForUpdate(timeout time.Duration) bool {
 	t := time.After(timeout)

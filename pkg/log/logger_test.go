@@ -41,7 +41,7 @@ func TestLoggerIds(t *testing.T) {
 	assert.Equal(t, 26, len(loggers), "wrong logger count")
 
 	// validate that all loggers are populated and have sequential ids
-	for i := 0; i < len(loggers); i++ {
+	for i := range loggers {
 		handle := loggers[i]
 		assert.Assert(t, handle != nil, "nil handle for index", i)
 		assert.Equal(t, handle.id, i, "wrong id", handle.name)
@@ -70,7 +70,7 @@ func benchmarkScopedLoggerDebug(iterations int) int64 {
 		"log.level": "INFO",
 	})
 	start := time.Now()
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		Log(Shim).Debug("test", zap.String("foo", "bar"))
 	}
 	return (time.Since(start).Nanoseconds()) / int64(iterations)
@@ -93,7 +93,7 @@ func benchmarkScopedLoggerInfo(iterations int) int64 {
 		"log.level": "INFO",
 	})
 	start := time.Now()
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		Log(Shim).Info("test", zap.String("foo", "bar"))
 	}
 	return (time.Since(start).Nanoseconds()) / int64(iterations)
@@ -116,7 +116,7 @@ func benchmarkScopedLoggerDebugEnabled(iterations int) int64 {
 		"log.test.level": "DEBUG",
 	})
 	start := time.Now()
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		Log(Test).Debug("test", zap.String("foo", "bar"))
 	}
 	return (time.Since(start).Nanoseconds()) / int64(iterations)
@@ -139,7 +139,7 @@ func benchmarkScopedLoggerInfoFiltered(iterations int) int64 {
 		"log.test.level": "DEBUG",
 	})
 	start := time.Now()
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		Log(Shim).Info("test", zap.String("foo", "bar"))
 	}
 	return (time.Since(start).Nanoseconds()) / int64(iterations)

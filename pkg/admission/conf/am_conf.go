@@ -224,21 +224,21 @@ type configMapUpdateHandler struct {
 	conf *AdmissionControllerConf
 }
 
-func (h *configMapUpdateHandler) OnAdd(obj interface{}, _ bool) {
+func (h *configMapUpdateHandler) OnAdd(obj any, _ bool) {
 	cm := utils.Convert2ConfigMap(obj)
 	if idx, ok := h.configMapIndex(cm); ok {
 		h.conf.configUpdated(idx, cm)
 	}
 }
 
-func (h *configMapUpdateHandler) OnUpdate(_, newObj interface{}) {
+func (h *configMapUpdateHandler) OnUpdate(_, newObj any) {
 	cm := utils.Convert2ConfigMap(newObj)
 	if idx, ok := h.configMapIndex(cm); ok {
 		h.conf.configUpdated(idx, cm)
 	}
 }
 
-func (h *configMapUpdateHandler) OnDelete(obj interface{}) {
+func (h *configMapUpdateHandler) OnDelete(obj any) {
 	var cm *v1.ConfigMap
 	switch t := obj.(type) {
 	case *v1.ConfigMap:
@@ -395,7 +395,7 @@ func parseConfigString(config map[string]string, key string, defaultValue string
 
 func parseRegexes(patterns string) ([]*regexp.Regexp, error) {
 	result := make([]*regexp.Regexp, 0)
-	for _, pattern := range strings.Split(patterns, ",") {
+	for pattern := range strings.SplitSeq(patterns, ",") {
 		pattern = strings.TrimSpace(pattern)
 		if len(pattern) == 0 {
 			continue

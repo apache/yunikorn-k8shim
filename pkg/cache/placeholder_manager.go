@@ -20,6 +20,7 @@ package cache
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -222,9 +223,7 @@ func (mgr *PlaceholderManager) addOrphanPods(pods map[string]*v1.Pod) {
 	}
 	mgr.Lock()
 	defer mgr.Unlock()
-	for taskID, pod := range pods {
-		mgr.orphanPods[taskID] = pod
-	}
+	maps.Copy(mgr.orphanPods, pods)
 }
 
 func (mgr *PlaceholderManager) cleanOrphanPlaceholders() {

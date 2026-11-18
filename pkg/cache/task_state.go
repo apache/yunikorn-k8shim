@@ -74,7 +74,7 @@ func (st SimpleTaskEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st SimpleTaskEvent) GetArgs() []interface{} {
+func (st SimpleTaskEvent) GetArgs() []any {
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (st SubmitTaskEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st SubmitTaskEvent) GetArgs() []interface{} {
+func (st SubmitTaskEvent) GetArgs() []any {
 	return nil
 }
 
@@ -144,8 +144,8 @@ func (ae AllocatedTaskEvent) GetEvent() string {
 	return ae.event.String()
 }
 
-func (ae AllocatedTaskEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 2)
+func (ae AllocatedTaskEvent) GetArgs() []any {
+	args := make([]any, 2)
 	args[0] = ae.allocationKey
 	args[1] = ae.nodeID
 	return args
@@ -180,7 +180,7 @@ func (bt BindTaskEvent) GetEvent() string {
 	return bt.event.String()
 }
 
-func (bt BindTaskEvent) GetArgs() []interface{} {
+func (bt BindTaskEvent) GetArgs() []any {
 	return nil
 }
 
@@ -215,8 +215,8 @@ func (fe FailTaskEvent) GetEvent() string {
 	return fe.event.String()
 }
 
-func (fe FailTaskEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
+func (fe FailTaskEvent) GetArgs() []any {
+	args := make([]any, 1)
 	args[0] = fe.message
 	return args
 }
@@ -252,8 +252,8 @@ func (re RejectTaskEvent) GetEvent() string {
 	return re.event.String()
 }
 
-func (re RejectTaskEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
+func (re RejectTaskEvent) GetArgs() []any {
+	args := make([]any, 1)
 	args[0] = re.message
 	return args
 }
@@ -402,7 +402,7 @@ func callbacks(states *TStates) fsm.Callbacks {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 1)
 			reason := ""
-			generic := event.Args[1].([]interface{}) //nolint:errcheck
+			generic := event.Args[1].([]any) //nolint:errcheck
 			if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 				reason = err.Error()
@@ -425,7 +425,7 @@ func callbacks(states *TStates) fsm.Callbacks {
 		beforeHook(TaskAllocated): func(_ context.Context, event *fsm.Event) {
 			task := event.Args[0].(*Task) //nolint:errcheck
 			eventArgs := make([]string, 2)
-			generic := event.Args[1].([]interface{}) //nolint:errcheck
+			generic := event.Args[1].([]any) //nolint:errcheck
 			if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 				log.Log(log.ShimFSM).Error("failed to parse event arg", zap.Error(err))
 				return

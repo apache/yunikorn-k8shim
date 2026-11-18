@@ -1147,7 +1147,7 @@ func checkUsage(testType TestType, name string, queuePath string, expectedRunnin
 	}
 	Ω(resourceUsageDAO).NotTo(gomega.BeNil())
 
-	appIDs := make([]interface{}, 0, len(expectedRunningPods))
+	appIDs := make([]any, 0, len(expectedRunningPods))
 	for _, pod := range expectedRunningPods {
 		appIDs = append(appIDs, pod.Labels[constants.LabelApplicationID])
 	}
@@ -1179,7 +1179,7 @@ func checkUsageWildcardGroups(testType TestType, name string, queuePath string, 
 	}
 	Ω(resourceUsageDAO).NotTo(gomega.BeNil())
 
-	appIDs := make([]interface{}, 0, len(expectedRunningPods))
+	appIDs := make([]any, 0, len(expectedRunningPods))
 	for _, pod := range expectedRunningPods {
 		appIDs = append(appIDs, pod.Labels[constants.LabelApplicationID])
 	}

@@ -22,7 +22,7 @@ import (
 	"fmt"
 )
 
-func GetEventArgsAsStrings(result []string, generic []interface{}) error {
+func GetEventArgsAsStrings(result []string, generic []any) error {
 	if len(generic) > 0 {
 		if result == nil || cap(result) != len(generic) {
 			return fmt.Errorf("invalid length of arguments")

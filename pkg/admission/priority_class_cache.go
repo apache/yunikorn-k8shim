@@ -80,7 +80,7 @@ type priorityClassUpdateHandler struct {
 // OnAdd adds or replaces the priority class entry in the cache.
 // The cached value is only the resulting value of the annotation, not the whole PriorityClass object.
 // An empty string for the Name is technically possible but should not occur.
-func (h *priorityClassUpdateHandler) OnAdd(obj interface{}, _ bool) {
+func (h *priorityClassUpdateHandler) OnAdd(obj any, _ bool) {
 	pc := utils.Convert2PriorityClass(obj)
 	if pc == nil {
 		return
@@ -93,12 +93,12 @@ func (h *priorityClassUpdateHandler) OnAdd(obj interface{}, _ bool) {
 }
 
 // OnUpdate calls OnAdd for processing the PriorityClass cache update.
-func (h *priorityClassUpdateHandler) OnUpdate(_, newObj interface{}) {
+func (h *priorityClassUpdateHandler) OnUpdate(_, newObj any) {
 	h.OnAdd(newObj, false)
 }
 
 // OnDelete removes the PriorityClass from the cache.
-func (h *priorityClassUpdateHandler) OnDelete(obj interface{}) {
+func (h *priorityClassUpdateHandler) OnDelete(obj any) {
 	var pc *schedulingv1.PriorityClass
 	switch t := obj.(type) {
 	case *schedulingv1.PriorityClass:

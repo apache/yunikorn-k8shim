@@ -94,7 +94,7 @@ var _ = Describe("FairScheduling:", func() {
 	It("Test_Wait_Queue_Order", func() {
 		// Create appIDs
 		var apps []string
-		for j := 0; j < 4; j++ {
+		for j := range 4 {
 			id := fmt.Sprintf("app%d-%s", j, common.RandSeq(5))
 			apps = append(apps, id)
 		}
@@ -111,7 +111,7 @@ var _ = Describe("FairScheduling:", func() {
 			appPods[appID] = []string{}
 			numPods := int(req["pods"])
 			By(fmt.Sprintf("[%s] Deploy %d pods", appID, numPods))
-			for i := 0; i < numPods; i++ {
+			for i := range numPods {
 				// Calculate individual podRequest by dividing total appAlloc by numPods
 				reqCPU := int64(req["cpu"] / req["pods"] * float64(maxCPU))
 				reqMem := int64(req["mem"] / req["pods"] * float64(maxMem))

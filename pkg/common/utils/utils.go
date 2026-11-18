@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -50,7 +51,7 @@ var (
 	ErrorTimeout = errors.New("timeout waiting for condition")
 )
 
-func Convert2Pod(obj interface{}) (*v1.Pod, error) {
+func Convert2Pod(obj any) (*v1.Pod, error) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		return nil, fmt.Errorf("cannot convert to *v1.Pod: %v", obj)
@@ -58,7 +59,7 @@ func Convert2Pod(obj interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
+func Convert2ConfigMap(obj any) *v1.ConfigMap {
 	if configmap, ok := obj.(*v1.ConfigMap); ok {
 		return configmap
 	}
@@ -66,7 +67,7 @@ func Convert2ConfigMap(obj interface{}) *v1.ConfigMap {
 	return nil
 }
 
-func Convert2PriorityClass(obj interface{}) *schedulingv1.PriorityClass {
+func Convert2PriorityClass(obj any) *schedulingv1.PriorityClass {
 	if priorityClass, ok := obj.(*schedulingv1.PriorityClass); ok {
 		return priorityClass
 	}
@@ -330,12 +331,8 @@ func MergeMaps(first, second map[string]string) map[string]string {
 		return nil
 	}
 	result := make(map[string]string)
-	for k, v := range first {
-		result[k] = v
-	}
-	for k, v := range second {
-		result[k] = v
-	}
+	maps.Copy(result, first)
+	maps.Copy(result, second)
 	return result
 }
 

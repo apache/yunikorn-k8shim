@@ -19,6 +19,8 @@
 package common
 
 import (
+	"maps"
+
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -88,9 +90,7 @@ func GetPodResource(pod *v1.Pod) *si.Resource {
 	if pod.Spec.Resources != nil && len(pod.Spec.Resources.Requests) > 0 {
 		// pod-level resources, if present, override sum of container-level resources
 		// only memory and cpu are supported
-		for name, value := range getPodLevelResource(pod.Spec.Resources.Requests).GetResources() {
-			podResource.Resources[name] = value
-		}
+		maps.Copy(podResource.Resources, getPodLevelResource(pod.Spec.Resources.Requests).GetResources())
 	}
 
 	// K8s EnableOverHead feature:
@@ -334,9 +334,7 @@ func Add(left *si.Resource, right *si.Resource) *si.Resource {
 		return result
 	}
 	if right != nil {
-		for k, v := range right.Resources {
-			result.Resources[k] = v
-		}
+		maps.Copy(result.Resources, right.Resources)
 	}
 	if left != nil {
 		for k, v := range left.Resources {

@@ -93,8 +93,8 @@ func TestAssignedPod(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		arg0 interface{}
-		arg1 interface{}
+		arg0 any
+		arg1 any
 	}{
 		{"pod first node second", pod, node},
 		{"node first pod second", node, pod},
@@ -169,8 +169,8 @@ func TestAddUnassignedPod(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		arg0 interface{}
-		arg1 interface{}
+		arg0 any
+		arg1 any
 	}{
 		{"pod first node second", pod, node},
 		{"node first pod second", node, pod},
@@ -797,7 +797,7 @@ func TestGetNodesInfoConcurrentPopulation(t *testing.T) {
 	// adding and removing an empty node only invalidates the full node list: node2 holds no
 	// affinity pods, so the two affinity lists keep their single entry (host1) across every round
 	const rounds = 5
-	for i := 0; i < rounds; i++ {
+	for range rounds {
 		cache.UpdateNode(node2)
 		assertConcurrentReads(t, cache, 2)
 		cache.RemoveNode(node2)
@@ -819,10 +819,8 @@ func assertConcurrentReads(t *testing.T, cache *SchedulerCache, expectedNodes in
 	seen := make([]nodeListSizes, readers)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < readers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for i := range readers {
+		wg.Go(func() {
 			<-start
 			cache.LockForReads()
 			defer cache.UnlockForReads()
@@ -831,7 +829,7 @@ func assertConcurrentReads(t *testing.T, cache *SchedulerCache, expectedNodes in
 				withAffinity:        len(cache.GetNodesInfoPodsWithAffinity()),
 				withReqAntiAffinity: len(cache.GetNodesInfoPodsWithReqAntiAffinity()),
 			}
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -911,7 +909,7 @@ func TestUpdateNonExistNode(t *testing.T) {
 	assert.Equal(t, nodeInCache.Node().Spec.Unschedulable, false)
 }
 
-func add2Cache(cache *SchedulerCache, objects ...interface{}) error {
+func add2Cache(cache *SchedulerCache, objects ...any) error {
 	for _, obj := range objects {
 		switch podOrNode := obj.(type) {
 		case *v1.Node:
@@ -931,7 +929,7 @@ func TestGetNodesInfoMap(t *testing.T) {
 	ref := cache.GetNodesInfoMap()
 	assert.Equal(t, len(ref), 0)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		cache.UpdateNode(&v1.Node{
 			ObjectMeta: apis.ObjectMeta{
 				Name: fmt.Sprintf("node-%d", i),

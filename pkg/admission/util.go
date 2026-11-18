@@ -19,6 +19,7 @@
 package admission
 
 import (
+	"maps"
 	"reflect"
 
 	"go.uber.org/zap"
@@ -31,9 +32,7 @@ import (
 
 func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool) map[string]string {
 	result := make(map[string]string)
-	for k, v := range pod.Labels {
-		result[k] = v
-	}
+	maps.Copy(result, pod.Labels)
 
 	canonicalAppID := utils.GetPodLabelValue(pod, constants.CanonicalLabelApplicationID)
 	sparkAppID := utils.GetPodLabelValue(pod, constants.SparkLabelAppID)
@@ -67,14 +66,12 @@ func updatePodLabel(pod *v1.Pod, namespace string, generateUniqueAppIds bool) ma
 
 func updatePodAnnotation(pod *v1.Pod, key string, value string) map[string]string {
 	result := make(map[string]string)
-	for k, v := range pod.Annotations {
-		result[k] = v
-	}
+	maps.Copy(result, pod.Annotations)
 	result[key] = value
 	return result
 }
 
-func convert2Namespace(obj interface{}) *v1.Namespace {
+func convert2Namespace(obj any) *v1.Namespace {
 	if nameSpace, ok := obj.(*v1.Namespace); ok {
 		return nameSpace
 	}

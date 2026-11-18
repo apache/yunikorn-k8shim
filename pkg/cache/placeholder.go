@@ -66,7 +66,7 @@ func newPlaceholder(placeholderName string, app *Application, taskGroup TaskGrou
 	// Add imagePullSecrets to the placeholder
 	imagePullSecrets := make([]v1.LocalObjectReference, 0)
 	if secrets, ok := app.tags[constants.AppTagImagePullSecrets]; ok {
-		for _, secret := range strings.Split(secrets, ",") {
+		for secret := range strings.SplitSeq(secrets, ",") {
 			imagePullSecrets = append(imagePullSecrets, v1.LocalObjectReference{Name: secret})
 		}
 	}

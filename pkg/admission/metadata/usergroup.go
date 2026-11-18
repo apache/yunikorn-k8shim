@@ -21,6 +21,7 @@ package metadata
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"strings"
 
 	"go.uber.org/zap"
@@ -129,9 +130,7 @@ func (u *UserGroupAnnotationHandler) GetPatchForPod(annotations map[string]strin
 
 func (u *UserGroupAnnotationHandler) getPatchOperation(annotations map[string]string, path, user string, groups []string) (*common.PatchOperation, error) {
 	newAnnotations := make(map[string]string)
-	for k, v := range annotations {
-		newAnnotations[k] = v
-	}
+	maps.Copy(newAnnotations, annotations)
 
 	userGroups := &si.UserGroupInformation{
 		User:   user,

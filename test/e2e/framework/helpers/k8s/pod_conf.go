@@ -20,6 +20,7 @@ package k8s
 
 import (
 	"encoding/json"
+	"maps"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -114,9 +115,7 @@ func InitSleepPod(conf SleepPodConfig) (*v1.Pod, error) {
 		"applicationId": conf.AppID,
 	}
 	if len(conf.Labels) > 0 {
-		for k, v := range conf.Labels {
-			labels[k] = v
-		}
+		maps.Copy(labels, conf.Labels)
 	}
 	var secs int64 = 0
 	testPodConfig := TestPodConfig{
@@ -284,9 +283,7 @@ func PodAnnotationToMap(annotations *PodAnnotation) (map[string]string, error) {
 	annotationsMap[TaskGroups] = string(taskGroupJSON)
 
 	// Add non-YK annotations
-	for annKey, annVal := range annotations.Other {
-		annotationsMap[annKey] = annVal
-	}
+	maps.Copy(annotationsMap, annotations.Other)
 
 	return annotationsMap, nil
 }

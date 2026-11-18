@@ -128,7 +128,7 @@ func TestParseConfigMap(t *testing.T) {
 	testCases := []struct {
 		name  string
 		field string
-		value interface{}
+		value any
 	}{
 		{CMSvcClusterID, "ClusterID", "test-cluster"},
 		{CMSvcPolicyGroup, "PolicyGroup", "test-policy-group"},
@@ -162,7 +162,7 @@ func TestUpdateConfigMapNonReloadable(t *testing.T) {
 	testCases := []struct {
 		name       string
 		field      string
-		value      interface{}
+		value      any
 		reloadable bool
 	}{
 		{CMSvcClusterID, "ClusterID", "test-cluster", false},
@@ -244,7 +244,7 @@ func TestParseConfigMapWithInvalidInt64(t *testing.T) {
 }
 
 // get a configuration value by field name
-func getConfValue(t *testing.T, conf *SchedulerConf, name string) interface{} {
+func getConfValue(t *testing.T, conf *SchedulerConf, name string) any {
 	// Split by "." to handle nested fields
 	parts := strings.Split(name, ".")
 	val := reflect.ValueOf(conf).Elem()

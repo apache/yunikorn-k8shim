@@ -635,7 +635,7 @@ func TestPlaceholderManagerConcurrentStop(t *testing.T) {
 	start := make(chan struct{})
 	var stopped sync.WaitGroup
 	stopped.Add(callers)
-	for i := 0; i < callers; i++ {
+	for range callers {
 		go func() {
 			defer stopped.Done()
 			<-start
@@ -665,7 +665,7 @@ func TestPlaceholderManagerConcurrentStart(t *testing.T) {
 	start := make(chan struct{})
 	var started sync.WaitGroup
 	started.Add(callers)
-	for i := 0; i < callers; i++ {
+	for range callers {
 		go func() {
 			defer started.Done()
 			<-start
@@ -953,11 +953,9 @@ func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
 
 	readerDone := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
 
 	// writer: simulates the informer adding pods to the application until the reader finishes
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; ; i++ {
 			select {
 			case <-readerDone:
@@ -972,10 +970,10 @@ func TestCreateAppPlaceholdersWithConcurrentTaskUpdates(t *testing.T) {
 			}
 			app.addTask(NewTask(fmt.Sprintf("task-%d", i), app, nil, pod))
 		}
-	}()
+	})
 
 	// reader: the reserving path creating placeholders for the same application
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		assert.NilError(t, mgr.createAppPlaceholders(app))
 	}
 	close(readerDone)

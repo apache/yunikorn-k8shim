@@ -80,7 +80,7 @@ func (st SimpleApplicationEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st SimpleApplicationEvent) GetArgs() []interface{} {
+func (st SimpleApplicationEvent) GetArgs() []any {
 	return nil
 }
 
@@ -109,8 +109,8 @@ func (st ApplicationEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st ApplicationEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
+func (st ApplicationEvent) GetArgs() []any {
+	args := make([]any, 1)
 	args[0] = st.message
 	return args
 }
@@ -140,7 +140,7 @@ func (st ApplicationStatusChangeEvent) GetEvent() string {
 	return st.event.String()
 }
 
-func (st ApplicationStatusChangeEvent) GetArgs() []interface{} {
+func (st ApplicationStatusChangeEvent) GetArgs() []any {
 	return nil
 }
 
@@ -171,7 +171,7 @@ func (se SubmitApplicationEvent) GetEvent() string {
 	return se.event.String()
 }
 
-func (se SubmitApplicationEvent) GetArgs() []interface{} {
+func (se SubmitApplicationEvent) GetArgs() []any {
 	return nil
 }
 
@@ -198,7 +198,7 @@ func (re RunApplicationEvent) GetEvent() string {
 	return re.event.String()
 }
 
-func (re RunApplicationEvent) GetArgs() []interface{} {
+func (re RunApplicationEvent) GetArgs() []any {
 	return nil
 }
 
@@ -227,8 +227,8 @@ func (fe FailApplicationEvent) GetEvent() string {
 	return fe.event.String()
 }
 
-func (fe FailApplicationEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 1)
+func (fe FailApplicationEvent) GetArgs() []any {
+	args := make([]any, 1)
 	args[0] = fe.errorMessage
 	return args
 }
@@ -256,7 +256,7 @@ func (ue UpdateApplicationReservationEvent) GetEvent() string {
 	return ue.event.String()
 }
 
-func (ue UpdateApplicationReservationEvent) GetArgs() []interface{} {
+func (ue UpdateApplicationReservationEvent) GetArgs() []any {
 	return nil
 }
 
@@ -287,8 +287,8 @@ func (re ReleaseAppAllocationEvent) GetApplicationID() string {
 	return re.applicationID
 }
 
-func (re ReleaseAppAllocationEvent) GetArgs() []interface{} {
-	args := make([]interface{}, 2)
+func (re ReleaseAppAllocationEvent) GetArgs() []any {
+	args := make([]any, 2)
 	args[0] = re.allocationKey
 	args[1] = re.terminationType
 	return args
@@ -317,7 +317,7 @@ func (re ResumingApplicationEvent) GetEvent() string {
 	return re.event.String()
 }
 
-func (re ResumingApplicationEvent) GetArgs() []interface{} {
+func (re ResumingApplicationEvent) GetArgs() []any {
 	return nil
 }
 
@@ -478,7 +478,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			RejectApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
-				generic := event.Args[1].([]interface{}) //nolint:errcheck
+				generic := event.Args[1].([]any) //nolint:errcheck
 				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
@@ -493,7 +493,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			FailApplication.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 1)
-				generic := event.Args[1].([]interface{}) //nolint:errcheck
+				generic := event.Args[1].([]any) //nolint:errcheck
 				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return
@@ -508,7 +508,7 @@ func newAppState() *fsm.FSM { //nolint:funlen
 			ReleaseAppAllocation.String(): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				eventArgs := make([]string, 2)
-				generic := event.Args[1].([]interface{}) //nolint:errcheck
+				generic := event.Args[1].([]any) //nolint:errcheck
 				if err := events.GetEventArgsAsStrings(eventArgs, generic); err != nil {
 					log.Log(log.ShimFSM).Error("fail to parse event arg", zap.Error(err))
 					return

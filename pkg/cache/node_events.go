@@ -42,6 +42,6 @@ func (sn CachedSchedulerNodeEvent) GetNodeID() string {
 	return sn.NodeID
 }
 
-func (sn CachedSchedulerNodeEvent) GetArgs() []interface{} {
+func (sn CachedSchedulerNodeEvent) GetArgs() []any {
 	return nil
 }
