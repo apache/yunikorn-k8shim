@@ -488,6 +488,8 @@ func (app *Application) handleSubmitApplicationEvent() error {
 	return nil
 }
 
+// skipReservationStage decides whether the application can go straight to running. It reads the
+// task groups and the task map, so it must be called with the application lock held.
 func (app *Application) skipReservationStage() bool {
 	// no task groups defined, skip reservation
 	if len(app.taskGroups) == 0 {
@@ -518,12 +520,22 @@ func (app *Application) postAppAccepted() {
 	// it goes to the Reserving state before getting to Running.
 	// app could have allocated tasks upon a recovery, and in that case,
 	// the reserving phase has already passed, no need to trigger that again.
+	//
+	// Schedule calls this outside of a state machine transition, so the application lock is not
+	// held for it and has to be taken here: the task groups and the task map are written under
+	// that lock while tasks are added to the application. Everything the decision needs is read
+	// in one go, the lock is not held over the logging and the dispatch that follow.
+	app.lock.RLock()
+	numTaskGroups := len(app.taskGroups)
+	numAllocatedTasks := len(app.getTasks(TaskStates().Allocated))
+	skipReservation := app.skipReservationStage()
+	app.lock.RUnlock()
 	var ev events.SchedulingEvent
 	log.Log(log.ShimCacheApplication).Debug("postAppAccepted on cached app",
 		zap.String("appID", app.applicationID),
-		zap.Int("numTaskGroups", len(app.taskGroups)),
-		zap.Int("numAllocatedTasks", len(app.GetAllocatedTasks())))
-	if app.skipReservationStage() {
+		zap.Int("numTaskGroups", numTaskGroups),
+		zap.Int("numAllocatedTasks", numAllocatedTasks))
+	if skipReservation {
 		ev = NewRunApplicationEvent(app.applicationID)
 		log.Log(log.ShimCacheApplication).Info("Skip the reservation stage",
 			zap.String("appID", app.applicationID))
