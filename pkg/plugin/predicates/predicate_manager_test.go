@@ -141,7 +141,8 @@ func (pl *MockFilterPlugin) Name() string {
 }
 
 type MockReserveStateData struct {
-	counter int
+	counter  int
+	nodeName string
 }
 
 func (d MockReserveStateData) Clone() fwk.StateData {
@@ -164,7 +165,7 @@ func (pl MockReservePlugin) Reserve(ctx context.Context, state fwk.CycleState, p
 }
 
 func (pl MockReservePlugin) Unreserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) {
-	state.Write("mock-reserve", &MockReserveStateData{counter: 0})
+	state.Write("mock-reserve", &MockReserveStateData{counter: 0, nodeName: nodeName})
 }
 
 type MockPreBindPlugin struct {
@@ -3019,7 +3020,7 @@ func TestPreBindPlugin(t *testing.T) {
 			pluginErr := p.PreBind(tc.pod, cycleState, nodeInfo)
 			if tc.errorExpected != nil {
 				assert.Assert(t, pluginErr != nil, "error should not be nil")
-				p.Unreserve(tc.pod, cycleState, nodeInfo)
+				p.Unreserve(tc.pod, cycleState, node.Name)
 				read, err = cycleState.Read("mock-reserve")
 				if err != nil {
 					t.Fatalf("fail to read mock-reserve state data")
@@ -3029,6 +3030,7 @@ func TestPreBindPlugin(t *testing.T) {
 					t.Fatalf("fail to read mock-reserve state data")
 				}
 				assert.Equal(t, s.counter, 0, "invalid counter, unreserve of reserve plugin not even called")
+				assert.Equal(t, s.nodeName, node.Name, "unreserve should get the node name")
 			} else {
 				assert.NilError(t, pluginErr, "error should be nil")
 			}
