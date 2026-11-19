@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common"
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
@@ -364,12 +365,14 @@ func (task *Task) postTaskAllocated() {
 
 		// Perform DRA Bindings
 		hasDRABindings := false
+		var cycleState *framework.CycleState
 		if len(pod.Spec.ResourceClaims) > 0 {
 			log.Log(log.ShimCacheTask).Debug("dra bindings",
 				zap.String("podName", pod.Name),
 				zap.String("podUID", string(pod.UID)),
 				zap.String("node", nodeName))
-			reserve := task.context.reserve(string(pod.UID), nodeName)
+			var reserve bool
+			cycleState, reserve = task.context.reserve(string(pod.UID), nodeName)
 			reschedule := reserve
 			if reschedule {
 				preBind := task.context.preBind(string(pod.UID), nodeName)
@@ -379,7 +382,7 @@ func (task *Task) postTaskAllocated() {
 			if !reschedule {
 				// release task lock before calling rescheduleOnBindFailure to avoid deadlock
 				task.lock.Unlock()
-				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodDRABindFailure",
+				task.rescheduleOnBindFailure(allocationKey, nodeName, cycleState, "PodDRABindFailure",
 					fmt.Sprintf("Failed to bind dra for %s on node %s, it will be retried", alias, nodeName))
 				return
 			}
@@ -408,7 +411,7 @@ func (task *Task) postTaskAllocated() {
 					zap.Error(err))
 				// release task lock before calling rescheduleOnBindFailure to avoid deadlock
 				task.lock.Unlock()
-				task.rescheduleOnBindFailure(allocationKey, nodeName, "PodVolumesBindFailure",
+				task.rescheduleOnBindFailure(allocationKey, nodeName, cycleState, "PodVolumesBindFailure",
 					fmt.Sprintf("Failed to bind volumes for %s on node %s, it will be retried", alias, nodeName))
 				return
 			}
@@ -427,7 +430,7 @@ func (task *Task) postTaskAllocated() {
 			log.Log(log.ShimCacheTask).Error("bind pod to node failed after retries",
 				zap.String("taskID", task.taskID), zap.Error(err))
 			task.lock.Unlock()
-			task.rescheduleOnBindFailure(allocationKey, nodeName, "PodBindFailure",
+			task.rescheduleOnBindFailure(allocationKey, nodeName, cycleState, "PodBindFailure",
 				fmt.Sprintf("Failed to bind %s to node %s, it will be retried", alias, nodeName))
 			return
 		}
@@ -740,7 +743,7 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 // Move the task back to Scheduling before rolling back the allocation, so a
 // subsequent TaskAllocated event from the core (which requires Scheduling) is accepted.
 // Must be called without holding the task lock as rollbackAllocation uses context lock.
-func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, eventMsg string) {
+func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID string, cycleState *framework.CycleState, eventReason, eventMsg string) {
 	task.lock.Lock()
 	// Move the task back to Scheduling before releasing to the core, so the re-delivered
 	// allocation (valid only from the Scheduling state) is accepted by the state machine.
@@ -758,9 +761,9 @@ func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID, eventReason, ev
 	task.nodeName = ""
 	task.lock.Unlock()
 
-	// Even a failed Reserve can leave pending allocations.
-	if len(podCopy.Spec.ResourceClaims) > 0 {
-		task.context.unreserve(string(podCopy.UID), nodeID)
+	// cycleState is nil if the plugins did not run; even a failed Reserve can leave in-flight allocations.
+	if cycleState != nil {
+		task.context.unreserve(podCopy, cycleState, nodeID)
 	}
 	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, eventReason, eventMsg)
 }
