@@ -69,7 +69,8 @@ type recorderTime struct {
 }
 
 func TestNewApplication(t *testing.T) {
-	app := NewApplication(appID1, "root.queue", "testuser", testGroups, map[string]string{}, newMockSchedulerAPI())
+	tags := map[string]string{"namespace": "test"}
+	app := NewApplication(appID1, "root.queue", "testuser", testGroups, tags, newMockSchedulerAPI())
 	assert.Equal(t, app.GetApplicationID(), appID1)
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.partition, constants.DefaultPartition)
@@ -77,6 +78,7 @@ func TestNewApplication(t *testing.T) {
 	assert.Equal(t, app.GetApplicationState(), ApplicationStates().New)
 	assert.Equal(t, app.queue, "root.queue")
 	assert.DeepEqual(t, app.groups, []string{"dev", yunikorn})
+	assert.DeepEqual(t, app.GetTags(), tags)
 }
 
 func TestSubmitApplication(t *testing.T) {
