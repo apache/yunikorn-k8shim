@@ -2623,6 +2623,7 @@ func TestOriginatorPodAfterRestart(t *testing.T) {
 
 	app := context.getApplication("spark-app-01")
 	assert.Equal(t, app.originatingTask.taskID, uid1)
+	assert.Assert(t, app.originatingTask.IsOriginator())
 	assert.Equal(t, len(app.GetPlaceHolderTasks()), 2)
 	assert.Equal(t, len(app.GetAllocatedTasks()), 0)
 }
@@ -2959,6 +2960,7 @@ func TestTerminatedOrphanedForeignPodNotAdopted(t *testing.T) {
 func TestContextStop(t *testing.T) {
 	context := NewContext(client.NewMockedAPIProvider(false))
 	assert.Assert(t, context.resourceSliceTracker != nil)
+	assert.Equal(t, context.GetSchedulerCache(), context.schedulerCache)
 
 	context.Stop()
 	assert.Assert(t, context.resourceSliceTracker == nil)
