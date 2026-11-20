@@ -825,7 +825,8 @@ func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framew
 }
 
 // reserve Binding Cycle - reserve the node for binding process
-func (ctx *Context) reserve(name, node string) bool {
+// Unreserve needs the cycle state passed to the plugins, so it is returned even on failure; nil if they did not run.
+func (ctx *Context) reserve(name, node string) (*framework.CycleState, bool) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
 	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
@@ -834,7 +835,7 @@ func (ctx *Context) reserve(name, node string) bool {
 			zap.Error(err),
 			zap.String("pod", name),
 			zap.String("node", node))
-		return false
+		return nil, false
 	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
@@ -845,9 +846,9 @@ func (ctx *Context) reserve(name, node string) bool {
 			zap.String("pod", name),
 			zap.String("node", node),
 			zap.Error(err))
-		return false
+		return cycleState, false
 	}
-	return true
+	return cycleState, true
 }
 
 // preBind Binding Cycle - preBind the node for binding process
@@ -877,21 +878,13 @@ func (ctx *Context) preBind(name, node string) bool {
 }
 
 // unreserve Binding Cycle - unreserve the node to clear out the binding work
-func (ctx *Context) unreserve(name, node string) {
+func (ctx *Context) unreserve(pod *v1.Pod, cycleState *framework.CycleState, node string) {
 	ctx.lock.RLock()
 	defer ctx.lock.RUnlock()
-	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
-	if err != nil {
-		log.Log(log.ShimContext).Error("unreserve failed",
-			zap.Error(err),
-			zap.String("pod", name),
-			zap.String("node", node))
-		return
-	}
 	// need to lock cache here as predicates need a stable view into the cache
 	ctx.schedulerCache.LockForReads()
 	defer ctx.schedulerCache.UnlockForReads()
-	ctx.predManager.Unreserve(pod, cycleState, targetNode)
+	ctx.predManager.Unreserve(pod, cycleState, node)
 }
 
 // call volume binder to bind pod volumes if necessary,

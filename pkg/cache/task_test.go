@@ -1119,7 +1119,7 @@ func TestRescheduleOnBindFailure_ClearsStateAndReschedules(t *testing.T) {
 	pod.Spec.NodeName = fakeNodeName
 	mockedContext.schedulerCache.AssumePod(pod, true)
 	task.sm.SetState(TaskStates().Allocated)
-	task.rescheduleOnBindFailure(taskUID1, fakeNodeName, "PodBindFailure", "bind failed, it will be retried")
+	task.rescheduleOnBindFailure(taskUID1, fakeNodeName, nil, "PodBindFailure", "bind failed, it will be retried")
 
 	assert.Equal(t, TaskStates().Scheduling, task.GetTaskState(), "task should be back in Scheduling after bind failure")
 	assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared")
@@ -1206,8 +1206,8 @@ func TestPostTaskAllocated_BindExhaustedReschedules(t *testing.T) {
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 }
 
-// TestPostTaskAllocatedWithDRABindings verifies that when binding a DRA pod fails, the claims are
-// unreserved, the allocation is rolled back and the task returns to Scheduling.
+// TestPostTaskAllocatedWithDRABindings verifies that a failed DRA bind is rolled back, and that
+// Unreserve runs once unless the plugins did not run.
 func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 	events.SetRecorder(events.NewMockedRecorder())
 	defer events.SetRecorder(events.NewMockedRecorder())
@@ -1220,12 +1220,19 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 		failReserve      bool
 		failPreBind      bool
 		failPodBind      bool
+		removePod        bool
+		removeNode       bool
+		noNode           bool
 		shouldReschedule bool
+		unreserveCalls   int32
 	}{
-		{"success", false, false, false, false},
-		{"fail reserve", true, false, false, true},
-		{"fail prebind", false, true, false, true},
-		{"fail pod bind", false, false, true, true},
+		{name: "success"},
+		{name: "fail reserve", failReserve: true, shouldReschedule: true, unreserveCalls: 1},
+		{name: "fail prebind", failPreBind: true, shouldReschedule: true, unreserveCalls: 1},
+		{name: "fail pod bind", failPodBind: true, shouldReschedule: true, unreserveCalls: 1},
+		{name: "pod removed during pod bind", failPodBind: true, removePod: true, shouldReschedule: true, unreserveCalls: 1},
+		{name: "node removed during pod bind", failPodBind: true, removeNode: true, shouldReschedule: true, unreserveCalls: 1},
+		{name: "node removed before reserve", noNode: true, shouldReschedule: true},
 	}
 
 	for _, tt := range tests {
@@ -1233,51 +1240,52 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 			draTestPod := newDRATestPod("dra-bind-fail-pod", "dra-bind-fail-uid")
 			apis := client.NewMockedAPIProvider(false)
 			cache := external.NewSchedulerCache(apis.GetAPIs())
-			node2 := &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fakeNodeName,
-					Namespace: "default",
-					UID:       "node-uid-1",
-				},
-				Status: v1.NodeStatus{},
-				Spec: v1.NodeSpec{
-					Unschedulable: false,
-				},
-			}
+			node2 := nodeForTest(fakeNodeName, "10G", "10")
 			cache.UpdateNode(node2)
 			draTestPod.Spec.NodeName = node2.Name
 			cache.UpdatePod(draTestPod)
-			cache.StoreCycleState(draTestPod, framework.NewCycleState())
+			cycleState := framework.NewCycleState()
+			cache.StoreCycleState(draTestPod, cycleState)
+			if tt.noNode {
+				cache.RemoveNode(node2)
+			}
 
 			pm := NewMockPredicateManager(false, false, false, tt.failReserve, tt.failPreBind)
 			mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, pm, cache)
 			if tt.failPodBind {
 				apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
+					if tt.removePod {
+						cache.RemovePod(draTestPod)
+					}
+					if tt.removeNode {
+						cache.RemoveNode(node2)
+					}
 					return fmt.Errorf("permanent bind error")
 				})
 			}
 
 			var rollbackSent atomic.Bool
-			if tt.shouldReschedule {
-				apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
-					if request.Releases != nil {
-						for _, rel := range request.Releases.AllocationsToRelease {
-							if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
-								rollbackSent.Store(true)
-							}
+			apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+				if request.Releases != nil {
+					for _, rel := range request.Releases.AllocationsToRelease {
+						if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+							rollbackSent.Store(true)
 						}
 					}
-					return nil
-				})
-			}
+				}
+				return nil
+			})
 			app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{},
 				apiProvider.GetAPIs().SchedulerAPI)
 			task := NewTask(taskUID1, app, mockedContext, draTestPod)
 			task.sm.SetState(TaskStates().Scheduling)
 
-			var unreserved, unreservedLocked atomic.Int32
-			pm.unreserveFn = func() {
+			var unreserved, unreservedLocked, unreservedWrongArgs atomic.Int32
+			pm.unreserveFn = func(pod *v1.Pod, cs *framework.CycleState, nodeName string) {
 				unreserved.Add(1)
+				if pod.UID != draTestPod.UID || cs != cycleState || nodeName != fakeNodeName {
+					unreservedWrongArgs.Add(1)
+				}
 				// check from another goroutine, unreserve holds the context lock
 				free := make(chan struct{})
 				go func() {
@@ -1302,16 +1310,17 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 				assert.Equal(t, "", task.GetAllocationKey(), "allocationKey should be cleared after rollback")
 				assert.Equal(t, "", task.GetNodeName(), "nodeName should be cleared after rollback")
 				assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
-				assert.Equal(t, int32(1), unreserved.Load(), "unreserve should be called once")
 				assert.Equal(t, int32(0), unreservedLocked.Load(), "unreserve should not run with the task lock held")
 			} else {
+				// wait for the bind goroutine to return: its deferred DeleteCycleState clears the cycle state
 				err = utils.WaitForCondition(func() bool {
-					return task.GetTaskSchedulingState() == TaskSchedAllocated
+					return task.GetTaskSchedulingState() == TaskSchedAllocated && cache.GetCycleState(draTestPod) == nil
 				}, 10*time.Millisecond, 3*time.Second)
 				assert.NilError(t, err, "pod should be bound")
 				assert.Assert(t, !rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should not be sent")
-				assert.Equal(t, int32(0), unreserved.Load(), "unreserve should not be called")
 			}
+			assert.Equal(t, tt.unreserveCalls, unreserved.Load(), "unexpected number of unreserve calls")
+			assert.Equal(t, int32(0), unreservedWrongArgs.Load(), "unreserve should get the pod, cycle state and node of the bind")
 		})
 	}
 }

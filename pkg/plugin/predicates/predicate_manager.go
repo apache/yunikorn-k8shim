@@ -57,8 +57,8 @@ type PredicateManager interface {
 	Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
 	// PreBind Binding cycle - PreBind the node
 	PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
-	// Unreserve Binding cycle - Unreserve the node
-	Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo)
+	// Unreserve Binding cycle - Unreserve the node, which may be gone from the cache
+	Unreserve(pod *v1.Pod, cycleState *framework.CycleState, nodeName string)
 }
 
 var _ PredicateManager = &predicateManagerImpl{}
@@ -153,10 +153,10 @@ func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleS
 	return nil
 }
 
-func (p *predicateManagerImpl) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) {
+func (p *predicateManagerImpl) Unreserve(pod *v1.Pod, cycleState *framework.CycleState, nodeName string) {
 	reservePl := *p.reservePlugins
 	for _, pl := range reservePl {
-		pl.Unreserve(context.Background(), cycleState, pod, node.Node().Name)
+		pl.Unreserve(context.Background(), cycleState, pod, nodeName)
 	}
 }
 

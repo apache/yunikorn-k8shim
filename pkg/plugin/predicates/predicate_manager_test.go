@@ -3019,7 +3019,7 @@ func TestPreBindPlugin(t *testing.T) {
 			pluginErr := p.PreBind(tc.pod, cycleState, nodeInfo)
 			if tc.errorExpected != nil {
 				assert.Assert(t, pluginErr != nil, "error should not be nil")
-				p.Unreserve(tc.pod, cycleState, nodeInfo)
+				p.Unreserve(tc.pod, cycleState, node.Name)
 				read, err = cycleState.Read("mock-reserve")
 				if err != nil {
 					t.Fatalf("fail to read mock-reserve state data")
