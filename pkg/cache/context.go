@@ -388,6 +388,7 @@ func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 		ctx.notifyTaskComplete(app, taskID)
 		log.Log(log.ShimContext).Debug("Request to update terminated pod, removing from cache", zap.String("podName", pod.Name))
 		ctx.schedulerCache.RemovePod(pod)
+		ctx.revertPodVolumeAssumptions(taskID)
 		return
 	}
 
@@ -537,7 +538,10 @@ func (ctx *Context) deleteYuniKornPod(pod *v1.Pod) {
 	}
 
 	log.Log(log.ShimContext).Debug("removing pod from cache", zap.String("podName", pod.Name))
+	// remove the pod first: a bind that finds its volumes gone checks for the pod
 	ctx.schedulerCache.RemovePod(pod)
+	// no rollback runs if CompleteTask comes before TaskAllocated
+	ctx.revertPodVolumeAssumptions(string(pod.UID))
 }
 
 func (ctx *Context) deleteForeignPod(pod *v1.Pod) {
@@ -952,6 +956,12 @@ func (ctx *Context) bindPodVolumes(pod *v1.Pod) error {
 				// convert nil to empty array
 				volumes.DynamicProvisions = make([]*volumebinding.DynamicProvision, 0)
 			}
+			// BindPodVolumes reverts what it does not write
+			stored := ctx.schedulerCache.DeletePodVolumes(podKey)
+			if stored == nil && ctx.schedulerCache.GetPod(podKey) == nil {
+				// the pod was removed during the bind; the prefix stops the retries
+				return fmt.Errorf("binding volumes: pod %s was removed", pod.Name)
+			}
 			err = ctx.apiProvider.GetAPIs().VolumeBinder.BindPodVolumes(context.Background(), assumedPod, volumes)
 			if err != nil {
 				log.Log(log.ShimContext).Error("Failed to bind pod volumes",
@@ -1020,6 +1030,9 @@ func (ctx *Context) AssumePod(name, node string) error {
 			if err != nil {
 				return err
 			}
+			if !allBound {
+				ctx.schedulerCache.StorePodVolumes(string(pod.UID), volumes)
+			}
 
 			// assign the node name for pod
 			assumedPod.Spec.NodeName = node
@@ -1043,35 +1056,13 @@ func (ctx *Context) ForgetPod(name string) {
 	log.Log(log.ShimContext).Debug("unable to forget pod: not found in cache", zap.String("pod", name))
 }
 
-// RevertPodVolumeAssumptions undoes any PV/PVC assumptions made by the volume binder
-// for the given pod on the given node. This is idempotent and safe to call even if
-// AssumePodVolumes was never called or already reverted internally.
-func (ctx *Context) RevertPodVolumeAssumptions(podName, nodeID string) {
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()
-	pod := ctx.schedulerCache.GetPod(podName)
-	if pod == nil {
-		return
+// revertPodVolumeAssumptions reverts the PV/PVC assumptions AssumePod made for the pod, if any are left.
+// It takes no context lock, and needs neither the pod nor the node in the cache.
+func (ctx *Context) revertPodVolumeAssumptions(podUID string) {
+	if podVolumes := ctx.schedulerCache.DeletePodVolumes(podUID); podVolumes != nil {
+		ctx.apiProvider.GetAPIs().VolumeBinder.RevertAssumedPodVolumes(podVolumes)
+		log.Log(log.ShimContext).Info("reverted assumed pod volumes", zap.String("podUID", podUID))
 	}
-	node := ctx.schedulerCache.GetNode(nodeID)
-	if node == nil {
-		return
-	}
-	podVolumeClaims, err := ctx.apiProvider.GetAPIs().VolumeBinder.GetPodVolumeClaims(ctx.klogger, pod)
-	if err != nil {
-		log.Log(log.ShimContext).Error("RevertPodVolumeAssumptions: failed to get pod volume claims",
-			zap.String("pod", podName), zap.Error(err))
-		return
-	}
-	podVolumes, _, err := ctx.apiProvider.GetAPIs().VolumeBinder.FindPodVolumes(ctx.klogger, pod, podVolumeClaims, node.Node())
-	if err != nil || podVolumes == nil {
-		log.Log(log.ShimContext).Error("RevertPodVolumeAssumptions: failed to find pod volumes",
-			zap.String("pod", podName), zap.Error(err))
-		return
-	}
-	ctx.apiProvider.GetAPIs().VolumeBinder.RevertAssumedPodVolumes(podVolumes)
-	log.Log(log.ShimContext).Info("reverted assumed pod volumes",
-		zap.String("pod", podName), zap.String("node", nodeID))
 }
 
 func (ctx *Context) notifyTaskComplete(app *Application, taskID string) {

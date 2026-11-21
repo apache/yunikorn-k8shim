@@ -697,14 +697,14 @@ func (task *Task) rollbackOnAssumePodFailure(allocationKey, nodeID string) {
 	task.nodeName = ""
 	task.lock.Unlock()
 
-	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, "AssumePodFailed",
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, "AssumePodFailed",
 		fmt.Sprintf("Node assignment failed for %s on node %s, it will be retried", alias, nodeID))
 }
 
 // rollbackAllocation resets the task allocation state and notifies the core to move
 // the allocation back to a pending ask so it can be re-scheduled on a different node.
 // Must be called without holding the task lock.
-func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocationKey, nodeID, eventReason, eventMsg string) {
+func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocationKey, eventReason, eventMsg string) {
 	// Post a warning event so operators can see the retry via kubectl describe pod.
 	events.GetRecorder().Eventf(podCopy, nil,
 		v1.EventTypeWarning, eventReason, eventReason, eventMsg)
@@ -712,7 +712,7 @@ func (task *Task) rollbackAllocation(podCopy *v1.Pod, appID, partition, allocati
 	if len(podCopy.Spec.Volumes) > 0 {
 		// Revert any PV/PVC assumptions made by the volume binder. Idempotent: safe to call
 		// even if AssumePodVolumes was never reached or already cleaned up internally.
-		task.context.RevertPodVolumeAssumptions(allocationKey, nodeID)
+		task.context.revertPodVolumeAssumptions(allocationKey)
 	}
 
 	// Safe if the pod was never assumed.
@@ -765,7 +765,7 @@ func (task *Task) rescheduleOnBindFailure(allocationKey, nodeID string, cycleSta
 	if len(podCopy.Spec.ResourceClaims) > 0 && cycleState != nil {
 		task.context.unreserve(podCopy, cycleState, nodeID)
 	}
-	task.rollbackAllocation(podCopy, appID, partition, allocationKey, nodeID, eventReason, eventMsg)
+	task.rollbackAllocation(podCopy, appID, partition, allocationKey, eventReason, eventMsg)
 }
 
 func (task *Task) SetTaskPod(pod *v1.Pod) {

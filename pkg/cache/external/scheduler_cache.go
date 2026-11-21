@@ -31,6 +31,7 @@ import (
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -49,7 +50,8 @@ type SchedulerCache struct {
 	assumedPods    map[string]bool    // map of assumed pods, value indicates if pod volumes are all bound
 	orphanedPods   map[string]*v1.Pod // map of orphaned pods, keyed by pod UID
 	pvcRefCounts   map[string]map[string]int
-	podsCycleState map[string]*framework.CycleState // map of pods to the cycle state
+	podsCycleState map[string]*framework.CycleState     // map of pods to the cycle state
+	podVolumes     map[string]*volumebinding.PodVolumes // map of pods to the volumes assumed for them
 	lock           locking.RWMutex
 	clients        *client.Clients // client APIs
 	klogger        klog.Logger
@@ -73,6 +75,7 @@ func NewSchedulerCache(clients *client.Clients) *SchedulerCache {
 		orphanedPods:   make(map[string]*v1.Pod),
 		pvcRefCounts:   make(map[string]map[string]int),
 		podsCycleState: make(map[string]*framework.CycleState),
+		podVolumes:     make(map[string]*volumebinding.PodVolumes),
 		clients:        clients,
 		klogger:        klog.NewKlogr(),
 	}
@@ -691,6 +694,22 @@ func (cache *SchedulerCache) DeleteCycleState(pod *v1.Pod) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 	delete(cache.podsCycleState, string(pod.UID))
+}
+
+// StorePodVolumes stores the volumes assumed for the pod.
+func (cache *SchedulerCache) StorePodVolumes(podKey string, podVolumes *volumebinding.PodVolumes) {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.podVolumes[podKey] = podVolumes
+}
+
+// DeletePodVolumes removes the volumes stored for the pod and returns them, or nil if there are none.
+func (cache *SchedulerCache) DeletePodVolumes(podKey string) *volumebinding.PodVolumes {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	podVolumes := cache.podVolumes[podKey]
+	delete(cache.podVolumes, podKey)
+	return podVolumes
 }
 
 func (cache *SchedulerCache) GetSchedulerCacheDao() SchedulerCacheDao {
