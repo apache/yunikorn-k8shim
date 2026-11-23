@@ -269,6 +269,26 @@ func (c *RClient) GetCompletedAppInfo(partition string, appID string) (*dao.Appl
 	return nil, fmt.Errorf("no application found with ID %s in 'Failed', 'Expired', 'Completed' state", appID)
 }
 
+func (c *RClient) GetRejectedAppInfo(partition string, appID string) (*dao.ApplicationDAOInfo, error) {
+	req, err := c.newRequest("GET", fmt.Sprintf(configmanager.RejectedAppsPath, partition), nil)
+	if err != nil {
+		return nil, err
+	}
+	var apps []*dao.ApplicationDAOInfo
+	_, err = c.do(req, &apps)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, app := range apps {
+		if app.ApplicationID == appID {
+			return app, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no application found with ID %s in 'Rejected' state", appID)
+}
+
 func (c *RClient) GetAllocationLog(partition string, queueName string, appID string, podName string) ([]*dao.AllocationAskLogDAOInfo, error) {
 	reqs, err := c.GetAppInfo(partition, queueName, appID)
 	if err != nil {
@@ -362,6 +382,14 @@ func (c *RClient) WaitForAppStateTransition(partition string, queue string, appI
 
 func (c *RClient) WaitForCompletedAppStateTransition(partition string, appID string, state string, timeout int) error {
 	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, c.isAppInDesiredCompletedState(partition, appID, state).WithContext())
+}
+
+// WaitForRejectedApp waits for the app to show up in the rejected list, GetAppInfo returns 404 for rejected apps.
+func (c *RClient) WaitForRejectedApp(partition string, appID string, timeout int) error {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second, time.Duration(timeout)*time.Second, false, func(context.Context) (bool, error) {
+		_, err := c.GetRejectedAppInfo(partition, appID)
+		return err == nil, nil
+	})
 }
 
 func (c *RClient) WaitForAllExecPodsAllocated(partition string, queueName string, appID string, execPodCount int, timeout int) error {
