@@ -323,6 +323,11 @@ func TestRecoveryCoreStateAtInit(t *testing.T) {
 	assert.NilError(t, cluster.scheduler.initSchedulerState())
 	// a missed wake-up waits for the 10s tick
 	assert.Check(t, time.Since(start) < 5*time.Second, "initialising the state took %v", time.Since(start))
+	for _, pods := range running {
+		for _, pod := range pods {
+			assert.Check(t, !cluster.context.GetSchedulerCache().IsAssumedPod(pod), "recovered pod %s is assumed", pod)
+		}
+	}
 
 	calls := rec.get()
 	firstEnable := -1

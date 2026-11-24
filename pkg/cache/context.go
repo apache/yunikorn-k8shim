@@ -985,16 +985,16 @@ func (ctx *Context) AssumePod(name, node string) error {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()
 	if pod := ctx.schedulerCache.GetPod(name); pod != nil {
-		// when add assumed pod, we make a copy of the pod to avoid
-		// modifying its original reference. otherwise, it may have
-		// race when some other go-routines accessing it in parallel.
 		if targetNode := ctx.schedulerCache.GetNode(node); targetNode != nil {
-			assumedPod := pod.DeepCopy()
-			// a pod already bound to the node has no volumes to bind, and a failed check would roll back a running pod
+			// a pod already on the node is bound, or was assumed there before: assuming it now would mark a bound pod as
+			// not bound yet, and a failed volume check would roll back a running pod
 			if pod.Spec.NodeName == node {
-				ctx.schedulerCache.AssumePod(assumedPod, true)
 				return nil
 			}
+			// when add assumed pod, we make a copy of the pod to avoid
+			// modifying its original reference. otherwise, it may have
+			// race when some other go-routines accessing it in parallel.
+			assumedPod := pod.DeepCopy()
 			// assume pod volumes, this will update bindings info in cache
 			// assume pod volumes before assuming the pod
 			// this will update scheduler cache with essential PV/PVC binding info

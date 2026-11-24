@@ -2445,8 +2445,9 @@ func TestAssumePod_AlreadyBound(t *testing.T) {
 
 	err := context.AssumePod(pod1UID, fakeNodeName)
 	assert.NilError(t, err)
-	assert.Assert(t, context.schedulerCache.IsAssumedPod(pod1UID))
-	assert.Assert(t, context.schedulerCache.ArePodVolumesAllBound(pod1UID))
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(pod1UID))
+	_, orphans := context.schedulerCache.RemoveNode(context.schedulerCache.GetNode(fakeNodeName).Node())
+	assert.Equal(t, len(orphans), 1, "a bound pod on a removed node is not orphaned")
 }
 
 func TestPodAdoption(t *testing.T) {

@@ -241,6 +241,9 @@ func TestUpdateAllocation_NewTask_PodAlreadyAssigned(t *testing.T) {
 	callback, context := initCallbackTest(t, true, false)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
+	binder := test.NewVolumeBinderMock()
+	binder.EnableVolumeClaimsError("persistentvolumeclaim \"data\" not found")
+	setVolumeBinder(context, binder)
 
 	err := callback.UpdateAllocation(&si.AllocationResponse{
 		New: []*si.Allocation{
@@ -252,11 +255,45 @@ func TestUpdateAllocation_NewTask_PodAlreadyAssigned(t *testing.T) {
 		},
 	})
 	assert.NilError(t, err, "error updating allocation")
-	assert.Assert(t, context.schedulerCache.IsAssumedPod(taskUID1))
+	assert.Assert(t, !context.schedulerCache.IsAssumedPod(taskUID1))
 	task := context.getTask(appID, taskUID1)
 	assert.Equal(t, TaskStates().Bound, task.GetTaskState())
 	assert.Equal(t, fakeNodeName, task.nodeName)
 	assert.Equal(t, TaskSchedAllocated, task.schedulingState)
+	context.ForgetPod(taskUID1)
+	assert.Equal(t, fakeNodeName, context.schedulerCache.GetPod(taskUID1).Spec.NodeName, "a forgotten bound pod lost its node")
+}
+
+// TestUpdateAllocation_NewTask_PodBoundDuringAssume binds the pod while AssumePod retries, as when an earlier bind went
+// through after it failed.
+func TestUpdateAllocation_NewTask_PodBoundDuringAssume(t *testing.T) {
+	callback, context := initCallbackTest(t, false, false)
+	defer dispatcher.UnregisterAllEventHandlers()
+	defer dispatcher.Stop()
+	binder := test.NewVolumeBinderMock()
+	binder.EnableVolumeClaimsError("persistentvolumeclaim \"data\" not found")
+	setVolumeBinder(context, binder)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- callback.UpdateAllocation(&si.AllocationResponse{
+			New: []*si.Allocation{{ApplicationID: appID, AllocationKey: taskUID1, NodeID: fakeNodeName}},
+		})
+	}()
+	err := utils.WaitForCondition(func() bool { return binder.GetVolumeClaimsCallCount() > 0 }, time.Millisecond, 5*time.Second)
+	assert.NilError(t, err, "AssumePod not called")
+	task := context.getTask(appID, taskUID1)
+	bound := task.GetTaskPod().DeepCopy()
+	bound.Spec.NodeName = fakeNodeName
+	bound.Status.Phase = v1.PodRunning
+	context.UpdatePod(task.GetTaskPod(), bound)
+	select {
+	case err = <-done:
+		assert.NilError(t, err, "error updating allocation")
+	case <-time.After(10 * time.Second):
+		t.Fatal("UpdateAllocation did not return")
+	}
+	assert.Equal(t, TaskStates().Bound, task.GetTaskState())
 }
 
 func TestUpdateAllocation_AllocationRejected(t *testing.T) {
