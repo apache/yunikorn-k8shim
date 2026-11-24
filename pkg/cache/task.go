@@ -62,7 +62,7 @@ type Task struct {
 	originator    bool
 	sm            *fsm.FSM
 
-	// set by Application.addTask when the application had already failed
+	// set once, by Application.addTask
 	addedAfterAppFailed bool
 
 	// mutable resources, require locking

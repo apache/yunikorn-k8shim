@@ -502,7 +502,7 @@ func TestRemoveFailedApplication(t *testing.T) {
 				context.AddPod(late)
 			}
 			if tt.latePod == "deleted" {
-				// the dispatcher is not running, so the task stays active like a completion not yet handled
+				// no dispatcher: the task stays active, like a completion not yet handled
 				context.DeletePod(late)
 			}
 

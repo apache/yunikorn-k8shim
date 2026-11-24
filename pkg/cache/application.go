@@ -256,16 +256,14 @@ func (app *Application) addTask(task *Task) {
 		// skip adding duplicate task
 		return
 	}
-	// the transition to Failed holds the application lock too, so a task is either part of the
-	// application when it fails or marked here
+	// the transition to Failed holds the same lock
 	if app.sm.Current() == ApplicationStates().Failed {
 		task.addedAfterAppFailed = true
 	}
 	app.taskMap[task.taskID] = task
 }
 
-// getTasksAddedAfterFailure returns the IDs of the active tasks that were added after the application
-// failed, or false while a task the application failed with is still active.
+// getTasksAddedAfterFailure returns the active tasks added after the failure, or false while an earlier task is active.
 func (app *Application) getTasksAddedAfterFailure() ([]string, bool) {
 	app.lock.RLock()
 	defer app.lock.RUnlock()

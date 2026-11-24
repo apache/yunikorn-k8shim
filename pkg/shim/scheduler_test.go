@@ -162,8 +162,7 @@ func TestRejectApplications(t *testing.T) {
 	cluster.waitAndAssertTaskState(t, appID, "task0001", cache.TaskStates().Bound)
 }
 
-// A controller replaces a rejected pod within milliseconds, before the next scheduling cycle can
-// remove the Failed application.
+// The replacement pod arrives before the next scheduling cycle removes the Failed application.
 func TestRejectedApplicationReplacementPod(t *testing.T) {
 	cluster := MockScheduler{}
 	cluster.init()
