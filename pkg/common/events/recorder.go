@@ -50,6 +50,15 @@ func SetRecorder(recorder events.EventRecorder) {
 
 const shedLogInterval = 30 * time.Second
 
+// Shared with the call sites, so a renamed reason cannot silently leave the event budget.
+const (
+	ReasonScheduling        = "Scheduling"
+	ReasonPodBindSuccessful = "PodBindSuccessful"
+	ReasonTaskCompleted     = "TaskCompleted"
+	ReasonGangScheduling    = "GangScheduling"
+	ActionTaskGroupMatch    = "TaskGroupMatch"
+)
+
 // budgetedEvent returns true for the low-impact per-pod progress events which are shed when
 // the event budget is spent. Every other event is always sent.
 func budgetedEvent(eventtype, reason, action string) bool {
@@ -57,10 +66,10 @@ func budgetedEvent(eventtype, reason, action string) bool {
 		return false
 	}
 	switch reason {
-	case "Scheduling", "PodBindSuccessful", "TaskCompleted":
+	case ReasonScheduling, ReasonPodBindSuccessful, ReasonTaskCompleted:
 		return true
-	case "GangScheduling":
-		return action == "TaskGroupMatch"
+	case ReasonGangScheduling:
+		return action == ActionTaskGroupMatch
 	}
 	return false
 }

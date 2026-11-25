@@ -392,7 +392,7 @@ func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 		for _, gate := range pod.Spec.SchedulingGates {
 			gates = append(gates, gate.Name)
 		}
-		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeNormal, events.ReasonScheduling, events.ReasonScheduling,
 			"waiting for scheduling gates: %s", strings.Join(gates, ","))
 		log.Log(log.ShimContext).Info("pod is waiting for scheduling gates", zap.String("name", pod.Name), zap.Strings("gates", gates))
 	}

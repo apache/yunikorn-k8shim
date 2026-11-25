@@ -88,18 +88,18 @@ var (
 	// the events which are never shed and never take a token
 	alwaysSent = []testEvent{
 		{v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable"},
-		{v1.EventTypeWarning, "Scheduling", "Scheduling"},
+		{v1.EventTypeWarning, ReasonScheduling, ReasonScheduling},
 		{v1.EventTypeNormal, "Scheduled", "Scheduled"},
 		{v1.EventTypeNormal, "Informational", "Informational"},
 		{v1.EventTypeNormal, "NodeAccepted", "NodeAccepted"},
-		{v1.EventTypeNormal, "GangScheduling", "TaskGroupsCreated"},
+		{v1.EventTypeNormal, ReasonGangScheduling, "TaskGroupsCreated"},
 	}
 	// the low-impact progress events which the budget applies to
 	budgeted = []testEvent{
-		{v1.EventTypeNormal, "Scheduling", "Scheduling"},
-		{v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful"},
-		{v1.EventTypeNormal, "TaskCompleted", "TaskCompleted"},
-		{v1.EventTypeNormal, "GangScheduling", "TaskGroupMatch"},
+		{v1.EventTypeNormal, ReasonScheduling, ReasonScheduling},
+		{v1.EventTypeNormal, ReasonPodBindSuccessful, ReasonPodBindSuccessful},
+		{v1.EventTypeNormal, ReasonTaskCompleted, ReasonTaskCompleted},
+		{v1.EventTypeNormal, ReasonGangScheduling, ActionTaskGroupMatch},
 	}
 )
 
