@@ -501,6 +501,68 @@ func TestRemoveApplication(t *testing.T) {
 	assert.Equal(t, ok, false)
 }
 
+func TestRemoveFailedApplication(t *testing.T) {
+	tests := []struct {
+		name        string
+		notFailed   bool
+		firstDone   bool
+		latePod     string
+		wantRemoved bool
+		wantReAdded bool
+	}{
+		{name: "application not failed, all tasks terminated", notFailed: true, firstDone: true},
+		{name: "task the application failed with is active"},
+		{name: "all tasks terminated", firstDone: true, wantRemoved: true},
+		{name: "late pod, task the application failed with is active", latePod: "active"},
+		{name: "late pod", firstDone: true, latePod: "active", wantRemoved: true, wantReAdded: true},
+		{name: "late pod deleted", firstDone: true, latePod: "deleted", wantRemoved: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context := initContextForTest()
+			context.RemoveFailedApplication(appID1)
+
+			context.AddPod(newPodHelper(podName1, namespace, pod1UID, "", appID1, v1.PodPending))
+			app := context.GetApplication(appID1)
+			assert.Assert(t, app != nil)
+			if tt.notFailed {
+				app.SetState(ApplicationStates().Running)
+			} else {
+				app.SetState(ApplicationStates().Failed)
+			}
+			if tt.firstDone {
+				app.GetTask(pod1UID).sm.SetState(TaskStates().Completed)
+			}
+			late := newPodHelper(podName2, namespace, pod2UID, "", appID1, v1.PodPending)
+			if tt.latePod != "" {
+				context.AddPod(late)
+			}
+			if tt.latePod == "deleted" {
+				// no dispatcher: the task stays active, like a completion not yet handled
+				context.DeletePod(late)
+			}
+
+			context.RemoveFailedApplication(appID1)
+
+			current := context.GetApplication(appID1)
+			switch {
+			case !tt.wantRemoved:
+				assert.Equal(t, current, app)
+			case !tt.wantReAdded:
+				assert.Assert(t, current == nil)
+			default:
+				assert.Assert(t, current != nil && current != app)
+				assert.Equal(t, current.GetApplicationState(), ApplicationStates().New)
+				assert.Assert(t, current.GetTask(pod1UID) == nil)
+				task := current.GetTask(pod2UID)
+				assert.Assert(t, task != nil)
+				assert.Equal(t, task.GetTaskState(), TaskStates().New)
+				assert.Assert(t, !task.addedAfterAppFailed)
+			}
+		})
+	}
+}
+
 func TestAddPod(t *testing.T) {
 	context := initContextForTest()
 

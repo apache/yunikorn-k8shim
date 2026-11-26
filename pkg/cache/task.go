@@ -63,6 +63,9 @@ type Task struct {
 	originator    bool
 	sm            *fsm.FSM
 
+	// set once, by Application.addTask
+	addedAfterAppFailed bool
+
 	// mutable resources, require locking
 	allocationKey   string
 	nodeName        string

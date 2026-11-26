@@ -162,6 +162,36 @@ func TestRejectApplications(t *testing.T) {
 	cluster.waitAndAssertTaskState(t, appID, "task0001", cache.TaskStates().Bound)
 }
 
+// The replacement pod arrives before the next scheduling cycle removes the Failed application.
+func TestRejectedApplicationReplacementPod(t *testing.T) {
+	cluster := MockScheduler{}
+	cluster.init()
+	assert.NilError(t, cluster.start(), "failed to start cluster")
+	defer cluster.stop()
+
+	err := cluster.updateConfig(configData, nil)
+	assert.NilError(t, err, "update config failed")
+	err = cluster.addNode("test.host.01", map[string]string{}, 100000000, 10, 10)
+	assert.NilError(t, err)
+
+	appID := "app0001"
+	taskResource := common.NewResourceBuilder().
+		AddResource(siCommon.Memory, 10000000).
+		AddResource(siCommon.CPU, 1).
+		Build()
+	rejected := createTestPod("root.non_exist_queue", appID, "task0001", taskResource)
+	cluster.AddPod(rejected)
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Failed)
+
+	failed := rejected.DeepCopy()
+	failed.Status.Phase = v1.PodFailed
+	cluster.UpdatePod(rejected, failed)
+	cluster.AddPod(createTestPod("root.a", appID, "task0002", taskResource))
+
+	cluster.waitAndAssertApplicationState(t, appID, cache.ApplicationStates().Running)
+	cluster.waitAndAssertTaskState(t, appID, "task0002", cache.TaskStates().Bound)
+}
+
 func TestSchedulerRegistrationFailed(t *testing.T) {
 	var callback api.ResourceManagerCallback
 

@@ -1247,6 +1247,47 @@ func (ctx *Context) RemoveApplication(appID string) {
 	delete(ctx.applications, appID)
 }
 
+// RemoveFailedApplication removes a Failed application once the tasks it failed with have terminated,
+// and adds pods that joined it later to a new application with the same ID.
+func (ctx *Context) RemoveFailedApplication(appID string) {
+	// called every scheduling cycle
+	ctx.lock.RLock()
+	_, removable := ctx.getTasksToMoveFromFailedApplication(appID)
+	ctx.lock.RUnlock()
+	if !removable {
+		return
+	}
+
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()
+	taskIDs, removable := ctx.getTasksToMoveFromFailedApplication(appID)
+	if !removable {
+		return
+	}
+	delete(ctx.applications, appID)
+	for _, taskID := range taskIDs {
+		// the cache drops a terminated pod at once, the task completes asynchronously
+		pod := ctx.schedulerCache.GetPod(taskID)
+		if pod == nil {
+			continue
+		}
+		log.Log(log.ShimContext).Info("adding pod that arrived after its application failed to a new application",
+			zap.String("appID", appID),
+			zap.String("taskID", taskID),
+			zap.String("podName", pod.Name))
+		ctx.ensureAppAndTaskCreated(pod, nil)
+	}
+}
+
+// getTasksToMoveFromFailedApplication is getTasksAddedAfterFailure for a Failed application. Requires the context lock.
+func (ctx *Context) getTasksToMoveFromFailedApplication(appID string) ([]string, bool) {
+	app := ctx.getApplication(appID)
+	if app == nil || app.GetApplicationState() != ApplicationStates().Failed {
+		return nil, false
+	}
+	return app.getTasksAddedAfterFailure()
+}
+
 func (ctx *Context) RemoveCompletedApplication(appID string) {
 	ctx.lock.Lock()
 	defer ctx.lock.Unlock()

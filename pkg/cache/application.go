@@ -256,7 +256,28 @@ func (app *Application) addTask(task *Task) {
 		// skip adding duplicate task
 		return
 	}
+	// the transition to Failed holds the same lock
+	if app.sm.Current() == ApplicationStates().Failed {
+		task.addedAfterAppFailed = true
+	}
 	app.taskMap[task.taskID] = task
+}
+
+// getTasksAddedAfterFailure returns the active tasks added after the failure, or false while an earlier task is active.
+func (app *Application) getTasksAddedAfterFailure() ([]string, bool) {
+	app.lock.RLock()
+	defer app.lock.RUnlock()
+	var taskIDs []string
+	for taskID, task := range app.taskMap {
+		if task.isTerminated() {
+			continue
+		}
+		if !task.addedAfterAppFailed {
+			return nil, false
+		}
+		taskIDs = append(taskIDs, taskID)
+	}
+	return taskIDs, true
 }
 
 func (app *Application) RemoveTask(taskID string) {
