@@ -1382,6 +1382,96 @@ func TestPostTaskAllocated_VolumeBindExhaustedReschedules(t *testing.T) {
 	assert.Assert(t, rollbackSent.Load(), "SCHEDULING_FAILED_ON_RM release request should be sent")
 }
 
+// TestPostTaskAllocated_RevertsPodVolumes verifies that the volumes AssumePod assumed are reverted once
+// when a bind fails before BindPodVolumes, and not when it fails later.
+func TestPostTaskAllocated_RevertsPodVolumes(t *testing.T) {
+	deleteNode := func(ctx *Context, _ *test.VolumeBinderMock) {
+		ctx.deleteNode(ctx.schedulerCache.GetNode(fakeNodeName).Node())
+	}
+	conflictVolumes := func(_ *Context, binder *test.VolumeBinderMock) {
+		binder.SetConflictReasons("node(s) had volume node affinity conflict")
+	}
+	failVolumeBind := func(_ *Context, binder *test.VolumeBinderMock) {
+		binder.EnableBindPodVolumesError("permanent volume bind error")
+	}
+	deleteAtLookup := func(ctx *Context, binder *test.VolumeBinderMock) {
+		binder.MockFindPodVolumesFn(func() { ctx.DeletePod(ctx.schedulerCache.GetPod(pod1UID)) })
+	}
+	// the bind takes the volumes between the RemovePod and the revert of a delete
+	removeAtLookup := func(ctx *Context, binder *test.VolumeBinderMock) {
+		binder.MockFindPodVolumesFn(func() { ctx.schedulerCache.RemovePod(ctx.schedulerCache.GetPod(pod1UID)) })
+	}
+	deleteAtBind := func(ctx *Context, binder *test.VolumeBinderMock) {
+		binder.MockBindPodVolumesFn(func() { ctx.DeletePod(ctx.schedulerCache.GetPod(pod1UID)) })
+	}
+	tests := []struct {
+		name        string
+		setup       func(ctx *Context, binder *test.VolumeBinderMock)
+		deletesPod  bool
+		volumeBinds int32
+		podBinds    int32
+		reverts     int
+	}{
+		{name: "node deleted before the volume bind", setup: deleteNode, reverts: 1},
+		{name: "volume conflict before the volume bind", setup: conflictVolumes, reverts: 1},
+		{name: "volume bind fails", setup: failVolumeBind, volumeBinds: 2},
+		{name: "pod deleted during the volume lookup", setup: deleteAtLookup, deletesPod: true, reverts: 1},
+		{name: "pod removed from the cache during the volume lookup", setup: removeAtLookup, volumeBinds: 1, podBinds: 2},
+		{name: "pod deleted during the volume bind", setup: deleteAtBind, deletesPod: true, volumeBinds: 1, podBinds: 2},
+		{name: "pod bind fails after the volume bind", volumeBinds: 1, podBinds: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			binder := test.NewVolumeBinderMock()
+			binder.SetAllBound(false)
+			binder.SetPodVolumes(&volumebinding.PodVolumes{})
+			mockedContext := initAssumePodTest(binder)
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+			defer setShortBindBackoff(2)()
+
+			apiProvider := mockedContext.apiProvider.(*client.MockedAPIProvider) //nolint:errcheck
+			var podBinds atomic.Int32
+			apiProvider.MockBindFn(func(_ *v1.Pod, _ string) error {
+				podBinds.Add(1)
+				return fmt.Errorf("permanent bind error")
+			})
+			var rollbackSent atomic.Bool
+			apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+				if request.Releases != nil {
+					for _, rel := range request.Releases.AllocationsToRelease {
+						if rel.TerminationType == si.TerminationType_SCHEDULING_FAILED_ON_RM {
+							rollbackSent.Store(true)
+						}
+					}
+				}
+				return nil
+			})
+
+			assert.NilError(t, mockedContext.AssumePod(pod1UID, fakeNodeName))
+			if tt.setup != nil {
+				tt.setup(mockedContext, binder)
+			}
+			appTask := mockedContext.getTask(appID, pod1UID)
+			task := NewTask(pod1UID, mockedContext.getApplication(appID), mockedContext, newBindTestPod(podName1, pod1UID))
+			task.sm.SetState(TaskStates().Scheduling)
+			err := task.handle(NewAllocateTaskEvent(appID, task.taskID, pod1UID, fakeNodeName))
+			assert.NilError(t, err, "failed to handle AllocateTask event")
+
+			err = utils.WaitForCondition(rollbackSent.Load, 10*time.Millisecond, 3*time.Second)
+			assert.NilError(t, err, "SCHEDULING_FAILED_ON_RM release request should be sent")
+			assert.Equal(t, tt.reverts, binder.RevertCalledCount())
+			assert.Equal(t, tt.volumeBinds, binder.GetBindCount(), "BindPodVolumes calls")
+			assert.Equal(t, tt.podBinds, podBinds.Load(), "pod bind calls")
+			if tt.deletesPod {
+				// consume CompleteTask before stopping the dispatcher so it cannot reach the next test
+				err = utils.WaitForCondition(func() bool { return appTask.GetTaskState() == TaskStates().Completed }, 10*time.Millisecond, time.Second)
+				assert.NilError(t, err, "CompleteTask was not handled")
+			}
+		})
+	}
+}
+
 // TestPostTaskAllocated_VolumeBindNoRetryOnBindingVolumesError verifies that when volume binding
 // fails with a "binding volumes:" error, retries are stopped immediately and the allocation is rolled back.
 func TestPostTaskAllocated_VolumeBindNoRetryOnBindingVolumesError(t *testing.T) {

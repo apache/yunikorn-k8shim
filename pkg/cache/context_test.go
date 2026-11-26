@@ -2481,6 +2481,7 @@ func TestAssumePod_AssumePodVolumesError(t *testing.T) {
 	binder := test.NewVolumeBinderMock()
 	const errMsg = "error assuming pod volumes"
 	binder.SetAssumePodVolumesError(errMsg)
+	binder.SetPodVolumes(&volumebinding.PodVolumes{})
 	context := initAssumePodTest(binder)
 	defer dispatcher.UnregisterAllEventHandlers()
 	defer dispatcher.Stop()
@@ -2491,6 +2492,8 @@ func TestAssumePod_AssumePodVolumesError(t *testing.T) {
 	podInCache := context.schedulerCache.GetPod(pod1UID)
 	assert.Assert(t, podInCache != nil, "pod not found in cache")
 	assert.Equal(t, podInCache.Spec.NodeName, "", "NodeName in pod spec was set unexpectedly")
+	context.revertPodVolumeAssumptions(pod1UID)
+	assert.Equal(t, binder.RevertCalledCount(), 0, "no volumes should be kept")
 }
 
 func TestAssumePod_PodNotFound(t *testing.T) {
@@ -2667,71 +2670,65 @@ func initAssumePodTest(binder *test.VolumeBinderMock) *Context {
 }
 
 func TestRevertPodVolumeAssumptions(t *testing.T) {
-	binder := test.NewVolumeBinderMock()
-	binder.SetPodVolumes(&volumebinding.PodVolumes{})
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
+	revert := func(ctx *Context) { ctx.revertPodVolumeAssumptions(pod1UID) }
+	deletePod := func(ctx *Context) { ctx.DeletePod(ctx.schedulerCache.GetPod(pod1UID)) }
+	terminatePod := func(ctx *Context) {
+		ctx.UpdatePod(nil, newPodHelper(podName1, namespace, pod1UID, "", appID, v1.PodFailed))
+	}
+	forgetAndRevert := func(ctx *Context) {
+		ctx.ForgetPod(pod1UID)
+		revert(ctx)
+	}
+	tests := []struct {
+		name       string
+		assume     bool
+		allBound   bool
+		action     func(ctx *Context)
+		removesPod bool
+		reverts    int
+	}{
+		{name: "volumes assumed", assume: true, action: revert, reverts: 1},
+		{name: "volumes all bound", assume: true, allBound: true, action: revert},
+		{name: "pod not assumed", action: revert},
+		{name: "pod forgotten", assume: true, action: forgetAndRevert, reverts: 1},
+		{name: "pod deleted", assume: true, action: deletePod, removesPod: true, reverts: 1},
+		{name: "pod terminated", assume: true, action: terminatePod, removesPod: true, reverts: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podVolumes := &volumebinding.PodVolumes{}
+			binder := test.NewVolumeBinderMock()
+			binder.SetAllBound(tt.allBound)
+			binder.SetPodVolumes(podVolumes)
+			context := initAssumePodTest(binder)
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+			appTask := context.getTask(appID, pod1UID)
 
-	context.RevertPodVolumeAssumptions(pod1UID, fakeNodeName)
-	assert.Equal(t, binder.RevertCalledCount(), 1)
-}
-
-func TestRevertPodVolumeAssumptions_PodNotFound(t *testing.T) {
-	binder := test.NewVolumeBinderMock()
-	binder.SetPodVolumes(&volumebinding.PodVolumes{})
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	context.RevertPodVolumeAssumptions("nonexistent-pod", fakeNodeName)
-	assert.Equal(t, binder.RevertCalledCount(), 0)
-}
-
-func TestRevertPodVolumeAssumptions_NodeNotFound(t *testing.T) {
-	binder := test.NewVolumeBinderMock()
-	binder.SetPodVolumes(&volumebinding.PodVolumes{})
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	context.RevertPodVolumeAssumptions(pod1UID, "nonexistent-node")
-	assert.Equal(t, binder.RevertCalledCount(), 0)
-}
-
-func TestRevertPodVolumeAssumptions_GetPodVolumeClaimsError(t *testing.T) {
-	binder := test.NewVolumeBinderMock()
-	binder.SetPodVolumes(&volumebinding.PodVolumes{})
-	binder.EnableVolumeClaimsError("volume claims error")
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	context.RevertPodVolumeAssumptions(pod1UID, fakeNodeName)
-	assert.Equal(t, binder.RevertCalledCount(), 0)
-}
-
-func TestRevertPodVolumeAssumptions_FindPodVolumesError(t *testing.T) {
-	binder := test.NewVolumeBinderMock()
-	binder.SetPodVolumes(&volumebinding.PodVolumes{})
-	binder.EnableFindPodVolumesError("find volumes error")
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	context.RevertPodVolumeAssumptions(pod1UID, fakeNodeName)
-	assert.Equal(t, binder.RevertCalledCount(), 0)
-}
-
-func TestRevertPodVolumeAssumptions_NilPodVolumes(t *testing.T) {
-	// By default the mock returns nil podVolumes; RevertAssumedPodVolumes must not be called.
-	binder := test.NewVolumeBinderMock()
-	context := initAssumePodTest(binder)
-	defer dispatcher.UnregisterAllEventHandlers()
-	defer dispatcher.Stop()
-
-	context.RevertPodVolumeAssumptions(pod1UID, fakeNodeName)
-	assert.Equal(t, binder.RevertCalledCount(), 0)
+			if tt.assume {
+				assert.NilError(t, context.AssumePod(pod1UID, fakeNodeName))
+			}
+			// a new lookup would return other volumes
+			binder.SetPodVolumes(&volumebinding.PodVolumes{})
+			podRemoved := false
+			binder.MockRevertAssumedPodVolumesFn(func() { podRemoved = context.schedulerCache.GetPod(pod1UID) == nil })
+			tt.action(context)
+			assert.Equal(t, binder.RevertCalledCount(), tt.reverts)
+			if tt.reverts > 0 {
+				assert.Equal(t, binder.RevertedPodVolumes(), podVolumes, "should revert the volumes AssumePod assumed")
+				// a bind that finds the volumes gone checks for the pod
+				assert.Equal(t, podRemoved, tt.removesPod, "pod removed before the revert")
+			}
+			// nothing left to revert
+			revert(context)
+			assert.Equal(t, binder.RevertCalledCount(), tt.reverts)
+			if tt.removesPod {
+				// consume CompleteTask before stopping the dispatcher so it cannot reach the next test
+				err := utils.WaitForCondition(func() bool { return appTask.GetTaskState() == TaskStates().Completed }, 10*time.Millisecond, time.Second)
+				assert.NilError(t, err, "CompleteTask was not handled")
+			}
+		})
+	}
 }
 
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {

@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/plugin/predicates"
@@ -1628,4 +1629,15 @@ func assertNodes(t *testing.T, got []fwk.NodeInfo, expected []fwk.NodeInfo) {
 		}
 	}
 	assert.Equal(t, len(expected), matchedNodeCount)
+}
+
+func TestStoreAndDeletePodVolumes(t *testing.T) {
+	cache := NewSchedulerCache(client.NewMockedAPIProvider(false).GetAPIs())
+	pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod-1", UID: "uid-1"}}
+	podVolumes := &volumebinding.PodVolumes{}
+	cache.UpdatePod(pod)
+	cache.StorePodVolumes(string(pod.UID), podVolumes)
+	cache.RemovePod(pod)
+	assert.Equal(t, cache.DeletePodVolumes(string(pod.UID)), podVolumes, "removing the pod should not drop the volumes")
+	assert.Assert(t, cache.DeletePodVolumes(string(pod.UID)) == nil, "volumes should be deleted")
 }

@@ -42,6 +42,10 @@ type VolumeBinderMock struct {
 	podVolumes            *volumebinding.PodVolumes
 	allBound              bool
 	revertCalledCount     int
+	revertedPodVolumes    *volumebinding.PodVolumes
+	bindFn                func()
+	findFn                func()
+	revertFn              func()
 	bindCount             atomic.Int32
 	volumeClaimsCallCount atomic.Int32
 }
@@ -65,6 +69,9 @@ func (v *VolumeBinderMock) GetEligibleNodes(_ klog.Logger, _ []*v1.PersistentVol
 }
 
 func (v *VolumeBinderMock) FindPodVolumes(_ klog.Logger, _ *v1.Pod, _ *volumebinding.PodVolumeClaims, _ *v1.Node) (*volumebinding.PodVolumes, volumebinding.ConflictReasons, error) {
+	if v.findFn != nil {
+		v.findFn()
+	}
 	if v.findPodVolumesError != nil {
 		return nil, nil, v.findPodVolumesError
 	}
@@ -84,12 +91,20 @@ func (v *VolumeBinderMock) AssumePodVolumes(_ klog.Logger, _ *v1.Pod, _ string, 
 	return v.allBound, nil
 }
 
-func (v *VolumeBinderMock) RevertAssumedPodVolumes(_ *volumebinding.PodVolumes) {
+func (v *VolumeBinderMock) RevertAssumedPodVolumes(podVolumes *volumebinding.PodVolumes) {
+	if v.revertFn != nil {
+		v.revertFn()
+	}
 	v.revertCalledCount++
+	v.revertedPodVolumes = podVolumes
 }
 
 func (v *VolumeBinderMock) RevertCalledCount() int {
 	return v.revertCalledCount
+}
+
+func (v *VolumeBinderMock) RevertedPodVolumes() *volumebinding.PodVolumes {
+	return v.revertedPodVolumes
 }
 
 func (v *VolumeBinderMock) SetPodVolumes(podVolumes *volumebinding.PodVolumes) {
@@ -98,7 +113,22 @@ func (v *VolumeBinderMock) SetPodVolumes(podVolumes *volumebinding.PodVolumes) {
 
 func (v *VolumeBinderMock) BindPodVolumes(_ context.Context, _ *v1.Pod, _ *volumebinding.PodVolumes) error {
 	v.bindCount.Add(1)
+	if v.bindFn != nil {
+		v.bindFn()
+	}
 	return v.bindError
+}
+
+func (v *VolumeBinderMock) MockBindPodVolumesFn(bfn func()) {
+	v.bindFn = bfn
+}
+
+func (v *VolumeBinderMock) MockFindPodVolumesFn(ffn func()) {
+	v.findFn = ffn
+}
+
+func (v *VolumeBinderMock) MockRevertAssumedPodVolumesFn(rfn func()) {
+	v.revertFn = rfn
 }
 
 func (v *VolumeBinderMock) GetBindCount() int32 {
