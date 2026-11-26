@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/scheme"
 	k8events "k8s.io/client-go/tools/events"
 
@@ -67,12 +66,7 @@ var (
 )
 
 func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, bootstrapConfigMaps []*v1.ConfigMap) *KubernetesShim {
-	kubeClient := client.NewKubeClient(configs.KubeConfig)
-
-	// we have disabled re-sync to keep ourselves up-to-date
-	informerFactory := informers.NewSharedInformerFactory(kubeClient.GetClientSet(), 0)
-
-	apiFactory, err := client.NewAPIFactory(scheduler, informerFactory, configs, false)
+	apiFactory, err := client.NewAPIFactory(scheduler, configs, false)
 	if err != nil {
 		log.Log(log.Shim).Fatal("problem in creating the api factory")
 		return nil
@@ -84,18 +78,27 @@ func NewShimScheduler(scheduler api.SchedulerAPI, configs *conf.SchedulerConf, b
 	}
 	rmCallback, cancelCallbacks := newCallbackWithCancel(context)
 
-	eventBroadcaster := k8events.NewBroadcaster(&k8events.EventSinkImpl{
-		Interface: kubeClient.GetClientSet().EventsV1()})
-	err = eventBroadcaster.StartRecordingToSinkWithContext(ctx.Background())
+	sink := &k8events.EventSinkImpl{Interface: client.NewEventsClient(configs.KubeConfig).EventsV1()}
+	recorder, _, err := newEventRecorder(ctx.Background(), sink)
 	if err != nil {
 		log.Log(log.Shim).Error("Could not create event broadcaster",
 			zap.Error(err))
 	} else {
-		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)
-		events.SetRecorder(eventRecorder)
+		events.SetRecorder(recorder)
 	}
 
 	return newShimSchedulerInternal(context, apiFactory, rmCallback, cancelCallbacks)
+}
+
+// newEventRecorder builds the recorder events are posted through: a broadcaster writing to the
+// sink, behind the event level filter and the event budget. It records until stop is done; the
+// caller may Shutdown the returned broadcaster. Split out so it can be tested without a client.
+func newEventRecorder(stop ctx.Context, sink k8events.EventSink) (k8events.EventRecorder, k8events.EventBroadcaster, error) {
+	eventBroadcaster := k8events.NewBroadcaster(sink)
+	if err := eventBroadcaster.StartRecordingToSinkWithContext(stop); err != nil {
+		return nil, nil, err
+	}
+	return events.NewFilteredRecorder(eventBroadcaster.NewRecorder(scheme.Scheme, constants.SchedulerName)), eventBroadcaster, nil
 }
 
 // newCallbackWithCancel builds the async RM callback used by the shim together

@@ -38,9 +38,9 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 )
 
-// clients encapsulates a set of useful client APIs
-// that can be shared by callers when talking to K8s api-server,
-// or the scheduler core.
+// Clients encapsulates the client APIs shared by callers when talking to the K8s api-server
+// or the scheduler core. Events do not use KubeClient: the broadcaster writes through its
+// own client, see NewEventsClient.
 type Clients struct {
 	// client apis
 	KubeClient   KubeClient

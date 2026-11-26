@@ -19,6 +19,7 @@
 package shim
 
 import (
+	gocontext "context"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -26,6 +27,7 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,6 +38,7 @@ import (
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/test"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
+	"github.com/apache/yunikorn-k8shim/pkg/conf"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/api"
 	siCommon "github.com/apache/yunikorn-scheduler-interface/lib/go/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
@@ -530,5 +533,69 @@ func createTestPod(queue string, appID string, taskID string, taskResource *si.R
 		Status: v1.PodStatus{
 			Phase: v1.PodPending,
 		},
+	}
+}
+
+type capturingSink struct {
+	created chan *eventsv1.Event
+}
+
+func (s *capturingSink) Create(_ gocontext.Context, e *eventsv1.Event) (*eventsv1.Event, error) {
+	s.created <- e
+	return e, nil
+}
+
+func (s *capturingSink) Update(_ gocontext.Context, e *eventsv1.Event) (*eventsv1.Event, error) {
+	return e, nil
+}
+
+func (s *capturingSink) Patch(_ gocontext.Context, e *eventsv1.Event, _ []byte) (*eventsv1.Event, error) {
+	return e, nil
+}
+
+// the recorder the shim installs must apply the event level filter before the broadcaster
+func TestNewEventRecorderFilters(t *testing.T) {
+	original := conf.GetSchedulerConf()
+	defer conf.SetSchedulerConf(original)
+	c := conf.CreateDefaultConfig()
+	c.KubeEventLevel = conf.EventLevelWarning
+	conf.SetSchedulerConf(c)
+
+	sink := &capturingSink{created: make(chan *eventsv1.Event, 10)}
+	stop, cancel := gocontext.WithCancel(gocontext.Background())
+	recorder, broadcaster, err := newEventRecorder(stop, sink)
+	assert.NilError(t, err)
+	t.Cleanup(func() {
+		cancel()
+		broadcaster.Shutdown()
+	})
+
+	pod := &v1.Pod{ObjectMeta: apis.ObjectMeta{Name: "pod", Namespace: "default", UID: "uid-1"}}
+	recorder.Eventf(pod, nil, v1.EventTypeNormal, "Scheduled", "Scheduled", "normal")
+	recorder.Eventf(pod, nil, v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable", "warning")
+
+	// each event is delivered on its own goroutine: wait for the Warning, then keep listening
+	var received []*eventsv1.Event
+	for warned := false; !warned; {
+		select {
+		case e := <-sink.created:
+			received = append(received, e)
+			warned = e.Type == v1.EventTypeWarning
+		case <-time.After(10 * time.Second):
+			t.Fatal("the Warning event did not reach the sink")
+		}
+	}
+	window := time.After(200 * time.Millisecond)
+collect:
+	for {
+		select {
+		case e := <-sink.created:
+			received = append(received, e)
+		case <-window:
+			break collect
+		}
+	}
+	for _, e := range received {
+		assert.Equal(t, v1.EventTypeWarning, e.Type, "the Normal event must be filtered out")
 	}
 }

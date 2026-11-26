@@ -397,7 +397,7 @@ func (ctx *Context) updateYuniKornPod(appID string, oldPod, pod *v1.Pod) {
 		for _, gate := range pod.Spec.SchedulingGates {
 			gates = append(gates, gate.Name)
 		}
-		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+		events.GetRecorder().Eventf(pod.DeepCopy(), nil, v1.EventTypeNormal, events.ReasonScheduling, events.ReasonScheduling,
 			"waiting for scheduling gates: %s", strings.Join(gates, ","))
 		log.Log(log.ShimContext).Info("pod is waiting for scheduling gates", zap.String("name", pod.Name), zap.Strings("gates", gates))
 	}
@@ -1464,7 +1464,7 @@ func (ctx *Context) HandleContainerStateUpdate(stopCtx context.Context, request 
 					Message: request.Reason,
 				}) {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
+					v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is skipped from scheduling because the queue quota has been exceed", task.alias)
 			}
 		case si.UpdateContainerSchedulingStateRequest_FAILED:
@@ -1478,7 +1478,7 @@ func (ctx *Context) HandleContainerStateUpdate(stopCtx context.Context, request 
 					Message: request.Reason,
 				}) {
 				events.GetRecorder().Eventf(task.GetTaskPod().DeepCopy(), nil,
-					v1.EventTypeNormal, "PodUnschedulable", "PodUnschedulable",
+					v1.EventTypeWarning, "PodUnschedulable", "PodUnschedulable",
 					"Task %s is pending for the requested resources become available", task.alias)
 			}
 		default:

@@ -294,13 +294,13 @@ func (task *Task) handleSubmitTaskEvent() {
 
 	if !utils.PodAlreadyBound(task.pod) {
 		// if this is a new request, add events to pod
-		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, "Scheduling", "Scheduling",
+		events.GetRecorder().Eventf(task.pod.DeepCopy(), nil, v1.EventTypeNormal, events.ReasonScheduling, events.ReasonScheduling,
 			"%s is queued and waiting for allocation", task.alias)
 		// if this task belongs to a task group, that means the app has gang scheduling enabled
 		// in this case, post an event to indicate the task is being gang scheduled
 		if !task.placeholder && task.taskGroupName != "" {
 			events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-				v1.EventTypeNormal, "GangScheduling", "TaskGroupMatch",
+				v1.EventTypeNormal, events.ReasonGangScheduling, events.ActionTaskGroupMatch,
 				"Pod belongs to the taskGroup %s, it will be scheduled as a gang member", task.taskGroupName)
 		}
 	}
@@ -445,7 +445,7 @@ func (task *Task) postTaskAllocated() {
 		dispatcher.Dispatch(NewBindTaskEvent(task.applicationID, task.taskID))
 		task.lock.Unlock()
 		events.GetRecorder().Eventf(pod.DeepCopy(), nil,
-			v1.EventTypeNormal, "PodBindSuccessful", "PodBindSuccessful",
+			v1.EventTypeNormal, events.ReasonPodBindSuccessful, events.ReasonPodBindSuccessful,
 			"Pod %s is successfully bound to node %s", alias, nodeName)
 	}(pod, alias, nodeName, allocationKey)
 }
@@ -493,7 +493,7 @@ func (task *Task) postTaskRejected() {
 // afterTaskFail releases the allocation after the FSM has dropped its locks.
 func (task *Task) afterTaskFail(eventSrc string) {
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-		v1.EventTypeNormal, "TaskFailed", "TaskFailed",
+		v1.EventTypeWarning, "TaskFailed", "TaskFailed",
 		"Task %s is failed", task.alias)
 	task.releaseAllocation(eventSrc, false)
 }
@@ -503,7 +503,7 @@ func (task *Task) afterTaskCompleted(eventSrc string) {
 	task.releaseAllocation(eventSrc, false)
 
 	events.GetRecorder().Eventf(task.pod.DeepCopy(), nil,
-		v1.EventTypeNormal, "TaskCompleted", "TaskCompleted",
+		v1.EventTypeNormal, events.ReasonTaskCompleted, events.ReasonTaskCompleted,
 		"Task %s is completed", task.alias)
 }
 
