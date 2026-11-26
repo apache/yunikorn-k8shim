@@ -333,6 +333,23 @@ func (task *Task) updateAllocation() {
 	}
 }
 
+// restoreAllocation sends the allocation of an allocated task to the core again. The core removes the allocation
+// when the node is removed, the pod keeps running and the task is not changed, nothing else submits it again.
+func (task *Task) restoreAllocation() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	state := task.GetTaskState()
+	if state != TaskStates().Allocated && state != TaskStates().Bound {
+		return
+	}
+	log.Log(log.ShimCacheTask).Info("restoring allocation of adopted pod",
+		zap.String("appID", task.applicationID),
+		zap.String("taskID", task.taskID),
+		zap.String("taskAlias", task.alias),
+		zap.String("nodeName", task.pod.Spec.NodeName))
+	task.updateAllocation()
+}
+
 // this is called after task reaches PENDING state,
 // submit the resource asks from this task to the scheduler core
 func (task *Task) postTaskPending() {

@@ -243,7 +243,7 @@ func (ctx *Context) updateNodeInternal(node *v1.Node, register bool) {
 			if applicationID == "" {
 				ctx.updateForeignPod(nil, pod)
 			} else {
-				ctx.updateYuniKornPod(applicationID, nil, pod)
+				ctx.adoptYuniKornPod(applicationID, pod)
 			}
 		}
 
@@ -439,6 +439,17 @@ func (ctx *Context) ensureAppAndTaskCreated(pod *v1.Pod, app *Application) {
 		ctx.addTask(&AddTaskRequest{
 			Metadata: taskMeta,
 		})
+	}
+}
+
+// adoptYuniKornPod processes a YuniKorn pod adopted by a newly added node. The core removes the allocation of the
+// pod with the node, a task that was allocated before must restore the allocation.
+func (ctx *Context) adoptYuniKornPod(appID string, pod *v1.Pod) {
+	ctx.updateYuniKornPod(appID, nil, pod)
+	if app := ctx.getApplication(appID); app != nil {
+		if task := app.GetTask(string(pod.UID)); task != nil {
+			task.restoreAllocation()
+		}
 	}
 }
 

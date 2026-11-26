@@ -30,6 +30,7 @@ import (
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/apache/yunikorn-core/pkg/scheduler/objects"
 	"github.com/apache/yunikorn-k8shim/pkg/cache"
 	"github.com/apache/yunikorn-k8shim/pkg/client"
 	"github.com/apache/yunikorn-k8shim/pkg/common"
@@ -491,6 +492,71 @@ func TestSchedulingGates(t *testing.T) {
 	cluster.UpdatePod(pod1, pod1Upd)
 	err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Running")
 	assert.NilError(t, err, "application has not transitioned to Running state")
+}
+
+func TestAllocationRestoredOnNodeRegistration(t *testing.T) {
+	testCases := []struct {
+		name      string
+		completed bool
+	}{
+		{"Completed", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cluster := MockScheduler{}
+			cluster.init()
+			assert.NilError(t, cluster.start(), "failed to start cluster")
+			defer cluster.stop()
+
+			err := cluster.updateConfig(configData, nil)
+			assert.NilError(t, err, "update config failed")
+			node := addNode(&cluster, "node-1")
+
+			podResource := common.NewResourceBuilder().
+				AddResource(siCommon.Memory, 1000).
+				AddResource(siCommon.CPU, 1).
+				Build()
+			pod1 := createTestPod("root.a", "app0001", "task0001", podResource)
+			cluster.AddPod(pod1)
+			cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
+			err = cluster.waitAndVerifySchedulerAllocations("root.a", partitionName, "app0001", 1)
+			assert.NilError(t, err, "pod was not allocated")
+
+			// the bind is mocked, update the pod to bound and running on the node
+			pod1Running := pod1.DeepCopy()
+			pod1Running.Spec.NodeName = "node-1"
+			pod1Running.Status.Phase = v1.PodRunning
+			cluster.UpdatePod(pod1, pod1Running)
+
+			if tc.completed {
+				// the core completes an application without allocations after the completing timeout
+				objects.SetCompletingTimeout(100 * time.Millisecond)
+				defer objects.SetCompletingTimeout(30 * time.Second)
+			}
+			// removing the node removes the allocation from the core, the pod keeps running on the node
+			cluster.DeleteNode(node)
+			if tc.completed {
+				// the node stays away until the core has completed the application
+				err = cluster.waitForCompletedApplicationInCore("app0001", partitionName)
+				assert.NilError(t, err, "application was not completed in the core")
+			} else {
+				err = cluster.waitAndVerifySchedulerAllocations("root.a", partitionName, "app0001", 0)
+				assert.NilError(t, err, "allocation was not removed with the node")
+			}
+
+			// the node registers again and adopts the running pod
+			cluster.AddNode(node)
+			err = cluster.waitAndVerifySchedulerAllocations("root.a", partitionName, "app0001", 1)
+			assert.NilError(t, err, "allocation was not restored when the node registered again")
+			coreNode := cluster.coreContext.Scheduler.GetClusterContext().GetNode("node-1", partitionName)
+			assert.Assert(t, coreNode != nil, "node is not registered in the core")
+			assert.Assert(t, coreNode.GetAllocation("task0001") != nil, "allocation is not restored on the node")
+			err = cluster.waitForApplicationStateInCore("app0001", partitionName, "Running")
+			assert.NilError(t, err, "application is not running in the core")
+			cluster.waitAndAssertTaskState(t, "app0001", "task0001", cache.TaskStates().Bound)
+		})
+	}
 }
 
 func createTestPod(queue string, appID string, taskID string, taskResource *si.Resource) *v1.Pod {
