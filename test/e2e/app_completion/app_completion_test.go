@@ -19,11 +19,15 @@
 package appcompletion_test
 
 import (
+	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/yunikorn-k8shim/pkg/common/constants"
 	"github.com/apache/yunikorn-k8shim/pkg/common/utils"
@@ -34,14 +38,44 @@ import (
 	"github.com/apache/yunikorn-k8shim/test/e2e/framework/helpers/yunikorn"
 )
 
-// an app stays in Completing for 30 seconds before it moves to Completed
-const completedTimeout = 60
+const (
+	// an app stays in Completing for 30 seconds before it moves to Completed
+	completedTimeout     = 60
+	numPods              = 50
+	pod1SleepSec         = 30
+	completingWait       = 29 * time.Second
+	pod2SleepSec         = 5
+	pod1SucceededTimeout = 120 * time.Second
+	pod2PendingTimeout   = 20 * time.Second
+	cpuRequest           = 5
+	memRequest           = 30
+	testScenarioLabelKey = "test-scenario"
+	testScenarioLabelVal = "completing-orphan-race"
+)
 
-var suiteName string
-var kClient k8s.KubeCtl
-var restClient yunikorn.RClient
-var oldConfigMap = new(v1.ConfigMap)
-var dev string
+type caseOutcome int
+
+const (
+	outcomeScheduled caseOutcome = iota
+	outcomeOrphanPending
+	outcomeFailed
+)
+
+type caseResult struct {
+	index    int
+	appID    string
+	pod2Name string
+	outcome  caseOutcome
+	err      error
+}
+
+var (
+	suiteName    string
+	kClient      k8s.KubeCtl
+	restClient   yunikorn.RClient
+	oldConfigMap = new(v1.ConfigMap)
+	dev          string
+)
 
 var _ = ginkgo.Describe("", func() {
 	ginkgo.BeforeEach(func() {
@@ -87,6 +121,52 @@ var _ = ginkgo.Describe("", func() {
 		err = restClient.WaitForCompletedAppStateTransition(configmanager.DefaultPartition, appID,
 			yunikorn.States().Application.Completed, completedTimeout)
 		Ω(err).To(HaveOccurred())
+	})
+
+	ginkgo.It("Verify_Completing_App_No_Orphan_Tasks", func() {
+		ginkgo.By(fmt.Sprintf("Running %d concurrent application cases (pod1 sleep=%ds, completing wait=%v)",
+			numPods, pod1SleepSec, completingWait))
+
+		results := make([]caseResult, numPods)
+		var wg sync.WaitGroup
+		wg.Add(numPods)
+
+		for i := 1; i <= numPods; i++ {
+			go func(idx int) {
+				defer ginkgo.GinkgoRecover()
+				defer wg.Done()
+				results[idx-1] = runSingleCase(dev, idx)
+			}(i)
+		}
+
+		wg.Wait()
+
+		var scheduledCount int
+		var orphanCases []string
+		var failedCases []string
+
+		for _, res := range results {
+			switch res.outcome {
+			case outcomeScheduled:
+				scheduledCount++
+			case outcomeOrphanPending:
+				orphanCases = append(orphanCases, fmt.Sprintf("%s (%s)", res.appID, res.pod2Name))
+			case outcomeFailed:
+				failedCases = append(failedCases, fmt.Sprintf("%s: %v", res.appID, res.err))
+			}
+		}
+
+		fmt.Fprintf(ginkgo.GinkgoWriter, "\n========================================\n")
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Test Summary\n")
+		fmt.Fprintf(ginkgo.GinkgoWriter, "========================================\n")
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Total cases run       : %d\n", numPods)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "pod2 scheduled normal : %d\n", scheduledCount)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "pod2 stuck in Pending : %d\n", len(orphanCases))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "========================================\n")
+
+		gomega.Expect(failedCases).To(gomega.BeEmpty(), "Unexpected errors during test cases: %v", failedCases)
+		gomega.Expect(orphanCases).To(gomega.BeEmpty(),
+			"Applications hit the Completing -> Completed orphan task race: %v", orphanCases)
 	})
 
 	ginkgo.AfterEach(func() {
@@ -144,4 +224,105 @@ func verifyPodRuns(appID string, initPod *v1.Pod) {
 	err = restClient.WaitForAppStateTransition(configmanager.DefaultPartition, "root."+dev, appID,
 		yunikorn.States().Application.Running, 30)
 	Ω(err).NotTo(HaveOccurred())
+}
+
+func runSingleCase(ns string, index int) caseResult {
+	appID := fmt.Sprintf("case-%d", index)
+	pod1Name := fmt.Sprintf("pod-%d", index)
+	pod2Name := fmt.Sprintf("pod2-%d", index)
+	labels := map[string]string{
+		"queue":              "root." + ns,
+		testScenarioLabelKey: testScenarioLabelVal,
+	}
+
+	pod1, err := k8s.InitSleepPod(k8s.SleepPodConfig{
+		Name:   pod1Name,
+		NS:     ns,
+		AppID:  appID,
+		Time:   pod1SleepSec,
+		CPU:    cpuRequest,
+		Mem:    memRequest,
+		Labels: labels,
+	})
+	if err != nil {
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeFailed, err: err}
+	}
+
+	fmt.Fprintf(ginkgo.GinkgoWriter, "[%s] Creating %s\n", appID, pod1Name)
+	_, err = kClient.CreatePod(pod1, ns)
+	if err != nil {
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeFailed, err: err}
+	}
+
+	err = waitForPodSucceeded(ns, pod1Name, pod1SucceededTimeout)
+	if err != nil {
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeFailed, err: err}
+	}
+
+	fmt.Fprintf(ginkgo.GinkgoWriter, "[%s] Pod %s is in Completed (Succeeded) state. Sleeping %v...\n",
+		appID, pod1Name, completingWait)
+	time.Sleep(completingWait)
+
+	pod2, err := k8s.InitSleepPod(k8s.SleepPodConfig{
+		Name:   pod2Name,
+		NS:     ns,
+		AppID:  appID,
+		Time:   pod2SleepSec,
+		CPU:    cpuRequest,
+		Mem:    memRequest,
+		Labels: labels,
+	})
+	if err != nil {
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeFailed, err: err}
+	}
+
+	fmt.Fprintf(ginkgo.GinkgoWriter, "[%s] Creating %s\n", appID, pod2Name)
+	_, err = kClient.CreatePod(pod2, ns)
+	if err != nil {
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeFailed, err: err}
+	}
+
+	scheduled := waitForPod2Scheduled(ns, appID, pod2Name, pod2PendingTimeout)
+	if !scheduled {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "[%s] REPRODUCED: %s remained Pending after %v!\n",
+			appID, pod2Name, pod2PendingTimeout)
+		return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeOrphanPending}
+	}
+
+	return caseResult{index: index, appID: appID, pod2Name: pod2Name, outcome: outcomeScheduled}
+}
+
+func waitForPodSucceeded(ns, podName string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.Background(), time.Second, timeout, false,
+		func(ctx context.Context) (bool, error) {
+			pod, err := kClient.GetPod(podName, ns)
+			if err != nil {
+				return false, nil
+			}
+			switch pod.Status.Phase {
+			case v1.PodSucceeded:
+				return true, nil
+			case v1.PodFailed:
+				return false, fmt.Errorf("pod %s failed unexpectedly", podName)
+			default:
+				return false, nil
+			}
+		})
+}
+
+func waitForPod2Scheduled(ns, appID, pod2Name string, timeout time.Duration) bool {
+	err := wait.PollUntilContextTimeout(context.Background(), time.Second, timeout, true,
+		func(ctx context.Context) (bool, error) {
+			pod, err := kClient.GetPod(pod2Name, ns)
+			if err != nil {
+				return false, nil
+			}
+			if pod.Spec.NodeName != "" || pod.Status.Phase == v1.PodRunning || pod.Status.Phase == v1.PodSucceeded {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "[%s] %s scheduled successfully (phase=%s, node=%s)\n",
+					appID, pod2Name, pod.Status.Phase, pod.Spec.NodeName)
+				return true, nil
+			}
+			return false, nil
+		})
+	return err == nil
 }

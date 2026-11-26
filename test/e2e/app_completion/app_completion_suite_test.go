@@ -68,7 +68,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	err := kClient.PortForwardYkSchedulerPod()
 	Ω(err).NotTo(HaveOccurred())
 
-	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "")
+	yunikorn.UpdateConfigMapWrapper(oldConfigMap, "fifo")
 })
 
 var _ = ginkgo.AfterSuite(func() {
