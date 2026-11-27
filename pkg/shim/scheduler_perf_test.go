@@ -326,7 +326,7 @@ func getTestPods(noApps, noTasksPerApp int, queue string) []*v1.Pod {
 	return pods
 }
 
-func addNode(cluster *MockScheduler, name string) {
+func addNode(cluster *MockScheduler, name string) *v1.Node {
 	node := &v1.Node{
 		Spec: v1.NodeSpec{
 			Unschedulable: false,
@@ -348,4 +348,5 @@ func addNode(cluster *MockScheduler, name string) {
 	}
 
 	cluster.AddNode(node)
+	return node
 }
