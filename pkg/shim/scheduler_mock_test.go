@@ -318,6 +318,17 @@ func (fc *MockScheduler) waitForApplicationStateInCore(appID, partition, expecte
 	}, time.Second, 60*time.Second)
 }
 
+func (fc *MockScheduler) waitForCompletedApplicationInCore(appID, partition string) error {
+	return utils.WaitForCondition(func() bool {
+		for _, app := range fc.coreContext.Scheduler.GetClusterContext().GetPartition(partition).GetCompletedApplications() {
+			if app.ApplicationID == appID {
+				return true
+			}
+		}
+		return false
+	}, time.Second, 5*time.Second)
+}
+
 func (fc *MockScheduler) waitAndAssertForeignAllocationInCore(partition, allocationID, nodeID string, shouldExist bool) error {
 	return utils.WaitForCondition(func() bool {
 		node := fc.coreContext.Scheduler.GetClusterContext().GetNode(nodeID, partition)

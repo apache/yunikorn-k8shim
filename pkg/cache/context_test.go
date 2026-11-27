@@ -2270,6 +2270,72 @@ func TestPodAdoption(t *testing.T) {
 	assert.Assert(t, !ctx.schedulerCache.IsPodOrphaned(podForeignUID), "foreign pod has not been adopted")
 }
 
+func TestPodAdoptionRestoresAllocation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		taskState string
+		restored  bool
+	}{
+		{"New", TaskStates().New, false},
+		{"Scheduling", TaskStates().Scheduling, false},
+		{"Allocated", TaskStates().Allocated, true},
+		{"Bound", TaskStates().Bound, true},
+		{"Completed", TaskStates().Completed, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, apiProvider := initContextAndAPIProviderForTest()
+			dispatcher.Start()
+			defer dispatcher.UnregisterAllEventHandlers()
+			defer dispatcher.Stop()
+
+			// requests sent to the core in order
+			requests := make([]string, 0)
+			apiProvider.MockSchedulerAPIUpdateNodeFn(func(request *si.NodeRequest) error {
+				for _, node := range request.Nodes {
+					requests = append(requests, node.Action.String())
+					if node.Action == si.NodeInfo_CREATE_DRAIN {
+						dispatcher.Dispatch(CachedSchedulerNodeEvent{
+							NodeID: node.NodeID,
+							Event:  NodeAccepted,
+						})
+					}
+				}
+				return nil
+			})
+			apiProvider.MockSchedulerAPIUpdateAllocationFn(func(request *si.AllocationRequest) error {
+				for _, alloc := range request.Allocations {
+					requests = append(requests, fmt.Sprintf("allocate %s on %s", alloc.AllocationKey, alloc.NodeID))
+				}
+				return nil
+			})
+
+			node := nodeForTest(Host1, "10G", "10")
+			ctx.addNode(node)
+			ctx.AddPod(newPodHelper(podName1, namespace, pod1UID, Host1, appID, v1.PodRunning))
+			task := ctx.getTask(appID, pod1UID)
+			assert.Assert(t, task != nil, "task was not created")
+			task.sm.SetState(tc.taskState)
+
+			// the core removes the allocation with the node, and the pod keeps running
+			ctx.deleteNode(node)
+			assert.Assert(t, ctx.schedulerCache.IsPodOrphaned(pod1UID), "pod was not orphaned")
+
+			requests = requests[:0]
+			ctx.addNode(node)
+			assert.Assert(t, !ctx.schedulerCache.IsPodOrphaned(pod1UID), "pod was not adopted")
+			expected := []string{si.NodeInfo_CREATE_DRAIN.String()}
+			if tc.restored {
+				// restored before the node becomes schedulable
+				expected = append(expected, fmt.Sprintf("allocate %s on %s", pod1UID, Host1))
+			}
+			expected = append(expected, si.NodeInfo_DRAIN_TO_SCHEDULABLE.String())
+			assert.DeepEqual(t, requests, expected)
+		})
+	}
+}
+
 func TestOrphanPodUpdate(t *testing.T) {
 	ctx, apiProvider := initContextAndAPIProviderForTest()
 	dispatcher.Start()
