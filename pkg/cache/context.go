@@ -123,6 +123,10 @@ func NewContextWithBootstrapConfigMaps(apis client.APIProvider, bootstrapConfigM
 				log.Log(log.ShimContext).Warn("unable to override the DRAExtendedResource feature to false", zap.Error(err))
 			}
 		}
+		// PreBind calls EventRecorder for a device with binding conditions, which the framework handle does not support
+		if err := feature.DefaultMutableFeatureGate.OverrideDefault(features.DRADeviceBindingConditions, false); err != nil {
+			log.Log(log.ShimContext).Warn("unable to override the DRADeviceBindingConditions feature to false", zap.Error(err))
+		}
 		resourceClaimInformer := apis.GetAPIs().ResourceClaimsInformer.Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(ctx.klogger, resourceClaimInformer, "ResourceClaim", "", nil)
 		resourceSliceTracker, err := tracker.StartTracker(context.TODO(), tracker.Options{
