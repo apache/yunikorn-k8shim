@@ -826,10 +826,9 @@ func (ctx *Context) doPluginRequisiteChecks(name, node string) (*v1.Pod, *framew
 
 // reserve Binding Cycle - reserve the node for binding process
 // Unreserve needs the cycle state passed to the plugins, so it is returned even on failure; nil if they did not run.
+// Lock free call: the plugins do not read the cache.
 func (ctx *Context) reserve(name, node string) (*framework.CycleState, bool) {
-	ctx.lock.RLock()
-	defer ctx.lock.RUnlock()
-	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	pod, _, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("reserve failed",
 			zap.Error(err),
@@ -837,10 +836,7 @@ func (ctx *Context) reserve(name, node string) (*framework.CycleState, bool) {
 			zap.String("node", node))
 		return nil, false
 	}
-	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
-	defer ctx.schedulerCache.UnlockForReads()
-	err = ctx.predManager.Reserve(pod, cycleState, targetNode)
+	err = ctx.predManager.Reserve(pod, cycleState, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("reserve failed",
 			zap.String("pod", name),
@@ -852,10 +848,9 @@ func (ctx *Context) reserve(name, node string) (*framework.CycleState, bool) {
 }
 
 // preBind Binding Cycle - preBind the node for binding process
+// Lock free call: the plugins do not read the cache.
 func (ctx *Context) preBind(name, node string) bool {
-	ctx.lock.RLock()
-	defer ctx.lock.RUnlock()
-	pod, targetNode, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
+	pod, _, cycleState, err := ctx.doPluginRequisiteChecks(name, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("prebind failed",
 			zap.String("pod", name),
@@ -863,10 +858,7 @@ func (ctx *Context) preBind(name, node string) bool {
 			zap.Error(err))
 		return false
 	}
-	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
-	defer ctx.schedulerCache.UnlockForReads()
-	err = ctx.predManager.PreBind(pod, cycleState, targetNode)
+	err = ctx.predManager.PreBind(pod, cycleState, node)
 	if err != nil {
 		log.Log(log.ShimContext).Error("prebind failed",
 			zap.String("pod", name),
@@ -878,12 +870,8 @@ func (ctx *Context) preBind(name, node string) bool {
 }
 
 // unreserve Binding Cycle - unreserve the node to clear out the binding work
+// Lock free call: the plugins do not read the cache.
 func (ctx *Context) unreserve(pod *v1.Pod, cycleState *framework.CycleState, node string) {
-	ctx.lock.RLock()
-	defer ctx.lock.RUnlock()
-	// need to lock cache here as predicates need a stable view into the cache
-	ctx.schedulerCache.LockForReads()
-	defer ctx.schedulerCache.UnlockForReads()
 	ctx.predManager.Unreserve(pod, cycleState, node)
 }
 

@@ -54,9 +54,9 @@ type PredicateManager interface {
 	// Returns the victim index that allows the pod to fit, or -1 if none.
 	PreemptionFilter(pod *v1.Pod, node *framework.NodeInfo, cycleState *framework.CycleState, victims []*v1.Pod, startIndex int) (index int, filterErrors map[string]int32)
 	// Reserve Binding cycle - Reserve the node
-	Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
+	Reserve(pod *v1.Pod, cycleState *framework.CycleState, nodeName string) error
 	// PreBind Binding cycle - PreBind the node
-	PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error
+	PreBind(pod *v1.Pod, cycleState *framework.CycleState, nodeName string) error
 	// Unreserve Binding cycle - Unreserve the node, which may be gone from the cache
 	Unreserve(pod *v1.Pod, cycleState *framework.CycleState, nodeName string)
 }
@@ -119,11 +119,11 @@ func (p *predicateManagerImpl) PreemptionFilter(pod *v1.Pod, node *framework.Nod
 	return -1, pluginErrors
 }
 
-func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleState, nodeName string) error {
 	reservePl := *p.reservePlugins
 	for _, pl := range reservePl {
 		plugin := pl.Name()
-		status := pl.Reserve(context.Background(), cycleState, pod, node.Node().Name)
+		status := pl.Reserve(context.Background(), cycleState, pod, nodeName)
 		if !status.IsSuccess() {
 			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running reserve plugin",
@@ -136,11 +136,11 @@ func (p *predicateManagerImpl) Reserve(pod *v1.Pod, cycleState *framework.CycleS
 	return nil
 }
 
-func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleState, node *framework.NodeInfo) error {
+func (p *predicateManagerImpl) PreBind(pod *v1.Pod, cycleState *framework.CycleState, nodeName string) error {
 	preBindPl := *p.preBindPlugins
 	for _, pl := range preBindPl {
 		plugin := pl.Name()
-		status := pl.PreBind(context.Background(), cycleState, pod, node.Node().Name)
+		status := pl.PreBind(context.Background(), cycleState, pod, nodeName)
 		if !status.IsSuccess() {
 			err := errors.New(status.Message())
 			log.Log(log.ShimPredicates).Error("failed running preBind plugin",
@@ -356,6 +356,7 @@ func NewPredicateManager(handle fwk.Handle, registry fwruntime.Registry, config 
 				"*": true,
 			}
 			allocationFilters = allocationPreFilters
+			// called lock free: these plugins must not read the cache
 			rp = map[string]bool{
 				names.DynamicResources: true,
 			}

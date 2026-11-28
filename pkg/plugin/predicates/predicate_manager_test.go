@@ -160,7 +160,7 @@ func (pl MockReservePlugin) Name() string {
 }
 
 func (pl MockReservePlugin) Reserve(ctx context.Context, state fwk.CycleState, pod *v1.Pod, nodeName string) *fwk.Status {
-	state.Write("mock-reserve", &MockReserveStateData{counter: 1})
+	state.Write("mock-reserve", &MockReserveStateData{counter: 1, nodeName: nodeName})
 	return fwk.NewStatus(fwk.Code(pl.inj.ReserveStatus), pl.inj.ReserveReason)
 }
 
@@ -182,6 +182,7 @@ func (pl MockPreBindPlugin) PreBindPreFlight(ctx context.Context, state fwk.Cycl
 }
 
 func (pl MockPreBindPlugin) PreBind(ctx context.Context, state fwk.CycleState, p *v1.Pod, nodeName string) *fwk.Status {
+	state.Write("mock-prebind", &MockReserveStateData{nodeName: nodeName})
 	return fwk.NewStatus(fwk.Code(pl.inj.PreBindStatus), pl.inj.PreBindReason)
 }
 
@@ -2885,10 +2886,7 @@ func TestReservePluginReserve(t *testing.T) {
 			NodeName: "foo",
 		},
 	}
-	node := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "foo",
-		}}
+	nodeName := "reserve-node"
 	testCases := []struct {
 		name           string
 		pod            *v1.Pod
@@ -2927,9 +2925,7 @@ func TestReservePluginReserve(t *testing.T) {
 			assert.NilError(t, err)
 			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, nil, ep, nil)
 			cycleState := framework.NewCycleState()
-			nodeInfo := framework.NewNodeInfo()
-			nodeInfo.SetNode(node)
-			pluginErr := p.Reserve(tc.pod, cycleState, nodeInfo)
+			pluginErr := p.Reserve(tc.pod, cycleState, nodeName)
 			read, err := cycleState.Read("mock-reserve")
 			if err != nil {
 				t.Fatalf("fail to read mock-reserve state data")
@@ -2937,6 +2933,7 @@ func TestReservePluginReserve(t *testing.T) {
 			s, ok := read.(*MockReserveStateData)
 			assert.Assert(t, ok)
 			assert.Equal(t, s.counter, 1, "invalid counter, reserve of reserve plugin not even called")
+			assert.Equal(t, s.nodeName, nodeName, "reserve should get the node name")
 			if tc.errorExpected != nil {
 				assert.Assert(t, pluginErr != nil, "error should not be nil")
 			} else {
@@ -2956,10 +2953,7 @@ func TestPreBindPlugin(t *testing.T) {
 			NodeName: "foo",
 		},
 	}
-	node := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "foo",
-		}}
+	nodeName := "reserve-node"
 	testCases := []struct {
 		name           string
 		pod            *v1.Pod
@@ -3006,9 +3000,7 @@ func TestPreBindPlugin(t *testing.T) {
 			assert.NilError(t, err)
 			p := newPredicateManagerInternal(handle, r, config, nil, nil, nil, nil, ep, ep)
 			cycleState := framework.NewCycleState()
-			nodeInfo := framework.NewNodeInfo()
-			nodeInfo.SetNode(node)
-			reservePluginErr := p.Reserve(tc.pod, cycleState, nodeInfo)
+			reservePluginErr := p.Reserve(tc.pod, cycleState, nodeName)
 			assert.NilError(t, reservePluginErr)
 			read, err := cycleState.Read("mock-reserve")
 			if err != nil {
@@ -3017,10 +3009,15 @@ func TestPreBindPlugin(t *testing.T) {
 			s, ok := read.(*MockReserveStateData)
 			assert.Assert(t, ok)
 			assert.Equal(t, s.counter, 1, "invalid counter, reserve of reserve plugin not even called")
-			pluginErr := p.PreBind(tc.pod, cycleState, nodeInfo)
+			pluginErr := p.PreBind(tc.pod, cycleState, nodeName)
+			read, err = cycleState.Read("mock-prebind")
+			assert.NilError(t, err, "fail to read mock-prebind state data")
+			s, ok = read.(*MockReserveStateData)
+			assert.Assert(t, ok)
+			assert.Equal(t, s.nodeName, nodeName, "prebind should get the node name")
 			if tc.errorExpected != nil {
 				assert.Assert(t, pluginErr != nil, "error should not be nil")
-				p.Unreserve(tc.pod, cycleState, node.Name)
+				p.Unreserve(tc.pod, cycleState, nodeName)
 				read, err = cycleState.Read("mock-reserve")
 				if err != nil {
 					t.Fatalf("fail to read mock-reserve state data")
@@ -3030,7 +3027,7 @@ func TestPreBindPlugin(t *testing.T) {
 					t.Fatalf("fail to read mock-reserve state data")
 				}
 				assert.Equal(t, s.counter, 0, "invalid counter, unreserve of reserve plugin not even called")
-				assert.Equal(t, s.nodeName, node.Name, "unreserve should get the node name")
+				assert.Equal(t, s.nodeName, nodeName, "unreserve should get the node name")
 			} else {
 				assert.NilError(t, pluginErr, "error should be nil")
 			}

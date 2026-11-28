@@ -1297,7 +1297,7 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 				if pod.UID != draTestPod.UID || cs != cycleState || nodeName != fakeNodeName {
 					unreservedWrongArgs.Add(1)
 				}
-				// check from another goroutine, unreserve holds the context lock
+				// from another goroutine, so a task lock held here fails the check instead of hanging
 				free := make(chan struct{})
 				go func() {
 					task.lock.Lock()
@@ -1334,6 +1334,71 @@ func TestPostTaskAllocatedWithDRABindings(t *testing.T) {
 			assert.Equal(t, int32(0), unreservedWrongArgs.Load(), "unreserve should get the pod, cycle state and node of the bind")
 		})
 	}
+}
+
+func TestPostTaskAllocatedWithPodUpdateDuringReserve(t *testing.T) {
+	dispatcher.Start()
+	defer dispatcher.Stop()
+	apis := client.NewMockedAPIProvider(false)
+	cache := external.NewSchedulerCache(apis.GetAPIs())
+	cache.UpdateNode(nodeForTest(fakeNodeName, "10G", "10"))
+	pod := newDRATestPod("dra-update-pod", taskUID1)
+	pod.Spec.SchedulerName = constants.SchedulerName
+	pod.Labels = map[string]string{constants.LabelApplicationID: appID1}
+	cache.UpdatePod(pod)
+	cache.StoreCycleState(pod, framework.NewCycleState())
+	pm := NewMockPredicateManager(false, false, false, false, false)
+	mockedContext, apiProvider := initContextWithMockedPredicateManager(apis, pm, cache)
+	mockedContext.Stop()
+	app := NewApplication(appID1, queueNameA, testUser, testGroups, map[string]string{}, apiProvider.GetAPIs().SchedulerAPI)
+	mockedContext.applications[appID1] = app
+	task := NewTask(taskUID1, app, mockedContext, pod)
+	app.addTask(task)
+	task.sm.SetState(TaskStates().Scheduling)
+
+	inReserve, releaseReserve, inPreBind := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	pm.reserveFn = func(*v1.Pod, *framework.CycleState, string) {
+		close(inReserve)
+		<-releaseReserve
+	}
+	pm.preBindFn = func(*v1.Pod, *framework.CycleState, string) { close(inPreBind) }
+	err := task.handle(NewAllocateTaskEvent(app.applicationID, task.taskID, taskUID1, fakeNodeName))
+	assert.NilError(t, err, "failed to handle AllocateTask event")
+	select {
+	case <-inReserve:
+	case <-time.After(time.Second):
+		t.Fatal("the bind did not reach Reserve")
+	}
+
+	// as UpdatePod: hold the context lock, then wait in SetTaskPod for the task lock
+	locked, updated := make(chan struct{}), make(chan struct{})
+	go func() {
+		mockedContext.lock.Lock()
+		close(locked)
+		mockedContext.updateYuniKornPod(appID1, pod, pod.DeepCopy())
+		mockedContext.lock.Unlock()
+		close(updated)
+	}()
+	select {
+	case <-locked:
+	case <-time.After(time.Second):
+		t.Fatal("Reserve held the context lock")
+	}
+	close(releaseReserve)
+	select {
+	case <-inPreBind:
+	case <-time.After(time.Second):
+		t.Fatal("PreBind waited for the context lock")
+	}
+	select {
+	case <-updated:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the pod update and the bind deadlocked")
+	}
+	err = utils.WaitForCondition(func() bool {
+		return task.GetTaskSchedulingState() == TaskSchedAllocated && cache.GetCycleState(pod) == nil
+	}, 10*time.Millisecond, time.Second)
+	assert.NilError(t, err, "pod should be bound")
 }
 
 // TestPostTaskAllocated_VolumeBindExhaustedReschedules verifies that when volume binding

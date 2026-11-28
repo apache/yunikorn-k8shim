@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -2732,6 +2733,74 @@ func TestRevertPodVolumeAssumptions_NilPodVolumes(t *testing.T) {
 
 	context.RevertPodVolumeAssumptions(pod1UID, fakeNodeName)
 	assert.Equal(t, binder.RevertCalledCount(), 0)
+}
+
+func TestDRAPluginCallsDoNotBlockOtherPods(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(ctx *Context, pod *v1.Pod, cycleState *framework.CycleState)
+	}{
+		{name: "reserve", call: func(ctx *Context, pod *v1.Pod, _ *framework.CycleState) { ctx.reserve(string(pod.UID), fakeNodeName) }},
+		{name: "prebind", call: func(ctx *Context, pod *v1.Pod, _ *framework.CycleState) { ctx.preBind(string(pod.UID), fakeNodeName) }},
+		{name: "unreserve", call: func(ctx *Context, pod *v1.Pod, cycleState *framework.CycleState) {
+			ctx.unreserve(pod, cycleState, fakeNodeName)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiProvider := client.NewMockedAPIProvider(false)
+			schedulerCache := external.NewSchedulerCache(apiProvider.GetAPIs())
+			schedulerCache.UpdateNode(nodeForTest(fakeNodeName, "10G", "10"))
+			pod := newDRATestPod("dra-pod", "dra-uid")
+			other := newDRATestPod("other-pod", "other-uid")
+			schedulerCache.UpdatePod(pod)
+			schedulerCache.UpdatePod(other)
+			cycleState := framework.NewCycleState()
+			schedulerCache.StoreCycleState(pod, cycleState)
+			pm := NewMockPredicateManager(false, false, false, false, false)
+			ctx, _ := initContextWithMockedPredicateManager(apiProvider, pm, schedulerCache)
+			ctx.Stop()
+
+			inPlugin, release := make(chan struct{}), make(chan struct{})
+			var wrongArgs atomic.Bool
+			block := func(p *v1.Pod, cs *framework.CycleState, nodeName string) {
+				if p.UID != pod.UID || cs != cycleState || nodeName != fakeNodeName {
+					wrongArgs.Store(true)
+				}
+				close(inPlugin)
+				<-release
+			}
+			pm.reserveFn, pm.preBindFn, pm.unreserveFn = block, block, block
+			called := make(chan struct{})
+			go func() {
+				tt.call(ctx, pod, cycleState)
+				close(called)
+			}()
+			select {
+			case <-inPlugin:
+			case <-called:
+				t.Fatal("the plugin was not called")
+			}
+
+			// UpdatePod needs the context write lock, PreFilter the cache write lock
+			done := make(chan struct{})
+			go func() {
+				ctx.UpdatePod(other, other.DeepCopy())
+				ctx.PreFilter(string(other.UID), false)
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Error("UpdatePod and PreFilter of another pod waited for the plugin call")
+			}
+			close(release)
+			<-called
+			<-done
+			assert.Assert(t, schedulerCache.GetCycleState(other) != nil, "PreFilter of the other pod should store its cycle state")
+			assert.Assert(t, !wrongArgs.Load(), "the plugin should get the pod, cycle state and node")
+		})
+	}
 }
 
 func waitForNodeAcceptedEvent(recorder *k8sEvents.FakeRecorder) error {
