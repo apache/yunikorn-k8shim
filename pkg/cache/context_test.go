@@ -28,12 +28,17 @@ import (
 
 	"gotest.tools/v3/assert"
 	v1 "k8s.io/api/core/v1"
+	apiresourcev1 "k8s.io/api/resource/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apis "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	k8sEvents "k8s.io/client-go/tools/events"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 
 	"github.com/apache/yunikorn-k8shim/pkg/cache/external"
@@ -2962,6 +2967,96 @@ func TestContextStop(t *testing.T) {
 
 	context.Stop()
 	assert.Assert(t, context.resourceSliceTracker == nil)
+}
+
+func TestNewContextDisablesDRADeviceBindingConditions(t *testing.T) {
+	tests := map[string]struct {
+		bindingConditions []string
+		filterErr         string
+	}{
+		"device without binding conditions": {},
+		"device with binding conditions":    {bindingConditions: []string{"attached"}, filterErr: "cannot allocate all claims"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// an earlier NewContext may have turned the default off: turn it on so this context has to turn it off
+			err := feature.DefaultMutableFeatureGate.OverrideDefault(features.DRADeviceBindingConditions, true)
+			assert.NilError(t, err, "failed to reset the feature default")
+			context := newDRAContextForTest(t, tc.bindingConditions)
+			node := nodeForTest(Host1, "10G", "10")
+			node.Status.Allocatable[v1.ResourcePods] = resource.MustParse("10")
+			context.schedulerCache.UpdateNode(node)
+			pod := newDRATestPod("dra-pod", uid1)
+			pod.Namespace = "default"
+			pod.Spec.ResourceClaims[0].ResourceClaimName = new("claim")
+			context.schedulerCache.UpdatePod(pod)
+			var resp *si.PreFilterPredicatesResponse
+			err = utils.WaitForCondition(func() bool {
+				if !context.resourceSliceTracker.HasSynced() {
+					return false
+				}
+				resp = context.PreFilter(uid1, true)
+				return resp.Success
+			}, 10*time.Millisecond, time.Second)
+			assert.NilError(t, err, "slices not synced or PreFilter failed: %v", resp)
+			err = context.IsPodFitNode(uid1, Host1, true)
+			if tc.filterErr == "" {
+				assert.NilError(t, err, "the device should be allocated")
+			} else {
+				assert.ErrorContains(t, err, tc.filterErr, "the device should be skipped")
+			}
+		})
+	}
+}
+
+// newDRAContextForTest returns a context whose DRA plugin sees one claim and one device on Host1.
+func newDRAContextForTest(t *testing.T, bindingConditions []string) *Context {
+	device := apiresourcev1.Device{Name: "gpu-0", BindingConditions: bindingConditions}
+	if len(bindingConditions) > 0 {
+		device.BindingFailureConditions = []string{"failed"}
+	}
+	clientSet := fake.NewClientset(
+		&apiresourcev1.DeviceClass{
+			ObjectMeta: apis.ObjectMeta{Name: "gpu"},
+			Spec: apiresourcev1.DeviceClassSpec{Selectors: []apiresourcev1.DeviceSelector{{
+				CEL: &apiresourcev1.CELDeviceSelector{Expression: `device.driver == "gpu.example.com"`},
+			}}},
+		},
+		&apiresourcev1.ResourceSlice{
+			ObjectMeta: apis.ObjectMeta{Name: "gpu-slice"},
+			Spec: apiresourcev1.ResourceSliceSpec{
+				Driver:   "gpu.example.com",
+				Pool:     apiresourcev1.ResourcePool{Name: Host1, ResourceSliceCount: 1},
+				NodeName: new(Host1),
+				Devices:  []apiresourcev1.Device{device},
+			},
+		},
+		&apiresourcev1.ResourceClaim{
+			ObjectMeta: apis.ObjectMeta{Name: "claim", Namespace: "default"},
+			Spec: apiresourcev1.ResourceClaimSpec{Devices: apiresourcev1.DeviceClaim{Requests: []apiresourcev1.DeviceRequest{{
+				Name: "gpu",
+				Exactly: &apiresourcev1.ExactDeviceRequest{
+					DeviceClassName: "gpu",
+					AllocationMode:  apiresourcev1.DeviceAllocationModeExactCount,
+					Count:           1,
+				},
+			}}}},
+		},
+	)
+	informerFactory := informers.NewSharedInformerFactory(clientSet, 0)
+	apiProvider := client.NewMockedAPIProvider(false)
+	clients := apiProvider.GetAPIs()
+	clients.InformerFactory = informerFactory
+	clients.ResourceClaimsInformer = informerFactory.Resource().V1().ResourceClaims()
+	clients.ResourceSlicesInformer = informerFactory.Resource().V1().ResourceSlices()
+	clients.DeviceTaintsInformer = informerFactory.Resource().V1().DeviceTaintRules()
+	context := NewContext(apiProvider)
+	informerFactory.Start(t.Context().Done())
+	t.Cleanup(func() {
+		context.Stop()
+		informerFactory.Shutdown()
+	})
+	return context
 }
 
 func TestOriginatorWithInvalidPlaceholderFlag(t *testing.T) {
